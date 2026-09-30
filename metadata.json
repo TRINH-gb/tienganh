@@ -1,0 +1,6 @@
+{
+  "name": "AI English Exam Vocabulary Architect (EVM)",
+  "description": "Kiến trúc sư từ vựng đề thi tiếng Anh THPT Quốc Gia - Phân tích ngữ liệu đề thi, trích xuất Collocations, Phrasal Verbs, Idioms, Prepositions, tạo Flashcards và AI Quiz cá nhân hoá.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

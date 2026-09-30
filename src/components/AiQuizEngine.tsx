@@ -1,0 +1,665 @@
+import React, { useState } from 'react';
+import {
+  HelpCircle,
+  Sparkles,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  Award,
+  Loader2,
+  SlidersHorizontal,
+  ChevronRight,
+  BookOpen,
+  Volume2,
+  Download,
+  Printer,
+  FileText
+} from 'lucide-react';
+import confetti from 'canvas-confetti';
+import { VocabularyItem, QuizQuestion, MasteryStatus } from '../types';
+import { speakEnglish } from '../utils/tts';
+import { generateQuizWithFallback, getStoredApiKey } from '../services/geminiService';
+import { downloadDocxFile, printExamDocument } from '../utils/documentExport';
+
+interface AiQuizEngineProps {
+  vocabulary: VocabularyItem[];
+  onUpdateQuizResult: (term: string, isCorrect: boolean) => void;
+  accent: 'UK' | 'US';
+  onOpenApiKeyModal?: () => void;
+}
+
+export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
+  vocabulary,
+  onUpdateQuizResult,
+  accent,
+  onOpenApiKeyModal
+}) => {
+  const [questionCount, setQuestionCount] = useState<number>(5);
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([
+    'Fill-in-the-blank',
+    'Synonyms/Antonyms',
+    'Sentence Completion'
+  ]);
+  const [filterVocabMode, setFilterVocabMode] = useState<'all' | 'needReview' | 'learning'>('all');
+  const [quizMode, setQuizMode] = useState<'instant' | 'exam'>('instant');
+
+  // Generator & Quiz State
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
+  const [answers, setAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D'>>({});
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+
+  // Filter Target Vocabulary for Quiz Generation
+  const targetVocabList = vocabulary.filter((v) => {
+    if (filterVocabMode === 'needReview') return v.status === 'Chưa thuộc';
+    if (filterVocabMode === 'learning') return v.status === 'Đang học';
+    return true;
+  });
+
+  const handleToggleType = (type: string) => {
+    if (selectedTypes.includes(type)) {
+      if (selectedTypes.length === 1) return;
+      setSelectedTypes(selectedTypes.filter((t) => t !== type));
+    } else {
+      setSelectedTypes([...selectedTypes, type]);
+    }
+  };
+
+  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
+
+  const handleGenerateQuiz = async () => {
+    if (targetVocabList.length === 0) {
+      setErrorMsg('Không có từ vựng nào trong danh sách được chọn. Hãy thêm từ vựng vào sổ tay trước.');
+      return;
+    }
+
+    const currentKey = getStoredApiKey();
+    if (!currentKey && onOpenApiKeyModal) {
+      onOpenApiKeyModal();
+      return;
+    }
+
+    setIsLoading(true);
+    setErrorMsg(null);
+    setFallbackNotice(null);
+    setAnswers({});
+    setIsSubmitted(false);
+    setActiveQuestionIdx(0);
+
+    try {
+      const generatedQuestions = await generateQuizWithFallback(
+        targetVocabList,
+        questionCount,
+        selectedTypes,
+        (failedModel, nextModel, error) => {
+          setFallbackNotice(
+            `Model "${failedModel}" gặp sự cố (${error.slice(0, 80)}...). Tự động chuyển sang model dự phòng "${nextModel}".`
+          );
+        }
+      );
+
+      setQuestions(generatedQuestions);
+    } catch (err: any) {
+      console.error('Quiz generation error:', err);
+      setErrorMsg(err.message || 'Không thể tạo bài tập trắc nghiệm AI. Vui lòng thử lại.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSelectOption = (questionIdx: number, optionKey: 'A' | 'B' | 'C' | 'D') => {
+    if (isSubmitted && quizMode === 'exam') return;
+    if (quizMode === 'instant' && answers[questionIdx]) return; // already answered in instant mode
+
+    const newAnswers = { ...answers, [questionIdx]: optionKey };
+    setAnswers(newAnswers);
+
+    // If instant practice mode, immediately update vocabulary tracking
+    if (quizMode === 'instant') {
+      const q = questions[questionIdx];
+      const isCorrect = optionKey === q.correctAnswer;
+      onUpdateQuizResult(q.targetTerm, isCorrect);
+      if (isCorrect) {
+        confetti({
+          particleCount: 25,
+          spread: 60,
+          origin: { y: 0.8 }
+        });
+      }
+    }
+  };
+
+  const handleSubmitExam = () => {
+    setIsSubmitted(true);
+    let correctCount = 0;
+
+    questions.forEach((q, idx) => {
+      const userAns = answers[idx];
+      const isCorrect = userAns === q.correctAnswer;
+      if (isCorrect) correctCount++;
+      if (userAns) {
+        onUpdateQuizResult(q.targetTerm, isCorrect);
+      }
+    });
+
+    // Confetti celebration if score >= 70%
+    if (correctCount / questions.length >= 0.7) {
+      confetti({
+        particleCount: 80,
+        spread: 100,
+        origin: { y: 0.6 }
+      });
+    }
+  };
+
+  const currentQ = questions[activeQuestionIdx];
+  const totalAnswered = Object.keys(answers).length;
+  const correctCountTotal = questions.filter(
+    (q, idx) => answers[idx] === q.correctAnswer
+  ).length;
+
+  return (
+    <div className="space-y-8 max-w-4xl mx-auto">
+      {/* Banner */}
+      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
+        <div className="relative z-10 max-w-2xl">
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-emerald-200 border border-white/20 text-xs font-semibold mb-3">
+            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+            Nhiệm vụ 4: Biên soạn Bài tập Trắc nghiệm Chuẩn Đề THPT (Cấu trúc 3)
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
+            AI Exam Quiz Generator & Adaptive Tracking
+          </h1>
+          <p className="mt-2 text-emerald-100 text-xs sm:text-sm leading-relaxed">
+            Hệ thống tạo câu hỏi trắc nghiệm khách quan bám sát 100% danh mục từ vựng trong sổ tay của bạn theo 3 dạng chuẩn: Điền từ vào chỗ trống, Tìm từ Đồng nghĩa/Trái nghĩa, và Hoàn thành câu. Kết quả làm bài sẽ tự động cập nhật độ thành thạo của từng từ vựng.
+          </p>
+        </div>
+      </div>
+
+      {/* Quiz Configuration Panel */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
+        <div className="flex items-center justify-between">
+          <h3 className="font-extrabold text-slate-900 flex items-center gap-2 text-base">
+            <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
+            <span>Cấu hình Bài tập Trắc nghiệm AI</span>
+          </h3>
+          <span className="text-xs text-slate-500">
+            Nguồn khả dụng: <strong>{targetVocabList.length}</strong> từ vựng
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Target Vocab Source */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Nguồn từ vựng cá nhân:
+            </label>
+            <select
+              value={filterVocabMode}
+              onChange={(e) => setFilterVocabMode(e.target.value as any)}
+              className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
+            >
+              <option value="all">Tất cả từ trong sổ tay ({vocabulary.length})</option>
+              <option value="needReview">
+                Chỉ từ "Chưa thuộc" ({vocabulary.filter((v) => v.status === 'Chưa thuộc').length})
+              </option>
+              <option value="learning">
+                Chỉ từ "Đang học" ({vocabulary.filter((v) => v.status === 'Đang học').length})
+              </option>
+            </select>
+          </div>
+
+          {/* Number of Questions */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Số lượng câu hỏi:
+            </label>
+            <div className="flex items-center gap-2">
+              {[3, 5, 8, 10].map((num) => (
+                <button
+                  key={num}
+                  type="button"
+                  onClick={() => setQuestionCount(num)}
+                  className={`flex-1 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                    questionCount === num
+                      ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                      : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {num} câu
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Practice vs Exam Mode */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Chế độ luyện tập:
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setQuizMode('instant')}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  quizMode === 'instant'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Giải thích tức thì
+              </button>
+              <button
+                type="button"
+                onClick={() => setQuizMode('exam')}
+                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                  quizMode === 'exam'
+                    ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Mô phỏng thi
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Standard THPT Formats */}
+        <div>
+          <label className="block text-xs font-semibold text-slate-700 mb-2">
+            3 Dạng bài tập chuẩn Đề thi THPT Quốc Gia (Quiz Generation Rules):
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button
+              type="button"
+              onClick={() => handleToggleType('Fill-in-the-blank')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                selectedTypes.includes('Fill-in-the-blank')
+                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-900">
+                  Dạng 1: Fill-in-the-blank
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  Điền từ
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Tạo câu mới có ngữ cảnh rõ ràng, yêu cầu điền đúng từ/cụm từ mục tiêu.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleType('Synonyms/Antonyms')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                selectedTypes.includes('Synonyms/Antonyms')
+                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-900">
+                  Dạng 2: Synonyms / Antonyms
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  Đồng/Trái nghĩa
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Tìm từ đồng nghĩa (Closest) hoặc trái nghĩa (Opposite) trong câu đầy đủ.
+              </p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleToggleType('Sentence Completion')}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                selectedTypes.includes('Sentence Completion')
+                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
+                  : 'border-slate-200 bg-white text-slate-500'
+              }`}
+            >
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-slate-900">
+                  Dạng 3: Sentence Completion
+                </span>
+                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                  Hoàn thành câu
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600">
+                Hoàn thành câu dựa trên ngữ pháp, giới từ phụ thuộc và cấu trúc cụm từ.
+              </p>
+            </button>
+          </div>
+        </div>
+
+        {fallbackNotice && (
+          <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium flex items-center gap-2">
+            <span className="font-bold">⚠️ Dự phòng:</span>
+            <span>{fallbackNotice}</span>
+          </div>
+        )}
+
+        {errorMsg && (
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-medium space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-rose-800">Lỗi từ Gemini API:</span>
+              {onOpenApiKeyModal && (
+                <button
+                  type="button"
+                  onClick={onOpenApiKeyModal}
+                  className="px-2 py-0.5 bg-white border border-rose-300 rounded text-rose-700 text-[11px] font-bold cursor-pointer"
+                >
+                  Đổi Key / Model
+                </button>
+              )}
+            </div>
+            <p className="font-mono text-rose-800 bg-white/70 p-2 rounded border border-rose-200 break-all">
+              {errorMsg}
+            </p>
+          </div>
+        )}
+
+        <button
+          type="button"
+          disabled={isLoading || targetVocabList.length === 0}
+          onClick={handleGenerateQuiz}
+          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              <span>AI đang biên soạn câu hỏi & phương án nhiễu (Distractors)...</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>Biên soạn Bài tập Trắc nghiệm Ngay (Gemini AI)</span>
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Quiz Active Area */}
+      {questions.length > 0 && (
+        <div className="bg-white rounded-3xl border border-slate-200 shadow-md p-6 sm:p-8 space-y-6">
+          {/* Quiz Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
+                  Đề thi trắc nghiệm AI • {questions.length} câu hỏi
+                </span>
+                <div className="flex items-center gap-1.5 ml-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      downloadDocxFile(
+                        'De_Thi_Tieng_Anh_THPT_AI_Quiz',
+                        'ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT QUỐC GIA',
+                        questions,
+                        targetVocabList
+                      )
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all cursor-pointer"
+                    title="Tải đề thi dạng tài liệu Microsoft Word (.doc) chuẩn mẫu Bộ GD&ĐT"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Xuất Word (.doc)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      printExamDocument(
+                        'ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT QUỐC GIA',
+                        questions,
+                        targetVocabList
+                      )
+                    }
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer"
+                    title="In đề thi và bảng đáp án"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>In đề</span>
+                  </button>
+                </div>
+              </div>
+              <h3 className="text-lg font-black text-slate-900 mt-1">
+                Câu hỏi {activeQuestionIdx + 1}: [{currentQ.type}]
+              </h3>
+            </div>
+
+            {/* Quick Question Switcher */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {questions.map((q, idx) => {
+                const userAns = answers[idx];
+                const isCurrent = idx === activeQuestionIdx;
+                let bgStyle = 'bg-slate-100 text-slate-700 border-slate-200';
+
+                if (userAns) {
+                  if (quizMode === 'instant' || isSubmitted) {
+                    bgStyle =
+                      userAns === q.correctAnswer
+                        ? 'bg-emerald-600 text-white border-emerald-600'
+                        : 'bg-rose-500 text-white border-rose-500';
+                  } else {
+                    bgStyle = 'bg-indigo-600 text-white border-indigo-600';
+                  }
+                }
+
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setActiveQuestionIdx(idx)}
+                    className={`w-8 h-8 rounded-lg text-xs font-bold border transition-all cursor-pointer ${bgStyle} ${
+                      isCurrent ? 'ring-2 ring-emerald-500 ring-offset-1 scale-105' : ''
+                    }`}
+                  >
+                    {idx + 1}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Question Prompt */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold">
+                Mục từ kiểm tra: <strong>{currentQ.targetTerm}</strong>
+              </span>
+              <button
+                type="button"
+                onClick={() => speakEnglish(currentQ.targetTerm, accent)}
+                className="hover:text-indigo-600 flex items-center gap-1"
+                title="Nghe phát âm từ mục tiêu"
+              >
+                <Volume2 className="w-3.5 h-3.5" />
+                <span>Nghe từ</span>
+              </button>
+            </div>
+
+            <p className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed pt-2">
+              {currentQ.question}
+            </p>
+          </div>
+
+          {/* 4 Options (A, B, C, D) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
+              const optionText = currentQ.options[optKey];
+              const isSelected = answers[activeQuestionIdx] === optKey;
+              const isCorrectAnswer = currentQ.correctAnswer === optKey;
+              const showResult =
+                (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                isSubmitted;
+
+              let cardStyle =
+                'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-800';
+
+              if (showResult) {
+                if (isCorrectAnswer) {
+                  cardStyle =
+                    'border-emerald-500 bg-emerald-50/80 text-emerald-900 ring-2 ring-emerald-500/20';
+                } else if (isSelected && !isCorrectAnswer) {
+                  cardStyle =
+                    'border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-500/20';
+                }
+              } else if (isSelected) {
+                cardStyle =
+                  'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20';
+              }
+
+              return (
+                <button
+                  key={optKey}
+                  type="button"
+                  onClick={() => handleSelectOption(activeQuestionIdx, optKey)}
+                  className={`p-4 rounded-2xl border text-left transition-all flex items-start gap-3 cursor-pointer ${cardStyle}`}
+                >
+                  <span
+                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                      showResult && isCorrectAnswer
+                        ? 'bg-emerald-600 text-white'
+                        : showResult && isSelected && !isCorrectAnswer
+                        ? 'bg-rose-600 text-white'
+                        : isSelected
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    {optKey}
+                  </span>
+                  <div className="pt-0.5">
+                    <span className="text-sm font-semibold block leading-snug">
+                      {optionText}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Explanation Box (When answered in instant mode or submitted in exam mode) */}
+          {((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+            isSubmitted) && (
+            <div
+              className={`p-5 rounded-2xl border text-xs sm:text-sm space-y-2 animate-in fade-in duration-300 ${
+                answers[activeQuestionIdx] === currentQ.correctAnswer
+                  ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
+                  : 'bg-rose-50/90 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 font-bold">
+                {answers[activeQuestionIdx] === currentQ.correctAnswer ? (
+                  <>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <span>Chính xác! Đáp án đúng là {currentQ.correctAnswer}</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="w-5 h-5 text-rose-600" />
+                    <span>
+                      Chưa chính xác! Bạn chọn {answers[activeQuestionIdx] || 'Chưa chọn'}, đáp án đúng là {currentQ.correctAnswer}
+                    </span>
+                  </>
+                )}
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 leading-relaxed text-slate-800">
+                <strong className="block text-slate-900 font-bold mb-1">
+                  Giải thích sư phạm EVM:
+                </strong>
+                {currentQ.explanation}
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Navigation & Submit Bar */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-100">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>Đã trả lời: <strong>{totalAnswered}</strong> / {questions.length}</span>
+              {quizMode === 'instant' && (
+                <span>• Đúng: <strong className="text-emerald-600">{correctCountTotal}</strong></span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              {activeQuestionIdx > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setActiveQuestionIdx((prev) => prev - 1)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+                >
+                  Câu trước
+                </button>
+              )}
+
+              {activeQuestionIdx < questions.length - 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveQuestionIdx((prev) => prev + 1)}
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <span>Câu tiếp theo</span>
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              ) : quizMode === 'exam' && !isSubmitted ? (
+                <button
+                  type="button"
+                  onClick={handleSubmitExam}
+                  className="px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-200 cursor-pointer"
+                >
+                  Nộp bài thi & Chấm điểm
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGenerateQuiz}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Tạo bộ đề mới</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Exam Mode Result Summary */}
+          {quizMode === 'exam' && isSubmitted && (
+            <div className="mt-6 p-6 rounded-3xl bg-gradient-to-br from-indigo-900 to-slate-900 text-white text-center space-y-3">
+              <Award className="w-12 h-12 text-amber-300 mx-auto" />
+              <h4 className="text-xl font-black">
+                Kết quả Mô phỏng Thi: {correctCountTotal} / {questions.length} câu đúng
+              </h4>
+              <p className="text-xs text-indigo-200 max-w-md mx-auto">
+                Tỉ lệ chính xác:{' '}
+                <strong>
+                  {Math.round((correctCountTotal / questions.length) * 100)}%
+                </strong>
+                . Độ thành thạo của các từ vựng tương ứng trong sổ tay cá nhân đã được tự động cập nhật!
+              </p>
+              <div className="pt-2 flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleGenerateQuiz}
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer"
+                >
+                  Làm đề luyện tập khác
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};

@@ -132,6 +132,46 @@ function extractJsonFromText(rawText: string): any {
   }
 }
 
+function cleanModelId(model: string): string {
+  return model.replace(/^models\//, '').trim();
+}
+
+/**
+ * Dynamically queries Google AI Studio for the real list of models supporting generateContent.
+ */
+export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]> {
+  try {
+    const key = apiKey.trim();
+    const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'x-goog-api-key': key
+      }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data.models && Array.isArray(data.models)) {
+      const candidates: string[] = data.models
+        .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: any) => cleanModelId(m.name));
+
+      const valid = candidates.filter((id) => !id.includes('deprecated'));
+
+      // Sort: flash models first, then pro, then others
+      return valid.sort((a, b) => {
+        const aFlash = a.includes('flash') ? 0 : 1;
+        const bFlash = b.includes('flash') ? 0 : 1;
+        if (aFlash !== bFlash) return aFlash - bFlash;
+        return a.localeCompare(b);
+      });
+    }
+  } catch (err) {
+    console.warn('[EVM Gemini Service] Could not fetch live models:', err);
+  }
+  return [];
+}
+
 /**
  * Direct call to Google Gemini REST API
  */
@@ -141,7 +181,9 @@ async function callGeminiDirect(
   prompt: string,
   systemInstruction: string = SYSTEM_INSTRUCTION_EVM
 ): Promise<string> {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+  const cleanModel = cleanModelId(model);
+  const key = apiKey.trim();
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
 
   const payload: any = {
     contents: [
@@ -164,7 +206,8 @@ async function callGeminiDirect(
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'x-goog-api-key': key
     },
     body: JSON.stringify(payload)
   });
@@ -210,12 +253,29 @@ export async function executeWithFallback<T>(
     throw new Error('Chưa thiết lập Gemini API Key. Vui lòng nhấn "Lấy API key để sử dụng app" trên thanh điều hướng để nhập key.');
   }
 
-  const preferredModel = getStoredModel();
-  // Build model try order: preferred model first, then the remaining models in fallback chain
-  const modelsToTry: string[] = [preferredModel];
+  // 1. Fetch live models directly from Google AI Studio for this specific key
+  const liveModels = await getLiveModelsFromGoogle(apiKey);
+
+  const preferredModel = cleanModelId(getStoredModel());
+  const modelsToTry: string[] = [];
+
+  // Prioritize preferredModel if valid in liveModels or if liveModels is empty
+  if (preferredModel && (!liveModels.length || liveModels.includes(preferredModel))) {
+    modelsToTry.push(preferredModel);
+  }
+
+  // Add all live models that support generateContent
+  for (const lm of liveModels) {
+    if (!modelsToTry.includes(lm)) {
+      modelsToTry.push(lm);
+    }
+  }
+
+  // Fallback to static list if live models query returned empty
   for (const m of FALLBACK_CHAIN) {
-    if (!modelsToTry.includes(m)) {
-      modelsToTry.push(m);
+    const clean = cleanModelId(m);
+    if (!modelsToTry.includes(clean)) {
+      modelsToTry.push(clean);
     }
   }
 
@@ -257,11 +317,21 @@ export async function testApiKey(
     return { success: false, message: 'Vui lòng nhập API Key.' };
   }
 
+  const key = apiKey.trim();
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey.trim()}`;
+    const liveModels = await getLiveModelsFromGoogle(key);
+    const targetModel =
+      liveModels.length > 0 && liveModels.includes(cleanModelId(model))
+        ? cleanModelId(model)
+        : liveModels[0] || cleanModelId(model);
+
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${key}`;
     const response = await fetch(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key
+      },
       body: JSON.stringify({
         contents: [{ parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
         generationConfig: { responseMimeType: 'application/json' }
@@ -279,7 +349,10 @@ export async function testApiKey(
       };
     }
 
-    return { success: true, message: `Kết nối thành công với ${model}!` };
+    return {
+      success: true,
+      message: `Kết nối thành công với Google AI Studio (Model khả dụng: ${targetModel})!`
+    };
   } catch (err: any) {
     return {
       success: false,

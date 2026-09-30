@@ -73,6 +73,11 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
   const [currentRunningModel, setCurrentRunningModel] = useState<string>(getStoredModel());
+  const [isReadingPdf, setIsReadingPdf] = useState<boolean>(false);
+  const [pdfStatusMsg, setPdfStatusMsg] = useState<{
+    type: 'info' | 'success' | 'warning' | 'error';
+    text: string;
+  } | null>(null);
 
   // 3-step state management strictly following Rule 1 & Rule 3
   const [steps, setSteps] = useState<StepInfo[]>([
@@ -267,16 +272,82 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const extractTextFromPdf = async (file: File): Promise<string> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdfjsLib = (window as any).pdfjsLib;
+    if (!pdfjsLib) {
+      throw new Error('Thư viện xử lý PDF chưa sẵn sàng trên trình duyệt. Vui lòng thử lại sau vài giây hoặc kiểm tra kết nối mạng.');
+    }
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    let fullText = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items
+        .map((item: any) => item.str)
+        .join(' ');
+      if (pageText.trim()) {
+        fullText += (fullText ? '\n\n' : '') + `=== Trang ${i} ===\n` + pageText;
+      }
+    }
+    return fullText;
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setExamTitle(file.name.replace(/\.[^/.]+$/, ''));
+    const cleanTitle = file.name.replace(/\.[^/.]+$/, '');
+    setExamTitle(cleanTitle);
+    setPdfStatusMsg(null);
+
+    // If PDF file
+    if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
+      setIsReadingPdf(true);
+      setPdfStatusMsg({
+        type: 'info',
+        text: `Đang giải mã và đọc nội dung văn bản từ tệp PDF "${file.name}"...`
+      });
+      try {
+        const text = await extractTextFromPdf(file);
+        if (!text.trim()) {
+          setPdfStatusMsg({
+            type: 'warning',
+            text: `⚠️ Tệp PDF "${file.name}" là tệp scan dạng ảnh (không có văn bản số hóa). Vui lòng copy chữ trong đề hoặc dán văn bản trực tiếp vào khung bên dưới.`
+          });
+        } else {
+          setExamText(text);
+          setPdfStatusMsg({
+            type: 'success',
+            text: `✔ Đã trích xuất thành công nội dung tệp PDF "${file.name}" (${text.length} ký tự). Bạn có thể kiểm tra đề thi và nhấn "Bắt đầu bóc tách & phân loại từ vựng"!`
+          });
+        }
+      } catch (err: any) {
+        console.error('Lỗi khi đọc file PDF:', err);
+        setPdfStatusMsg({
+          type: 'error',
+          text: `Lỗi đọc file PDF: ${err.message || 'Không thể trích xuất văn bản từ tệp PDF này'}`
+        });
+      } finally {
+        setIsReadingPdf(false);
+      }
+      return;
+    }
+
+    // If TXT or other text file
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
       if (content) {
         setExamText(content);
+        setPdfStatusMsg({
+          type: 'success',
+          text: `✔ Đã tải tệp "${file.name}" (${content.length} ký tự).`
+        });
       }
     };
     reader.readAsText(file);
@@ -528,18 +599,44 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
             {/* Upload or Load Sample */}
             <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer transition-all">
-                <UploadCloud className="w-3.5 h-3.5" />
-                <span>Tải tệp đề thi (.txt)</span>
+              <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold cursor-pointer transition-all shadow-xs">
+                {isReadingPdf ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                ) : (
+                  <UploadCloud className="w-4 h-4 text-indigo-600" />
+                )}
+                <span>{isReadingPdf ? 'Đang giải mã PDF...' : 'Tải tệp đề thi (.PDF / .TXT)'}</span>
                 <input
                   type="file"
-                  accept=".txt,.doc,.docx"
+                  accept=".pdf,.txt,.doc,.docx"
                   onChange={handleFileUpload}
                   className="hidden"
+                  disabled={isReadingPdf}
                 />
               </label>
             </div>
           </div>
+
+          {/* PDF / File Extraction Status Feedback */}
+          {pdfStatusMsg && (
+            <div
+              className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-2.5 animate-in fade-in ${
+                pdfStatusMsg.type === 'success'
+                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                  : pdfStatusMsg.type === 'warning'
+                  ? 'bg-amber-50 border-amber-300 text-amber-800'
+                  : pdfStatusMsg.type === 'error'
+                  ? 'bg-rose-50 border-rose-300 text-rose-800'
+                  : 'bg-indigo-50 border-indigo-300 text-indigo-800'
+              }`}
+            >
+              {pdfStatusMsg.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+              {pdfStatusMsg.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+              {pdfStatusMsg.type === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+              {pdfStatusMsg.type === 'info' && <Loader2 className="w-4 h-4 animate-spin text-indigo-600 shrink-0 mt-0.5" />}
+              <div className="flex-1">{pdfStatusMsg.text}</div>
+            </div>
+          )}
 
           {/* Quick Preset Selector */}
           <div>

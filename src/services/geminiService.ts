@@ -179,21 +179,35 @@ async function callGeminiDirect(
   model: string,
   apiKey: string,
   prompt: string,
-  systemInstruction: string = SYSTEM_INSTRUCTION_EVM
+  systemInstruction: string = SYSTEM_INSTRUCTION_EVM,
+  pdfBase64?: string
 ): Promise<string> {
   const cleanModel = cleanModelId(model);
   const key = apiKey.trim();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
 
+  const parts: any[] = [];
+  if (pdfBase64 && typeof pdfBase64 === 'string' && pdfBase64.trim()) {
+    // Official Google Gemini REST API schema: inlineData with mimeType and base64 data
+    parts.push({
+      inlineData: {
+        mimeType: 'application/pdf',
+        data: pdfBase64.trim()
+      }
+    });
+  }
+  parts.push({ text: prompt });
+
   const payload: any = {
     contents: [
       {
-        parts: [{ text: prompt }]
+        parts: parts
       }
     ],
     generationConfig: {
       responseMimeType: 'application/json',
-      temperature: 0.2
+      temperature: 0.1,
+      maxOutputTokens: 8192
     }
   };
 
@@ -374,54 +388,70 @@ export async function extractVocabularyWithFallback(
   examTitle: string,
   categories: VocabCategory[],
   onStepProgress?: (step: 1 | 2 | 3, status: 'running' | 'completed' | 'failed', message?: string) => void,
-  onModelFallback?: (failedModel: string, nextModel: string, error: string) => void
+  onModelFallback?: (failedModel: string, nextModel: string, error: string) => void,
+  pdfBase64?: string,
+  prioritizeYellowHighlights: boolean = true
 ): Promise<ExtractionResult> {
   const categoryConstraint =
     categories && categories.length > 0
       ? `Focus particularly on these categories: ${categories.join(', ')}.`
       : `Categorize all items into the 5 standard categories: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.`;
 
-  const prompt = `Analyze the following English exam text/questions. Extract key vocabulary items suitable for students preparing for the Vietnam National High School Graduation Exam (Tốt nghiệp THPT).
+  const highlightSection = (prioritizeYellowHighlights || pdfBase64)
+    ? `
+CRITICAL TARGET INSTRUCTION - MANDATORY FOCUS ON YELLOW HIGHLIGHTED TERMS:
+The uploaded exam document contains specific target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED IN YELLOW (màu vàng / yellow highlighter / yellow background shading / marker / annotations) by the teacher.
 
+YOUR HIGHEST PRIORITY IS TO EXTRACT 100% OF THESE YELLOW-HIGHLIGHTED ITEMS:
+1. VISUAL SCANNING: Scrutinize every page and line of the PDF to identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that have a YELLOW background or yellow highlight mark, OR are tagged with [BÔI VÀNG: ...] or ==...== in the text.
+2. EXHAUSTIVE EXTRACTION MANDATE: You MUST extract 100% of these yellow-highlighted items without skipping or omitting any. If there are 12 yellow-highlighted terms in the PDF, you must extract all 12.
+3. For each extracted item:
+   - "term": Canonical/dictionary base form of the word or phrase (e.g. "make a decision", "break down", "look forward to", "in terms of").
+   - "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
+   - "ipa": Standard Cambridge/Oxford phonetic transcription (e.g. "/meɪk ə dɪˈsɪʒ.ən/").
+   - "meaning": Accurate Vietnamese translation fitting the exact context of the exam sentence.
+   - "context": EXACT sentence from the exam where the word appears, with the target term enclosed in **bold**.
+   - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
+   - "examTip": Pedagogical note explaining common exam traps, prepositions, or distractors tested in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT).
+   - "isHighlighted": true (set to true for all items that were highlighted in yellow).
+4. In addition to all yellow-highlighted items, you may also include any other high-yield B1-C1 vocabulary items from the exam, but yellow-highlighted terms are MANDATORY.`
+    : '';
+
+  const prompt = `Act as the AI English Exam Vocabulary Architect (EVM) specializing in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT môn Tiếng Anh).
+
+${highlightSection}
+
+CATEGORIES CONSTRAINT:
 ${categoryConstraint}
 
-Exam title/source: ${examTitle || 'Đề thi trích dẫn'}
-Exam Content:
-"""
-${examText.slice(0, 15000)}
-"""
+EXAM TITLE / SOURCE: ${examTitle || 'Đề thi trích dẫn'}
 
-Extract high-yield items. For each item:
-- type: Exactly one of ['Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition']
-- term: The exact target word or phrase in root/canonical form
-- ipa: International Phonetic Alphabet (e.g. /meɪk ə dɪˈsɪʒn/)
-- meaning: Precise Vietnamese translation in this exam context
-- context: The exact or faithfully reproduced sentence from the exam where it appeared, with the term surrounded by **bold** (e.g. "After much thought, she had to **make a decision** about her major.")
-- cefrLevel: CEFR difficulty level ('B1', 'B2', 'C1')
-- examTip: Short pedagogical note or tip in Vietnamese (e.g. bẫy dễ nhầm lẫn, từ đồng nghĩa hoặc giới từ đi kèm hay gặp trong đề THPT)
+${pdfBase64 ? 'NOTE: The complete authentic exam PDF document is attached as inline document data. Please inspect it visually page by page to detect all yellow-highlighted terms and read all text.' : ''}
+${examText ? `EXAM TEXT CONTEXT:\n"""\n${examText.slice(0, 20000)}\n"""` : ''}
 
-Return between 8 and 25 most valuable vocabulary items.
+REQUIRED JSON OUTPUT FORMAT:
 Ensure the response is valid JSON matching this schema:
 {
-  "summary": "Brief pedagogical overview of the vocabulary difficulty and thematic focus of this exam text in Vietnamese.",
+  "summary": "Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi vàng đã nhận diện thành công từ PDF, các cấu trúc phân hóa cao và độ khó tổng thể.",
   "vocabulary": [
     {
       "type": "Collocation",
-      "term": "make a decision",
-      "ipa": "/meɪk ə dɪˈsɪʒn/",
-      "meaning": "đưa ra quyết định",
-      "context": "She had to **make a decision** about her career.",
+      "term": "make an effort",
+      "ipa": "/meɪk ən ˈefət/",
+      "meaning": "nỗ lực, cố gắng",
+      "context": "Young graduates must **make an effort** to cultivate skills.",
       "cefrLevel": "B1",
-      "examTip": "Đi với động từ 'make', bẫy đề thi thường thay bằng 'do a decision' (sai)."
+      "examTip": "Bẫy thi THPT: Luôn đi với động từ make (không dùng do an effort).",
+      "isHighlighted": true
     }
   ]
 }`;
 
-  if (onStepProgress) onStepProgress(1, 'running', 'Đang phân tích cấu trúc & ngữ liệu bài thi...');
+  if (onStepProgress) onStepProgress(1, 'running', 'Đang phân tích cấu trúc & quét thị giác nhận diện từ bôi vàng...');
 
   try {
     const rawText = await executeWithFallback(async (model, apiKey) => {
-      return await callGeminiDirect(model, apiKey, prompt);
+      return await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, pdfBase64);
     }, onModelFallback);
 
     if (onStepProgress) onStepProgress(1, 'completed', 'Đã phân tích xong cấu trúc ngữ liệu.');
@@ -449,7 +479,8 @@ Ensure the response is valid JSON matching this schema:
       interactionCount: 0,
       quizCorrectCount: 0,
       quizTotalCount: 0,
-      addedAt: new Date().toISOString()
+      addedAt: new Date().toISOString(),
+      isHighlighted: Boolean(item.isHighlighted)
     }));
 
     if (onStepProgress) onStepProgress(3, 'completed', 'Quy trình hoàn tất!');

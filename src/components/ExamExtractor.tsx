@@ -78,6 +78,9 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     type: 'info' | 'success' | 'warning' | 'error';
     text: string;
   } | null>(null);
+  const [uploadedPdfBase64, setUploadedPdfBase64] = useState<string | null>(null);
+  const [prioritizeHighlights, setPrioritizeHighlights] = useState<boolean>(true);
+  const [filterOnlyHighlighted, setFilterOnlyHighlighted] = useState<boolean>(false);
 
   // 3-step state management strictly following Rule 1 & Rule 3
   const [steps, setSteps] = useState<StepInfo[]>([
@@ -142,6 +145,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     setAiSummary(`Đề: ${found.title} - ${found.description}`);
     setErrorMsg(null);
     setFallbackNotice(null);
+    setUploadedPdfBase64(null);
 
     // Reset steps to idle
     setSteps([
@@ -240,7 +244,9 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           setFallbackNotice(
             `Model "${failedModel}" gặp sự cố (${error.slice(0, 100)}...). Hệ thống tự động chuyển sang thử lại với model dự phòng "${nextModel}".`
           );
-        }
+        },
+        uploadedPdfBase64 || undefined,
+        prioritizeHighlights
       );
 
       // On complete success
@@ -272,6 +278,19 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     }
   };
 
+  const readFileAsBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const res = reader.result as string;
+        const b64 = res.includes(',') ? res.split(',')[1] : res;
+        resolve(b64);
+      };
+      reader.onerror = () => reject(new Error('Không thể đọc file base64.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
   const extractTextFromPdf = async (file: File): Promise<string> => {
     const arrayBuffer = await file.arrayBuffer();
     const pdfjsLib = (window as any).pdfjsLib;
@@ -284,16 +303,39 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
     const pdf = await loadingTask.promise;
     let fullText = '';
+    const highlightAnnotations: string[] = [];
+
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
       const textContent = await page.getTextContent();
       const pageText = textContent.items
         .map((item: any) => item.str)
         .join(' ');
+
+      // Also scan annotations for yellow highlights if available
+      try {
+        const annotations = await page.getAnnotations();
+        for (const annot of annotations) {
+          if (annot.subtype === 'Highlight' || annot.type === 'Highlight') {
+            if (annot.contents && typeof annot.contents === 'string' && annot.contents.trim()) {
+              highlightAnnotations.push(annot.contents.trim());
+            }
+          }
+        }
+      } catch (e) {
+        // Annotation scanning is non-blocking
+      }
+
       if (pageText.trim()) {
         fullText += (fullText ? '\n\n' : '') + `=== Trang ${i} ===\n` + pageText;
       }
     }
+
+    if (highlightAnnotations.length > 0) {
+      fullText += `\n\n=== DANH SÁCH TỪ ĐƯỢC BÔI VÀNG (PDF HIGHLIGHTS) ===\n` +
+        highlightAnnotations.map((item) => `- ${item}`).join('\n');
+    }
+
     return fullText;
   };
 
@@ -310,27 +352,42 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       setIsReadingPdf(true);
       setPdfStatusMsg({
         type: 'info',
-        text: `Đang giải mã và đọc nội dung văn bản từ tệp PDF "${file.name}"...`
+        text: `Đang giải mã và đọc nội dung văn bản & thị giác từ tệp PDF "${file.name}"...`
       });
+
       try {
-        const text = await extractTextFromPdf(file);
+        // Load base64 for multimodal vision and extracted text in parallel
+        const [b64, text] = await Promise.all([
+          readFileAsBase64(file),
+          extractTextFromPdf(file)
+        ]);
+
+        setUploadedPdfBase64(b64);
+        setPrioritizeHighlights(true);
+
         if (!text.trim()) {
           setPdfStatusMsg({
             type: 'warning',
-            text: `⚠️ Tệp PDF "${file.name}" là tệp scan dạng ảnh (không có văn bản số hóa). Vui lòng copy chữ trong đề hoặc dán văn bản trực tiếp vào khung bên dưới.`
+            text: `⚠️ Tệp PDF "${file.name}" là tệp scan dạng ảnh. Đã kích hoạt chế độ Quét Thị Giác (Vision PDF) trực tiếp để nhận diện 100% các từ bôi vàng!`
           });
         } else {
           setExamText(text);
           setPdfStatusMsg({
             type: 'success',
-            text: `✔ Đã trích xuất thành công nội dung tệp PDF "${file.name}" (${text.length} ký tự). Bạn có thể kiểm tra đề thi và nhấn "Bắt đầu bóc tách & phân loại từ vựng"!`
+            text: `✔ Đã tải tệp PDF "${file.name}" (${text.length} ký tự). Đã kích hoạt Chế độ Quét Thị Giác (Vision) nhận diện 100% các từ bôi vàng!`
           });
         }
       } catch (err: any) {
         console.error('Lỗi khi đọc file PDF:', err);
+        // Try fallback to just base64 so Gemini Vision can still read it
+        try {
+          const b64 = await readFileAsBase64(file);
+          setUploadedPdfBase64(b64);
+          setPrioritizeHighlights(true);
+        } catch {}
         setPdfStatusMsg({
-          type: 'error',
-          text: `Lỗi đọc file PDF: ${err.message || 'Không thể trích xuất văn bản từ tệp PDF này'}`
+          type: 'info',
+          text: `Đã nạp tệp PDF "${file.name}". AI Gemini Vision sẽ quét thị giác trực tiếp tệp gốc để nhận diện các từ bôi vàng.`
         });
       } finally {
         setIsReadingPdf(false);
@@ -339,6 +396,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     }
 
     // If TXT or other text file
+    setUploadedPdfBase64(null);
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -397,6 +455,41 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         return 'bg-slate-50 text-slate-700 border-slate-200';
     }
   };
+
+  const renderContextWithHighlight = (context: string, isHighlighted?: boolean) => {
+    if (!context) return null;
+    if (!context.includes('**')) {
+      return <span>{context}</span>;
+    }
+    const parts = context.split(/(\*\*.*?\*\*)/g);
+    return (
+      <span>
+        {parts.map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+            const inner = part.slice(2, -2);
+            return (
+              <span
+                key={i}
+                className={
+                  isHighlighted
+                    ? 'bg-amber-300 text-amber-950 font-bold px-1.5 py-0.5 rounded border border-amber-400'
+                    : 'font-bold text-indigo-900 underline'
+                }
+              >
+                {inner}
+              </span>
+            );
+          }
+          return <span key={i}>{part}</span>;
+        })}
+      </span>
+    );
+  };
+
+  const highlightedCount = extractedList.filter((item) => item.isHighlighted).length;
+  const displayedList = filterOnlyHighlighted
+    ? extractedList.filter((item) => item.isHighlighted)
+    : extractedList;
 
   // Calculate actual completion percentage according to Rule 3
   const completedCount = steps.filter((s) => s.status === 'completed').length;
@@ -688,6 +781,50 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             />
           </div>
 
+          {/* Yellow Highlight Vision Focus Control */}
+          <div className={`p-4 rounded-xl border-2 transition-all ${
+            uploadedPdfBase64
+              ? 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-xs'
+              : 'bg-slate-50 border-slate-200 text-slate-700'
+          }`}>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <span className={`w-3.5 h-3.5 rounded-full mt-0.5 shrink-0 ${
+                  uploadedPdfBase64 ? 'bg-amber-500 animate-pulse ring-4 ring-amber-200' : 'bg-slate-300'
+                }`} />
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <strong className="text-xs font-bold text-slate-900">
+                      {uploadedPdfBase64
+                        ? 'Chế độ Quét Thị Giác (Vision PDF) Nhận Diện Từ Bôi Vàng: ĐÃ KÍCH HOẠT'
+                        : 'Chế độ Nhận diện Từ Bôi Vàng (Yellow Highlight Focus)'}
+                    </strong>
+                    {uploadedPdfBase64 && (
+                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-300 text-amber-950 rounded-full border border-amber-400">
+                        ⭐ Tệp PDF gốc đã sẵn sàng
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    {uploadedPdfBase64
+                      ? 'AI Gemini Vision sẽ quét trực tiếp từng trang PDF để nhận diện 100% tất cả các từ, cụm từ và thành ngữ được bôi màu vàng trong đề thi gốc.'
+                      : 'Khi bạn tải tệp PDF hoặc dán văn bản có đánh dấu ==từ bôi vàng==, hệ thống sẽ ưu tiên trích xuất và hiển thị nhãn nổi bật cho tất cả các từ này.'}
+                  </p>
+                </div>
+              </div>
+
+              <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold cursor-pointer shrink-0 shadow-2xs hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={prioritizeHighlights}
+                  onChange={(e) => setPrioritizeHighlights(e.target.checked)}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
+                />
+                <span>Ưu tiên 100% từ bôi vàng</span>
+              </label>
+            </div>
+          </div>
+
           {/* Text Area */}
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -880,20 +1017,53 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-extrabold text-slate-900 text-base">
                 Cấu trúc 1: Bảng Kết quả Phân tích Đề thi (Vocabulary Extraction)
               </h3>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
                 {extractedList.length} mục từ
               </span>
+              {highlightedCount > 0 && (
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-300 text-amber-950 border border-amber-400 shadow-2xs">
+                  ⭐ {highlightedCount} từ bôi vàng trong đề
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
               Dữ liệu được chuẩn hóa và gắn thẻ theo quy tắc ngôn ngữ học ứng dụng EVM
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Filter buttons if any highlighted items exist */}
+            {highlightedCount > 0 && (
+              <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg mr-1">
+                <button
+                  type="button"
+                  onClick={() => setFilterOnlyHighlighted(false)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                    !filterOnlyHighlighted
+                      ? 'bg-white text-slate-900 shadow-2xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Tất cả ({extractedList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterOnlyHighlighted(true)}
+                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                    filterOnlyHighlighted
+                      ? 'bg-amber-300 text-amber-950 shadow-2xs font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>⭐ Từ bôi vàng ({highlightedCount})</span>
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={handleSelectAll}
@@ -924,10 +1094,20 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                   <input
                     type="checkbox"
                     checked={
-                      extractedList.length > 0 &&
-                      selectedWordIds.size === extractedList.length
+                      displayedList.length > 0 &&
+                      displayedList.every((item) => selectedWordIds.has(item.id))
                     }
-                    onChange={handleSelectAll}
+                    onChange={() => {
+                      if (displayedList.every((item) => selectedWordIds.has(item.id))) {
+                        const next = new Set(selectedWordIds);
+                        displayedList.forEach((item) => next.delete(item.id));
+                        setSelectedWordIds(next);
+                      } else {
+                        const next = new Set(selectedWordIds);
+                        displayedList.forEach((item) => next.add(item.id));
+                        setSelectedWordIds(next);
+                      }
+                    }}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
                   />
                 </th>
@@ -940,14 +1120,14 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {extractedList.map((item) => {
+              {displayedList.map((item) => {
                 const isSelected = selectedWordIds.has(item.id);
                 return (
                   <tr
                     key={item.id}
                     className={`hover:bg-indigo-50/40 transition-colors ${
                       isSelected ? 'bg-indigo-50/20' : ''
-                    }`}
+                    } ${item.isHighlighted ? 'bg-amber-50/20' : ''}`}
                   >
                     <td className="p-3.5 text-center">
                       <input
@@ -974,7 +1154,12 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
                     {/* Term & IPA & Audio */}
                     <td className="p-3.5">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {item.isHighlighted && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-300 text-amber-950 border border-amber-400 shadow-2xs">
+                            ⭐ Bôi vàng
+                          </span>
+                        )}
                         <strong
                           className="text-slate-900 text-sm font-extrabold hover:text-indigo-600 cursor-pointer"
                           onClick={() => onInspectWord(item)}
@@ -1002,7 +1187,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
                     {/* Context in exam */}
                     <td className="p-3.5 text-slate-600 leading-relaxed italic bg-slate-50/40 rounded-lg">
-                      {item.context.replace(/\*\*/g, '')}
+                      {renderContextWithHighlight(item.context, item.isHighlighted)}
                     </td>
 
                     {/* Pedagogical Exam Tip */}

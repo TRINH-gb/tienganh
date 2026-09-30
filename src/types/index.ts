@@ -24,6 +24,7 @@ export interface VocabularyItem {
   quizCorrectCount: number;
   quizTotalCount: number;
   addedAt: string;
+  isHighlighted?: boolean;
 }
 
 export interface QuizQuestion {

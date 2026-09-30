@@ -230,16 +230,39 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
           {/* 3D Flashcard Container */}
           <div
-            className="perspective-[1200px] w-full min-h-[380px] sm:min-h-[420px] cursor-pointer"
+            className="card-perspective w-full min-h-[380px] sm:min-h-[420px] cursor-pointer select-none"
+            style={{
+              perspective: '1200px',
+              WebkitPerspective: '1200px'
+            }}
             onClick={handleFlip}
           >
             <div
-              className={`relative w-full h-full min-h-[380px] sm:min-h-[420px] transition-transform duration-500 transform-style-3d ${
-                isFlipped ? 'rotate-y-180' : ''
+              className={`card-inner relative w-full h-full min-h-[380px] sm:min-h-[420px] ${
+                isFlipped ? 'is-flipped' : ''
               }`}
+              style={{
+                transformStyle: 'preserve-3d',
+                WebkitTransformStyle: 'preserve-3d',
+                transition: 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',
+                WebkitTransform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)'
+              }}
             >
               {/* FRONT OF CARD (Mặt trước: [Từ/Cụm từ]) */}
-              <div className="absolute inset-0 w-full h-full backface-hidden bg-gradient-to-br from-white via-indigo-50/20 to-slate-50 rounded-3xl p-8 sm:p-10 border-2 border-indigo-100 shadow-xl flex flex-col justify-between select-none">
+              <div
+                className="card-front absolute inset-0 w-full h-full bg-gradient-to-br from-white via-indigo-50/20 to-slate-50 rounded-3xl p-8 sm:p-10 border-2 border-indigo-100 shadow-xl flex flex-col justify-between select-none"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  transform: 'rotateY(0deg)',
+                  WebkitTransform: 'rotateY(0deg)',
+                  zIndex: isFlipped ? 0 : 2,
+                  pointerEvents: isFlipped ? 'none' : 'auto',
+                  opacity: isFlipped ? 0 : 1,
+                  transition: 'opacity 0.25s ease-in-out'
+                }}
+              >
                 {/* Header Front */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -312,7 +335,19 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
               </div>
 
               {/* BACK OF CARD (Mặt sau: IPA, Meaning, Example, Audio Hint) */}
-              <div className="absolute inset-0 w-full h-full backface-hidden rotate-y-180 bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-8 sm:p-10 border-2 border-indigo-500/40 shadow-2xl flex flex-col justify-between select-none">
+              <div
+                className="card-back absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-8 sm:p-10 border-2 border-indigo-500/40 shadow-2xl flex flex-col justify-between select-none"
+                style={{
+                  backfaceVisibility: 'hidden',
+                  WebkitBackfaceVisibility: 'hidden',
+                  transform: 'rotateY(180deg)',
+                  WebkitTransform: 'rotateY(180deg)',
+                  zIndex: isFlipped ? 2 : 0,
+                  pointerEvents: isFlipped ? 'auto' : 'none',
+                  opacity: isFlipped ? 1 : 0,
+                  transition: 'opacity 0.25s ease-in-out'
+                }}
+              >
                 {/* Header Back */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -437,10 +472,14 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
             <button
               type="button"
               onClick={handleFlip}
-              className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md shadow-indigo-200 transition-all cursor-pointer flex items-center gap-2"
+              className={`px-6 py-2.5 rounded-xl font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2 ${
+                isFlipped
+                  ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200'
+                  : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'
+              }`}
             >
-              <RotateCw className="w-4 h-4" />
-              <span>{isFlipped ? 'Xem mặt trước' : 'Lật xem đáp án'}</span>
+              <RotateCw className={`w-4 h-4 transition-transform duration-300 ${isFlipped ? 'rotate-180' : ''}`} />
+              <span>{isFlipped ? '↺ Xem mặt trước' : '↻ Lật xem đáp án'}</span>
             </button>
 
             <button

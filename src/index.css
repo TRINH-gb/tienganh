@@ -1,16 +1,24 @@
 @import "tailwindcss";
 
-@utility transform-style-3d {
-  transform-style: preserve-3d;
+/* 3D Flashcard Flip utilities (standard CSS so bundlers never strip them) */
+.card-perspective {
+  perspective: 1200px;
+  -webkit-perspective: 1200px;
 }
 
-@utility backface-hidden {
+.transform-style-3d {
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+}
+
+.backface-hidden {
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
 }
 
-@utility rotate-y-180 {
+.rotate-y-180 {
   transform: rotateY(180deg);
+  -webkit-transform: rotateY(180deg);
 }
 
 body {

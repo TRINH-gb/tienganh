@@ -5,34 +5,34 @@ export const MODEL_STORAGE_KEY = 'evm_gemini_model';
 
 export const SUPPORTED_MODELS = [
   {
-    id: 'gemini-3-flash-preview',
-    name: 'Gemini 3 Flash Preview',
-    tag: 'Mặc định (Default)',
-    description: 'Tốc độ phản hồi cực nhanh, tối ưu bóc tách ngữ liệu đề thi THPT và chi phí quota.',
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'Mặc định (Khuyên dùng)',
+    description: 'Thế hệ mới nhất từ Google, phản hồi siêu nhanh, tối ưu ngữ liệu đề thi THPT.',
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  },
-  {
-    id: 'gemini-3-pro-preview',
-    name: 'Gemini 3 Pro Preview',
-    tag: 'Suy luận sâu',
-    description: 'Mô hình mạnh mẽ nhất, suy luận ngôn ngữ học sâu sắc, phân tích bẫy đề thi sắc bén.',
-    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
   },
   {
     id: 'gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
-    tag: 'Dự phòng ổn định',
-    description: 'Hạn ngạch ổn định cao, đảm bảo hoạt động liên tục khi các model preview bận rộn.',
+    tag: 'Ổn định',
+    description: 'Mô hình tốc độ cao, xử lý văn bản và đề thi mượt mà.',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  },
+  {
+    id: 'gemini-1.5-flash',
+    name: 'Gemini 1.5 Flash',
+    tag: 'Dự phòng',
+    description: 'Hạn ngạch ổn định cao, tương thích toàn diện.',
     badgeClass: 'bg-amber-50 text-amber-700 border-amber-200'
   }
 ];
 
-export const DEFAULT_MODEL_ID = 'gemini-3-flash-preview';
+export const DEFAULT_MODEL_ID = 'gemini-3.8-flash';
 
 export const FALLBACK_CHAIN = [
-  'gemini-3-flash-preview',
-  'gemini-3-pro-preview',
-  'gemini-2.5-flash'
+  'gemini-3.8-flash',
+  'gemini-2.5-flash',
+  'gemini-1.5-flash'
 ];
 
 export function getStoredApiKey(): string {
@@ -60,6 +60,11 @@ export function setStoredApiKey(key: string): void {
 export function getStoredModel(): string {
   if (typeof window === 'undefined') return DEFAULT_MODEL_ID;
   const saved = localStorage.getItem(MODEL_STORAGE_KEY);
+  // Auto-migrate away from deprecated models
+  if (saved === 'gemini-2.5-flash' || saved === 'gemini-3-flash-preview' || saved === 'gemini-3-pro-preview') {
+    localStorage.setItem(MODEL_STORAGE_KEY, DEFAULT_MODEL_ID);
+    return DEFAULT_MODEL_ID;
+  }
   if (saved && SUPPORTED_MODELS.some((m) => m.id === saved)) {
     return saved;
   }

@@ -437,7 +437,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               <span>Tiến trình Xử lý Ngữ liệu & Giám sát Fallback</span>
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Cơ chế tự động chuyển đổi giữa các model: <code>gemini-3-flash-preview</code> &rarr; <code>gemini-3-pro-preview</code> &rarr; <code>gemini-2.5-flash</code>
+              Cơ chế tự động chuyển đổi giữa các model: <code>gemini-3.8-flash</code> &rarr; <code>gemini-2.5-flash</code> &rarr; <code>gemini-1.5-flash</code>
             </p>
           </div>
 

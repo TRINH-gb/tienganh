@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components/Navbar';
-import { StatsOverview } from './components/StatsOverview';
 import { ExamExtractor } from './components/ExamExtractor';
 import { VocabularyNotebook } from './components/VocabularyNotebook';
 import { FlashcardDeck } from './components/FlashcardDeck';
 import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
-import { SystemInstructionView } from './components/SystemInstructionModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { VocabGameArena } from './components/VocabGameArena';
 import { SAMPLE_EXAMS } from './data/sampleExams';
 import { VocabularyItem, MasteryStatus } from './types';
 import { getStoredApiKey } from './services/geminiService';
@@ -16,9 +13,7 @@ import { getStoredApiKey } from './services/geminiService';
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<
-    'extract' | 'notebook' | 'flashcards' | 'quiz' | 'game' | 'prompt'
-  >('extract');
+  const [activeTab, setActiveTab] = useState<'extract' | 'notebook' | 'flashcards' | 'quiz'>('extract');
   const [accent, setAccent] = useState<'UK' | 'US'>('US');
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
 
@@ -46,21 +41,21 @@ export default function App() {
       }
     }
 
-    // Default starter dataset from THPT 2024 & 2025 samples
+    // Default starter dataset from Sample Exam (clean without simulated fake test data)
     const starter: VocabularyItem[] = [];
-    SAMPLE_EXAMS.forEach((exam) => {
-      exam.initialVocab.forEach((item, idx) => {
+    if (SAMPLE_EXAMS.length > 0) {
+      SAMPLE_EXAMS[0].initialVocab.forEach((item, idx) => {
         starter.push({
           ...item,
-          id: `starter-${exam.id}-${idx}`,
-          status: idx % 3 === 0 ? 'Đã thành thạo' : idx % 2 === 0 ? 'Đang học' : 'Chưa thuộc',
-          interactionCount: Math.floor(Math.random() * 5) + 1,
-          quizCorrectCount: idx % 3 === 0 ? 3 : idx % 2 === 0 ? 2 : 0,
-          quizTotalCount: idx % 3 === 0 ? 3 : idx % 2 === 0 ? 3 : 2,
+          id: `starter-${SAMPLE_EXAMS[0].id}-${idx}`,
+          status: 'Chưa thuộc',
+          interactionCount: 0,
+          quizCorrectCount: 0,
+          quizTotalCount: 0,
           addedAt: new Date().toISOString()
         });
       });
-    });
+    }
     return starter;
   });
 
@@ -167,15 +162,8 @@ export default function App() {
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
-      {/* Main Content Area */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Top Progress & Stats Overview */}
-        <StatsOverview
-          vocabulary={vocabulary}
-          onFilterCategory={() => setActiveTab('notebook')}
-          onFilterStatus={() => setActiveTab('notebook')}
-        />
-
+      {/* Main Content Area - Clean, focused on the active tool */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Tab 1: Phân tích & Trích xuất Đề thi */}
         {activeTab === 'extract' && (
           <ExamExtractor
@@ -222,18 +210,6 @@ export default function App() {
             onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
           />
         )}
-
-        {/* Tab 5: Game Arena */}
-        {activeTab === 'game' && (
-          <VocabGameArena
-            vocabulary={vocabulary}
-            onUpdateQuizResult={handleUpdateQuizResult}
-            accent={accent}
-          />
-        )}
-
-        {/* Tab 6: System Instruction Specification */}
-        {activeTab === 'prompt' && <SystemInstructionView />}
       </main>
 
       {/* Word Deep Dive Modal */}

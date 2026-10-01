@@ -3,33 +3,32 @@
 
 ---
 
-## 🌟 Tối ưu hóa từ Bộ Skill Giáo dục (Educational Skills Integration)
+## 🌟 Các chức năng cốt lõi (Core Features)
 
-Ứng dụng được nâng cấp toàn diện dựa trên bộ tiêu chuẩn kỹ năng sư phạm hiện đại:
+Ứng dụng tập trung chuẩn xác vào 4 chức năng chính theo mô tả chuẩn EVM:
 
-1. **📄 Xuất Đề thi & Phiếu Bài tập Word (.doc) chuẩn Bộ GD&ĐT (`docx-official`)**:
-   - Tự động xuất phiếu từ vựng hoặc đề trắc nghiệm AI ra tệp Microsoft Word (`.doc`) với đầy đủ tiêu đề Sở GD&ĐT/Trường THPT, khung điền thông tin thí sinh, câu hỏi trắc nghiệm, **Bảng đáp án (Answer Key Matrix)** và phần **Lời giải chi tiết từng câu**.
-   - Hỗ trợ in ấn trực tiếp hoặc tải file phục vụ giáo viên phát cho học sinh làm bài trên lớp.
+1. **📄 Phân tích & Trích xuất Từ vựng Đề thi (Exam Extractor)**:
+   - Tải tệp đề thi (.PDF / .TXT) hoặc chọn đề mẫu THPT Quốc Gia.
+   - AI bóc tách chính xác 5 nhóm từ vựng: **Collocations, Phrasal verbs, Idioms, Prepositions, Single words**.
+   - Cung cấp đầy đủ: Từ gốc, phiên âm IPA, nghĩa tiếng Việt sát bài thi, câu gốc trong đề thi (Contextual Example) và mẹo bẫy thi THPT.
+   - Thao tác nhanh: Chọn từ để lưu vào Sổ tay, mở Flashcard hoặc tạo AI Quiz.
 
-2. **🎮 Đấu Trường Phản Xạ 60 Giây - Gamification (`game-development`)**:
-   - Chế độ **Quick-Fire Vocab Arena**: 60 giây đếm ngược kiểm tra phản xạ chọn nghĩa tiếng Việt của các cụm từ vựng.
-   - Cơ chế tính điểm nhân số (Combo Streak Multiplier x2, x3, x4), âm thanh phát âm Cambridge/Oxford và hiệu ứng pháo hoa Confetti khi phá kỷ lục điểm (High Score lưu trên `localStorage`).
+2. **📖 Sổ tay Từ vựng Cá nhân (Vocabulary Notebook)**:
+   - Quản lý danh sách từ vựng đã lưu, tra cứu tìm kiếm và lọc theo 5 nhóm từ hoặc trạng thái (Chưa thuộc / Đang học / Đã thành thạo).
+   - Nghe phát âm IPA chuẩn Anh - Anh (UK) hoặc Anh - Mỹ (US).
+   - Thêm từ mới thủ công hoặc xuất dữ liệu ôn tập.
 
-3. **📊 Phân tích Ngữ liệu & Chẩn đoán Sư phạm Điểm yếu (`d3-visualization`)**:
-   - Biểu đồ phân bổ độ khó theo khung tham chiếu châu Âu: **B1** (Cơ bản), **B2** (Khá - Phổ biến THPT), **C1** (Phân loại điểm 9+).
-   - **Hệ thống chẩn đoán điểm yếu (Weakness Diagnosis)**: Tự động phát hiện nhóm từ vựng mà học sinh hay làm sai nhất (VD: cụm giới từ phụ thuộc hay thành ngữ), đưa ra cảnh báo và chiến thuật ôn tập bẫy đề thi.
+3. **🎴 Thẻ ghi nhớ Flashcards (Flashcard Deck)**:
+   - Thẻ lật 2 mặt trực quan (Mặt trước: từ vựng + loại từ + phát âm; Mặt sau: nghĩa tiếng Việt + câu ví dụ gốc + mẹo thi).
+   - Nghe phát âm tự động, đánh dấu mức độ thuộc, hỗ trợ phím tắt tiện lợi (Space để lật, Mũi tên để chuyển thẻ).
 
-4. **🧠 Thuật toán Lặp lại Ngắt quãng (Spaced Repetition System - Leitner Box)**:
-   - Gắn nhãn chu kỳ ghi nhớ cho từng Flashcard:
-     - 📦 **Hộp 1**: *Chưa thuộc* (Cần ôn hàng ngày)
-     - 📦 **Hộp 2**: *Đang học* (Ôn ngắt quãng sau 3 ngày)
-     - 📦 **Hộp 3**: *Đã thành thạo* (Ôn kiểm tra sau 7 ngày)
-   - Tích hợp trọn bộ phím tắt (Space để lật, phím Mũi tên trái/phải, phím số 1, 2, 3).
+4. **📝 Luyện thi AI Quiz (Adaptive Quiz Engine)**:
+   - Tạo bài tập trắc nghiệm 4 lựa chọn trực tiếp từ danh mục từ vựng cá nhân (Dạng điền từ, Đồng/trái nghĩa, Hoàn thành câu).
+   - Chấm điểm ngay, giải thích chi tiết đáp án và tự động cập nhật độ thành thạo từ vựng.
 
-5. **⚡ Cơ chế Fallback AI 3 Tầng & Trực tiếp Phía Client (Rule 1 & Rule 3)**:
-   - Tự động luân chuyển: `gemini-3-flash-preview` &rarr; `gemini-3-pro-preview` &rarr; `gemini-2.5-flash`.
-   - Giữ nguyên kết quả các bước trước, chỉ retry bước gặp sự cố.
-   - Hiển thị nguyên văn lỗi API màu đỏ khi hết quota (VD: `429 RESOURCE_EXHAUSTED`), chuyển trạng thái các cột đang chờ thành **"Đã dừng do lỗi"**.
+5. **⚡ Cơ chế Fallback AI 3 Tầng & Quản lý API Key (Rule 1 & Rule 3)**:
+   - Tự động luân chuyển model dự phòng khi gặp sự cố/hạn ngạch: `gemini-3.8-flash` &rarr; `gemini-2.5-flash` &rarr; `gemini-1.5-flash`.
+   - Lưu trữ API Key an toàn trong trình duyệt (`localStorage`) của người dùng.
 
 ---
 

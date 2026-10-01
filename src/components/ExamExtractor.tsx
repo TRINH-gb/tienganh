@@ -503,26 +503,43 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     : 0;
 
   return (
-    <div className="space-y-8">
-      {/* Banner / Section Title */}
-      <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-blue-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold text-indigo-200 mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Nhiệm vụ 1: Phân tích & Trích xuất Ngữ liệu Đề thi
+    <div className="space-y-6">
+      {/* Clean, Focused Header */}
+      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 mb-2">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Trích xuất từ vựng chuẩn ma trận đề thi THPT Quốc Gia</span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            AI Exam Corpus Vocabulary Extractor
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Phân tích & Trích xuất Từ vựng Đề thi
           </h1>
-          <p className="mt-2 text-indigo-100 text-sm sm:text-base leading-relaxed">
-            Hệ thống áp dụng ngôn ngữ học ngữ liệu (Corpus Linguistics) bóc tách 5 thành phần ngôn ngữ: Single words (B1-C1), Phrasal verbs, Collocations, Idioms và Prepositions kèm IPA Cambridge/Oxford và bẫy đề thi THPT.
+          <p className="mt-1 text-slate-600 text-xs sm:text-sm">
+            Tải lên tệp đề thi (.PDF / .TXT) hoặc chọn đề mẫu để AI tự động nhận diện Collocations, Phrasal verbs, Idioms, Prepositions và Single words.
           </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-xs text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <Cpu className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Model:</span>
+            <strong className="text-slate-800 font-mono text-[11px] font-bold">
+              {currentRunningModel}
+            </strong>
+          </span>
+          <button
+            type="button"
+            onClick={onOpenApiKeyModal}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer"
+          >
+            Đổi Model / Key
+          </button>
         </div>
       </div>
 
-      {/* RULE 1 & 3: Multi-Step Visual Pipeline & Fallback Monitor */}
-      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+      {/* RULE 1 & 3: Multi-Step Visual Pipeline & Fallback Monitor (Shown when running, failed, completed, or notice) */}
+      {(isLoading || hasFailed || completedCount > 0 || errorMsg || fallbackNotice) && (
+        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4 animate-in fade-in">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -679,6 +696,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           </div>
         )}
       </div>
+    )}
 
       {/* Input Section */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -920,47 +938,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             </div>
           </div>
 
-          {/* EVM Standard Guidelines Card */}
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs space-y-3">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Quy chuẩn Dữ liệu Trích xuất (EVM Standards)
-            </h4>
-            <div className="space-y-2.5 text-xs text-slate-600">
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[10px]">
-                  1
-                </span>
-                <div>
-                  <strong className="text-slate-800">IPA chuẩn Cambridge/Oxford:</strong> Phiên âm chính xác cả trọng âm, nguyên âm đôi.
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[10px]">
-                  2
-                </span>
-                <div>
-                  <strong className="text-slate-800">Nghĩa tiếng Việt sát ngữ cảnh:</strong> Dịch đúng nghĩa sử dụng trong bài thi, không liệt kê nghĩa tràn lan.
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[10px]">
-                  3
-                </span>
-                <div>
-                  <strong className="text-slate-800">Contextual Example:</strong> Bắt buộc trích dẫn nguyên văn câu chứa từ trong đề thi, in đậm từ mục tiêu.
-                </div>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center shrink-0 text-[10px]">
-                  4
-                </span>
-                <div>
-                  <strong className="text-slate-800">Mẹo thi THPT (Exam Tip):</strong> Nhắc nhở bẫy đề thi, từ đồng nghĩa hoặc giới từ đi kèm hay nhầm lẫn.
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Quick Batch Actions Box */}
           <div className="bg-indigo-50/80 rounded-2xl p-5 border border-indigo-200/80 space-y-3">
             <div className="flex items-center justify-between">
@@ -1013,13 +990,13 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         </div>
       </div>
 
-      {/* Extracted Results Table (Cấu trúc 1: Kết quả phân tích đề thi) */}
+      {/* Extracted Results Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
         <div className="p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="font-extrabold text-slate-900 text-base">
-                Cấu trúc 1: Bảng Kết quả Phân tích Đề thi (Vocabulary Extraction)
+                Danh sách Từ vựng Trích xuất
               </h3>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800">
                 {extractedList.length} mục từ

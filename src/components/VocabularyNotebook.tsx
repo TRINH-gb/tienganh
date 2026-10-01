@@ -59,6 +59,10 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   // Selected items for bulk operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  const masteredCount = vocabulary.filter((v) => v.status === 'Đã thành thạo').length;
+  const learningCount = vocabulary.filter((v) => v.status === 'Đang học').length;
+  const needReviewCount = vocabulary.filter((v) => v.status === 'Chưa thuộc').length;
+
   // Filtered List
   const filteredVocabulary = vocabulary.filter((item) => {
     const matchesSearch =
@@ -188,11 +192,25 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-indigo-600" />
-            <span>Sổ tay Từ vựng Cá nhân (EVM Personal Notebook)</span>
+            <span>Sổ tay Từ vựng Cá nhân</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Quản lý từ vựng mục tiêu, theo dõi cấp độ thuộc và sẵn sàng chuyển đổi thành Flashcard & AI Quiz
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Quản lý từ vựng mục tiêu, tra cứu và ôn luyện trực tiếp qua Flashcard & AI Quiz
           </p>
+          <div className="flex flex-wrap items-center gap-2 mt-2.5">
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+              Tổng số: <strong className="text-slate-900">{vocabulary.length}</strong> từ
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+              ● Đã thuộc: <strong>{masteredCount}</strong>
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200">
+              ● Đang học: <strong>{learningCount}</strong>
+            </span>
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-rose-50 text-rose-800 border border-rose-200">
+              ● Chưa thuộc: <strong>{needReviewCount}</strong>
+            </span>
+          </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

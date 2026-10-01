@@ -4,20 +4,16 @@ import {
   Sparkles,
   Layers,
   HelpCircle,
-  Code2,
   GraduationCap,
   Volume2,
-  KeyRound,
-  Settings,
-  Cpu,
-  Gamepad2
+  KeyRound
 } from 'lucide-react';
 import { VocabularyItem } from '../types';
-import { getStoredApiKey, getStoredModel } from '../services/geminiService';
+import { getStoredApiKey } from '../services/geminiService';
 
 interface NavbarProps {
-  activeTab: 'extract' | 'notebook' | 'flashcards' | 'quiz' | 'game' | 'prompt';
-  setActiveTab: (tab: 'extract' | 'notebook' | 'flashcards' | 'quiz' | 'game' | 'prompt') => void;
+  activeTab: 'extract' | 'notebook' | 'flashcards' | 'quiz';
+  setActiveTab: (tab: 'extract' | 'notebook' | 'flashcards' | 'quiz') => void;
   vocabulary: VocabularyItem[];
   accent: 'UK' | 'US';
   setAccent: (accent: 'UK' | 'US') => void;
@@ -32,12 +28,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   setAccent,
   onOpenApiKeyModal
 }) => {
-  const masteredCount = vocabulary.filter((v) => v.status === 'Đã thành thạo').length;
-  const learningCount = vocabulary.filter((v) => v.status === 'Đang học').length;
-  const reviewCount = vocabulary.filter((v) => v.status === 'Chưa thuộc').length;
-
   const currentApiKey = getStoredApiKey();
-  const currentModel = getStoredModel();
   const hasApiKey = Boolean(currentApiKey);
 
   return (
@@ -64,7 +55,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Navigation Tabs */}
+          {/* Navigation Tabs - 4 Core Modules */}
           <nav className="hidden lg:flex items-center space-x-1">
             <button
               onClick={() => setActiveTab('extract')}
@@ -113,33 +104,9 @@ export const Navbar: React.FC<NavbarProps> = ({
               <HelpCircle className="w-4 h-4 text-emerald-500" />
               <span>Luyện thi AI Quiz</span>
             </button>
-
-            <button
-              onClick={() => setActiveTab('game')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'game'
-                  ? 'bg-orange-50 text-orange-700 border border-orange-200 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Gamepad2 className="w-4 h-4 text-orange-500" />
-              <span>Đấu trường 60s</span>
-            </button>
-
-            <button
-              onClick={() => setActiveTab('prompt')}
-              className={`flex items-center space-x-2 px-3.5 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeTab === 'prompt'
-                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-              }`}
-            >
-              <Code2 className="w-4 h-4 text-purple-500" />
-              <span>System Prompt</span>
-            </button>
           </nav>
 
-          {/* Quick Controls, Settings (API Key) & Accent Toggle */}
+          {/* Quick Controls & Settings (API Key) */}
           <div className="flex items-center space-x-2 sm:space-x-3">
             {/* Pronunciation Accent Toggle */}
             <div className="hidden sm:flex items-center bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-xs">
@@ -196,19 +163,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 title={hasApiKey ? 'API Key đã thiết lập' : 'Chưa có API Key'}
               />
             </button>
-
-            {/* Vocabulary stats badges for desktop */}
-            <div className="hidden xl:flex items-center space-x-1.5 text-xs">
-              <span className="px-2 py-1 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md font-medium" title="Đã thành thạo (>90%)">
-                ★ {masteredCount}
-              </span>
-              <span className="px-2 py-1 bg-amber-50 border border-amber-200 text-amber-700 rounded-md font-medium" title="Đang học (50-80%)">
-                ● {learningCount}
-              </span>
-              <span className="px-2 py-1 bg-rose-50 border border-rose-200 text-rose-700 rounded-md font-medium" title="Chưa thuộc (Sai nhiều)">
-                ▲ {reviewCount}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -253,26 +207,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             AI Quiz
-          </button>
-          <button
-            onClick={() => setActiveTab('game')}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium ${
-              activeTab === 'game'
-                ? 'bg-orange-600 text-white font-semibold'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            Đấu trường 60s
-          </button>
-          <button
-            onClick={() => setActiveTab('prompt')}
-            className={`whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium ${
-              activeTab === 'prompt'
-                ? 'bg-indigo-600 text-white font-semibold'
-                : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            System Instruction
           </button>
         </div>
       </div>

@@ -12,10 +12,39 @@ import { getStoredApiKey } from './services/geminiService';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
+// Helper to assign proper sourceExam to legacy or untagged words
+const normalizeItemSourceExam = (item: VocabularyItem): string => {
+  if (item.sourceExam && item.sourceExam.trim()) {
+    return item.sourceExam.trim();
+  }
+
+  const itemId = (item.id || '').toLowerCase();
+  const termLower = (item.term || '').toLowerCase().trim();
+
+  for (const exam of SAMPLE_EXAMS) {
+    if (itemId.includes(exam.id.toLowerCase())) {
+      return exam.title;
+    }
+    if (exam.initialVocab.some((v) => v.term.toLowerCase().trim() === termLower)) {
+      return exam.title;
+    }
+  }
+
+  return 'Từ vựng tự nhập / Khác';
+};
+
+const migrateVocabularyData = (items: VocabularyItem[]): VocabularyItem[] => {
+  return items.map((item) => ({
+    ...item,
+    sourceExam: normalizeItemSourceExam(item)
+  }));
+};
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'extract' | 'notebook' | 'flashcards' | 'quiz'>('extract');
   const [accent, setAccent] = useState<'UK' | 'US'>('US');
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
+  const [selectedExamFilter, setSelectedExamFilter] = useState<string>('ALL');
 
   // Manage API Key Modal state (shows automatically if no key is stored)
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(() => {
@@ -33,7 +62,7 @@ export default function App() {
         if (saved) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            return parsed;
+            return migrateVocabularyData(parsed);
           }
         }
       } catch (err) {
@@ -48,6 +77,7 @@ export default function App() {
         starter.push({
           ...item,
           id: `starter-${SAMPLE_EXAMS[0].id}-${idx}`,
+          sourceExam: SAMPLE_EXAMS[0].title,
           status: 'Chưa thuộc',
           interactionCount: 0,
           quizCorrectCount: 0,
@@ -72,16 +102,23 @@ export default function App() {
   const handleAddVocabBatch = (newItems: VocabularyItem[]) => {
     setVocabulary((prev) => {
       const existingTerms = new Set(prev.map((i) => i.term.toLowerCase().trim()));
-      const filteredNew = newItems.filter(
-        (item) => !existingTerms.has(item.term.toLowerCase().trim())
-      );
+      const filteredNew = newItems
+        .filter((item) => !existingTerms.has(item.term.toLowerCase().trim()))
+        .map((item) => ({
+          ...item,
+          sourceExam: item.sourceExam?.trim() || 'Từ vựng tự nhập / Khác'
+        }));
       return [...filteredNew, ...prev];
     });
   };
 
   // Add single word manually
   const handleAddNewWord = (item: VocabularyItem) => {
-    setVocabulary((prev) => [item, ...prev]);
+    const itemWithExam: VocabularyItem = {
+      ...item,
+      sourceExam: item.sourceExam?.trim() || 'Từ vựng tự nhập / Khác'
+    };
+    setVocabulary((prev) => [itemWithExam, ...prev]);
   };
 
   // Update mastery status
@@ -142,11 +179,17 @@ export default function App() {
   };
 
   // Navigation handlers from Extractor or Notebook
-  const handleOpenFlashcardsWithWords = (_items: VocabularyItem[]) => {
+  const handleOpenFlashcardsWithWords = (_items: VocabularyItem[], examTitle?: string) => {
+    if (examTitle) {
+      setSelectedExamFilter(examTitle);
+    }
     setActiveTab('flashcards');
   };
 
-  const handleGenerateQuizWithWords = (_items: VocabularyItem[]) => {
+  const handleGenerateQuizWithWords = (_items: VocabularyItem[], examTitle?: string) => {
+    if (examTitle) {
+      setSelectedExamFilter(examTitle);
+    }
     setActiveTab('quiz');
   };
 
@@ -187,6 +230,8 @@ export default function App() {
             onStartFlashcards={handleOpenFlashcardsWithWords}
             onStartQuiz={handleGenerateQuizWithWords}
             accent={accent}
+            selectedExamFilter={selectedExamFilter}
+            onSelectExamFilter={setSelectedExamFilter}
           />
         )}
 
@@ -198,6 +243,8 @@ export default function App() {
             onIncrementInteraction={handleIncrementInteraction}
             onInspectWord={setInspectedWord}
             accent={accent}
+            selectedExamFilter={selectedExamFilter}
+            onSelectExamFilter={setSelectedExamFilter}
           />
         )}
 
@@ -208,6 +255,8 @@ export default function App() {
             onUpdateQuizResult={handleUpdateQuizResult}
             accent={accent}
             onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+            selectedExamFilter={selectedExamFilter}
+            onSelectExamFilter={setSelectedExamFilter}
           />
         )}
       </main>

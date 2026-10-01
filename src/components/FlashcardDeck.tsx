@@ -23,6 +23,8 @@ interface FlashcardDeckProps {
   onIncrementInteraction: (id: string) => void;
   onInspectWord: (word: VocabularyItem) => void;
   accent: 'UK' | 'US';
+  selectedExamFilter?: string;
+  onSelectExamFilter?: (exam: string) => void;
 }
 
 export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
@@ -30,27 +32,47 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
   onUpdateStatus,
   onIncrementInteraction,
   onInspectWord,
-  accent
+  accent,
+  selectedExamFilter = 'ALL',
+  onSelectExamFilter
 }) => {
   const [currentIndex, setCurrentIndex] = useState<number>(0);
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
+  const [filterExam, setFilterExam] = useState<string>(selectedExamFilter);
   const [filterCategory, setFilterCategory] = useState<VocabCategory | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<MasteryStatus | 'ALL'>('ALL');
   const [autoPronounce, setAutoPronounce] = useState<boolean>(true);
   const [deck, setDeck] = useState<VocabularyItem[]>(vocabulary);
 
+  // Sync with selectedExamFilter prop
+  useEffect(() => {
+    if (selectedExamFilter) {
+      setFilterExam(selectedExamFilter);
+    }
+  }, [selectedExamFilter]);
+
+  const examOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    vocabulary.forEach((v) => {
+      set.add(v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác');
+    });
+    return Array.from(set);
+  }, [vocabulary]);
+
   // Synchronize deck with filter and vocabulary changes
   useEffect(() => {
     let list = vocabulary.filter((v) => {
+      const vExam = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
+      const matchExam = filterExam === 'ALL' || vExam === filterExam;
       const matchCat = filterCategory === 'ALL' || v.type === filterCategory;
       const matchStat = filterStatus === 'ALL' || v.status === filterStatus;
-      return matchCat && matchStat;
+      return matchExam && matchCat && matchStat;
     });
 
     setDeck(list);
     setCurrentIndex(0);
     setIsFlipped(false);
-  }, [vocabulary, filterCategory, filterStatus]);
+  }, [vocabulary, filterExam, filterCategory, filterStatus]);
 
   const currentItem = deck[currentIndex];
 
@@ -151,6 +173,29 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Exam Selector */}
+          <select
+            value={filterExam}
+            onChange={(e) => {
+              setFilterExam(e.target.value);
+              if (onSelectExamFilter) onSelectExamFilter(e.target.value);
+            }}
+            className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-xl focus:outline-hidden max-w-[190px] truncate"
+            title="Lọc theo Đề thi"
+          >
+            <option value="ALL">Tất cả đề ({vocabulary.length})</option>
+            {examOptions.map((exam) => {
+              const count = vocabulary.filter(
+                (v) => (v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác') === exam
+              ).length;
+              return (
+                <option key={exam} value={exam}>
+                  {exam.length > 22 ? exam.slice(0, 22) + '...' : exam} ({count})
+                </option>
+              );
+            })}
+          </select>
+
           <select
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value as any)}
@@ -199,6 +244,29 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Active Exam Notice */}
+      {filterExam !== 'ALL' && (
+        <div className="flex items-center justify-between bg-indigo-50 border border-indigo-200 px-4 py-2 rounded-2xl text-xs text-indigo-950 animate-in fade-in">
+          <div className="flex items-center gap-2 truncate">
+            <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase bg-indigo-200 text-indigo-800">
+              Đang ôn đề
+            </span>
+            <span className="font-bold truncate">{filterExam}</span>
+            <span className="text-slate-500">({deck.length} thẻ khả dụng)</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setFilterExam('ALL');
+              if (onSelectExamFilter) onSelectExamFilter('ALL');
+            }}
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-bold ml-2 underline shrink-0 cursor-pointer"
+          >
+            Xem tất cả đề
+          </button>
+        </div>
+      )}
 
       {deck.length === 0 ? (
         <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm">
@@ -272,6 +340,11 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
                     <span className="px-2.5 py-1 rounded-full text-xs font-black bg-slate-100 text-slate-700 border border-slate-200">
                       CEFR {currentItem.cefrLevel}
                     </span>
+                    {currentItem.sourceExam && (
+                      <span className="hidden sm:inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 truncate max-w-[190px]" title={`Đề thi: ${currentItem.sourceExam}`}>
+                        {currentItem.sourceExam}
+                      </span>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -395,6 +468,11 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
                     <p className="text-lg sm:text-xl font-bold text-amber-300 mt-1">
                       {currentItem.meaning}
                     </p>
+                    {currentItem.sourceExam && (
+                      <p className="text-[11px] text-indigo-300 font-semibold mt-1 truncate" title={currentItem.sourceExam}>
+                        📑 Đề thi: {currentItem.sourceExam}
+                      </p>
+                    )}
                   </div>
 
                   {/* Context Sentence in Exam */}

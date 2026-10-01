@@ -26,14 +26,19 @@ interface AiQuizEngineProps {
   onUpdateQuizResult: (term: string, isCorrect: boolean) => void;
   accent: 'UK' | 'US';
   onOpenApiKeyModal?: () => void;
+  selectedExamFilter?: string;
+  onSelectExamFilter?: (exam: string) => void;
 }
 
 export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   vocabulary,
   onUpdateQuizResult,
   accent,
-  onOpenApiKeyModal
+  onOpenApiKeyModal,
+  selectedExamFilter = 'ALL',
+  onSelectExamFilter
 }) => {
+  const [filterExam, setFilterExam] = useState<string>(selectedExamFilter);
   const [questionCount, setQuestionCount] = useState<number>(5);
   const [selectedTypes, setSelectedTypes] = useState<string[]>([
     'Fill-in-the-blank',
@@ -42,6 +47,29 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   ]);
   const [filterVocabMode, setFilterVocabMode] = useState<'all' | 'needReview' | 'learning'>('all');
   const [quizMode, setQuizMode] = useState<'instant' | 'exam'>('instant');
+
+  // Synchronize internal filter with selectedExamFilter prop
+  React.useEffect(() => {
+    if (selectedExamFilter) {
+      setFilterExam(selectedExamFilter);
+    }
+  }, [selectedExamFilter]);
+
+  const examOptions = React.useMemo(() => {
+    const set = new Set<string>();
+    vocabulary.forEach((v) => {
+      set.add(v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác');
+    });
+    return Array.from(set);
+  }, [vocabulary]);
+
+  // Words scoped to the selected exam
+  const examScopedVocab = React.useMemo(() => {
+    if (filterExam === 'ALL') return vocabulary;
+    return vocabulary.filter(
+      (v) => (v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác') === filterExam
+    );
+  }, [vocabulary, filterExam]);
 
   // Generator & Quiz State
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -52,7 +80,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
 
   // Filter Target Vocabulary for Quiz Generation
-  const targetVocabList = vocabulary.filter((v) => {
+  const targetVocabList = examScopedVocab.filter((v) => {
     if (filterVocabMode === 'needReview') return v.status === 'Chưa thuộc';
     if (filterVocabMode === 'learning') return v.status === 'Đang học';
     return true;
@@ -190,23 +218,50 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Target Exam Filter */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              Đề thi mục tiêu:
+            </label>
+            <select
+              value={filterExam}
+              onChange={(e) => {
+                setFilterExam(e.target.value);
+                if (onSelectExamFilter) onSelectExamFilter(e.target.value);
+              }}
+              className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden truncate"
+            >
+              <option value="ALL">Tất cả đề ({vocabulary.length} từ)</option>
+              {examOptions.map((exam) => {
+                const count = vocabulary.filter(
+                  (v) => (v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác') === exam
+                ).length;
+                return (
+                  <option key={exam} value={exam}>
+                    {exam} ({count} từ)
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
           {/* Target Vocab Source */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Nguồn từ vựng cá nhân:
+              Bộ lọc trạng thái:
             </label>
             <select
               value={filterVocabMode}
               onChange={(e) => setFilterVocabMode(e.target.value as any)}
               className="w-full px-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 focus:outline-hidden"
             >
-              <option value="all">Tất cả từ trong sổ tay ({vocabulary.length})</option>
+              <option value="all">Tất cả ({examScopedVocab.length})</option>
               <option value="needReview">
-                Chỉ từ "Chưa thuộc" ({vocabulary.filter((v) => v.status === 'Chưa thuộc').length})
+                Chỉ "Chưa thuộc" ({examScopedVocab.filter((v) => v.status === 'Chưa thuộc').length})
               </option>
               <option value="learning">
-                Chỉ từ "Đang học" ({vocabulary.filter((v) => v.status === 'Đang học').length})
+                Chỉ "Đang học" ({examScopedVocab.filter((v) => v.status === 'Đang học').length})
               </option>
             </select>
           </div>
@@ -216,7 +271,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Số lượng câu hỏi:
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {[3, 5, 8, 10].map((num) => (
                 <button
                   key={num}
@@ -228,7 +283,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                       : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                   }`}
                 >
-                  {num} câu
+                  {num}
                 </button>
               ))}
             </div>
@@ -239,11 +294,11 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
               Chế độ luyện tập:
             </label>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 type="button"
                 onClick={() => setQuizMode('instant')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`flex-1 py-2 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                   quizMode === 'instant'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -254,7 +309,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
               <button
                 type="button"
                 onClick={() => setQuizMode('exam')}
-                className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                className={`flex-1 py-2 px-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
                   quizMode === 'exam'
                     ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                     : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
@@ -265,6 +320,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             </div>
           </div>
         </div>
+
+        {filterExam !== 'ALL' && (
+          <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl font-medium flex items-center justify-between animate-in fade-in">
+            <span>🎯 Phạm vi đề thi: <strong>{filterExam}</strong> ({targetVocabList.length} từ khả dụng)</span>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterExam('ALL');
+                if (onSelectExamFilter) onSelectExamFilter('ALL');
+              }}
+              className="text-emerald-700 hover:text-emerald-900 font-bold underline ml-2 cursor-pointer"
+            >
+              Xem tất cả đề
+            </button>
+          </div>
+        )}
 
         {/* 3 Standard THPT Formats */}
         <div>

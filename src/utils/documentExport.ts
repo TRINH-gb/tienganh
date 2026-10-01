@@ -206,6 +206,7 @@ export function generateExamDocHtml(
           <td>
             <i>"${v.context ? v.context.replace(/\*\*/g, '') : ''}"</i>
             ${v.examTip ? `<br><small style="color: #b45309;">💡 <b>Mẹo thi:</b> ${v.examTip}</small>` : ''}
+            ${v.sourceExam ? `<br><small style="color: #4338ca;">📑 <b>Đề thi:</b> ${v.sourceExam}</small>` : ''}
           </td>
         </tr>
       `

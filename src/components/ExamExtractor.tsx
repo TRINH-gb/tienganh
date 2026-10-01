@@ -33,8 +33,8 @@ import {
 
 interface ExamExtractorProps {
   onAddVocabBatch: (items: VocabularyItem[]) => void;
-  onOpenFlashcardsWithWords: (items: VocabularyItem[]) => void;
-  onGenerateQuizWithWords: (items: VocabularyItem[]) => void;
+  onOpenFlashcardsWithWords: (items: VocabularyItem[], examTitle?: string) => void;
+  onGenerateQuizWithWords: (items: VocabularyItem[], examTitle?: string) => void;
   onInspectWord: (word: VocabularyItem) => void;
   accent: 'UK' | 'US';
   onOpenApiKeyModal: () => void;
@@ -108,6 +108,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     SAMPLE_EXAMS[0].initialVocab.map((item, idx) => ({
       ...item,
       id: `sample-${SAMPLE_EXAMS[0].id}-${idx}`,
+      sourceExam: SAMPLE_EXAMS[0].title,
       status: 'Chưa thuộc',
       interactionCount: 0,
       quizCorrectCount: 0,
@@ -134,6 +135,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     const initial = found.initialVocab.map((item, idx) => ({
       ...item,
       id: `sample-${found.id}-${idx}`,
+      sourceExam: found.title,
       status: 'Chưa thuộc' as const,
       interactionCount: 0,
       quizCorrectCount: 0,
@@ -434,7 +436,10 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   };
 
   const handleAddSelectedToNotebook = () => {
-    const selected = getSelectedItems();
+    const selected = getSelectedItems().map((item) => ({
+      ...item,
+      sourceExam: item.sourceExam?.trim() || examTitle || 'Đề thi trích dẫn'
+    }));
     if (selected.length === 0) return;
     onAddVocabBatch(selected);
   };
@@ -969,7 +974,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               <button
                 type="button"
                 disabled={selectedWordIds.size === 0}
-                onClick={() => onOpenFlashcardsWithWords(getSelectedItems())}
+                onClick={() => onOpenFlashcardsWithWords(getSelectedItems(), examTitle)}
                 className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <Layers className="w-4 h-4" />
@@ -980,7 +985,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             <button
               type="button"
               disabled={selectedWordIds.size === 0}
-              onClick={() => onGenerateQuizWithWords(getSelectedItems())}
+              onClick={() => onGenerateQuizWithWords(getSelectedItems(), examTitle)}
               className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
             >
               <HelpCircle className="w-4 h-4" />

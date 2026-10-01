@@ -14,9 +14,11 @@
    - Thao tác nhanh: Chọn từ để lưu vào Sổ tay, mở Flashcard hoặc tạo AI Quiz.
 
 2. **📖 Sổ tay Từ vựng Cá nhân (Vocabulary Notebook)**:
-   - Quản lý danh sách từ vựng đã lưu, tra cứu tìm kiếm và lọc theo 5 nhóm từ hoặc trạng thái (Chưa thuộc / Đang học / Đã thành thạo).
+   - **Phân loại theo từng đề thi riêng biệt**: Dễ dàng chọn đề thi muốn ôn luyện (Đề Chính thức, Đề Tham khảo, hoặc tệp đề tải lên riêng).
+   - **Ôn luyện tập trung theo đề đã chọn**: Học sinh chỉ cần chọn đề là có thể ôn ngay Flashcards hoặc tạo AI Quiz riêng cho đúng đề đó, không bị lẫn với từ của các đề khác.
+   - Quản lý danh sách từ vựng, tra cứu tìm kiếm và lọc theo 5 nhóm từ hoặc trạng thái (Chưa thuộc / Đang học / Đã thành thạo).
    - Nghe phát âm IPA chuẩn Anh - Anh (UK) hoặc Anh - Mỹ (US).
-   - Thêm từ mới thủ công hoặc xuất dữ liệu ôn tập.
+   - Thêm từ mới thủ công hoặc xuất dữ liệu ôn tập (Word .doc, CSV, Anki Deck).
 
 3. **🎴 Thẻ ghi nhớ Flashcards (Flashcard Deck)**:
    - Thẻ lật 2 mặt trực quan (Mặt trước: từ vựng + loại từ + phát âm; Mặt sau: nghĩa tiếng Việt + câu ví dụ gốc + mẹo thi).

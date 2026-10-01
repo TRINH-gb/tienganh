@@ -26,9 +26,11 @@ interface VocabularyNotebookProps {
   onDeleteItem: (id: string) => void;
   onAddNewWord: (item: VocabularyItem) => void;
   onInspectWord: (word: VocabularyItem) => void;
-  onStartFlashcards: (items: VocabularyItem[]) => void;
-  onStartQuiz: (items: VocabularyItem[]) => void;
+  onStartFlashcards: (items: VocabularyItem[], examTitle?: string) => void;
+  onStartQuiz: (items: VocabularyItem[], examTitle?: string) => void;
   accent: 'UK' | 'US';
+  selectedExamFilter?: string;
+  onSelectExamFilter?: (examTitle: string) => void;
 }
 
 export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
@@ -39,12 +41,48 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   onInspectWord,
   onStartFlashcards,
   onStartQuiz,
-  accent
+  accent,
+  selectedExamFilter = 'ALL',
+  onSelectExamFilter
 }) => {
+  const [currentExamFilter, setCurrentExamFilter] = useState<string>(selectedExamFilter);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<VocabCategory | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<MasteryStatus | 'ALL'>('ALL');
   const [selectedCefr, setSelectedCefr] = useState<CefrLevel | 'ALL'>('ALL');
+
+  // Synchronize internal filter with selectedExamFilter prop
+  React.useEffect(() => {
+    if (selectedExamFilter) {
+      setCurrentExamFilter(selectedExamFilter);
+    }
+  }, [selectedExamFilter]);
+
+  const handleExamChange = (exam: string) => {
+    setCurrentExamFilter(exam);
+    if (onSelectExamFilter) {
+      onSelectExamFilter(exam);
+    }
+    setSelectedIds(new Set());
+  };
+
+  // Extract list of unique exams and count of words in each
+  const examOptions = React.useMemo(() => {
+    const map = new Map<string, number>();
+    vocabulary.forEach((v) => {
+      const examName = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
+      map.set(examName, (map.get(examName) || 0) + 1);
+    });
+    return Array.from(map.entries()).map(([exam, count]) => ({ exam, count }));
+  }, [vocabulary]);
+
+  // Words belonging to the selected exam (or all words if 'ALL')
+  const examWords = React.useMemo(() => {
+    if (currentExamFilter === 'ALL') return vocabulary;
+    return vocabulary.filter(
+      (v) => (v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác') === currentExamFilter
+    );
+  }, [vocabulary, currentExamFilter]);
 
   // Manual Add Modal State
   const [showAddModal, setShowAddModal] = useState(false);
@@ -55,32 +93,36 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   const [newContext, setNewContext] = useState('');
   const [newCefr, setNewCefr] = useState<CefrLevel>('B2');
   const [newExamTip, setNewExamTip] = useState('');
+  const [newSourceExam, setNewSourceExam] = useState('');
 
   // Selected items for bulk operations
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  const masteredCount = vocabulary.filter((v) => v.status === 'Đã thành thạo').length;
-  const learningCount = vocabulary.filter((v) => v.status === 'Đang học').length;
-  const needReviewCount = vocabulary.filter((v) => v.status === 'Chưa thuộc').length;
+  // Statistics for the currently selected exam scope
+  const masteredCount = examWords.filter((v) => v.status === 'Đã thành thạo').length;
+  const learningCount = examWords.filter((v) => v.status === 'Đang học').length;
+  const needReviewCount = examWords.filter((v) => v.status === 'Chưa thuộc').length;
 
   // Filtered List
-  const filteredVocabulary = vocabulary.filter((item) => {
-    const matchesSearch =
-      item.term.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.meaning.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.context.toLowerCase().includes(searchQuery.toLowerCase());
+  const filteredVocabulary = React.useMemo(() => {
+    return examWords.filter((item) => {
+      const matchesSearch =
+        item.term.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.meaning.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.context.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesCategory =
-      selectedCategory === 'ALL' || item.type === selectedCategory;
+      const matchesCategory =
+        selectedCategory === 'ALL' || item.type === selectedCategory;
 
-    const matchesStatus =
-      selectedStatus === 'ALL' || item.status === selectedStatus;
+      const matchesStatus =
+        selectedStatus === 'ALL' || item.status === selectedStatus;
 
-    const matchesCefr =
-      selectedCefr === 'ALL' || item.cefrLevel === selectedCefr;
+      const matchesCefr =
+        selectedCefr === 'ALL' || item.cefrLevel === selectedCefr;
 
-    return matchesSearch && matchesCategory && matchesStatus && matchesCefr;
-  });
+      return matchesSearch && matchesCategory && matchesStatus && matchesCefr;
+    });
+  }, [examWords, searchQuery, selectedCategory, selectedStatus, selectedCefr]);
 
   const handleSelectAllFiltered = () => {
     if (selectedIds.size === filteredVocabulary.length) {
@@ -100,6 +142,15 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
     setSelectedIds(next);
   };
 
+  const handleOpenAddModal = () => {
+    setNewSourceExam(
+      currentExamFilter !== 'ALL'
+        ? currentExamFilter
+        : examOptions[0]?.exam || 'Từ vựng tự nhập / Khác'
+    );
+    setShowAddModal(true);
+  };
+
   const handleSaveNewWord = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTerm.trim() || !newMeaning.trim()) return;
@@ -113,6 +164,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
       context: newContext.trim() || `Example with **${newTerm.trim()}**.`,
       cefrLevel: newCefr,
       examTip: newExamTip.trim(),
+      sourceExam: newSourceExam.trim() || 'Từ vựng tự nhập / Khác',
       status: 'Chưa thuộc',
       interactionCount: 0,
       quizCorrectCount: 0,
@@ -216,7 +268,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setShowAddModal(true)}
+            onClick={handleOpenAddModal}
             className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
           >
             <Plus className="w-4 h-4" />
@@ -276,6 +328,130 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
           </button>
         </div>
       </div>
+
+      {/* EXAM DIVISION & SELECTION TABS */}
+      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+              <BookOpen className="w-4 h-4" />
+            </span>
+            <div>
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                Phân Loại Từ Vựng Theo Từng Đề Thi
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Chọn một đề thi cụ thể để chỉ ôn luyện các từ thuộc đề đó (Flashcards & AI Quiz)
+              </p>
+            </div>
+          </div>
+          {currentExamFilter !== 'ALL' && (
+            <button
+              type="button"
+              onClick={() => handleExamChange('ALL')}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline self-start sm:self-auto"
+            >
+              Xem tất cả ({vocabulary.length} từ)
+            </button>
+          )}
+        </div>
+
+        {/* Scrollable / Wrap Pill Buttons */}
+        <div className="flex flex-wrap gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => handleExamChange('ALL')}
+            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+              currentExamFilter === 'ALL'
+                ? 'bg-indigo-600 text-white shadow-xs'
+                : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+            }`}
+          >
+            <span>Tất cả đề</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                currentExamFilter === 'ALL'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-slate-200 text-slate-700'
+              }`}
+            >
+              {vocabulary.length}
+            </span>
+          </button>
+
+          {examOptions.map(({ exam, count }) => {
+            const isActive = currentExamFilter === exam;
+            return (
+              <button
+                key={exam}
+                type="button"
+                onClick={() => handleExamChange(exam)}
+                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer max-w-full text-left ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400'
+                    : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
+                }`}
+                title={exam}
+              >
+                <span className="truncate max-w-[240px] sm:max-w-[320px]">{exam}</span>
+                <span
+                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                    isActive
+                      ? 'bg-white/20 text-white'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}
+                >
+                  {count} từ
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* FOCUSED EXAM STUDY BANNER (When an exam is specifically selected) */}
+      {currentExamFilter !== 'ALL' && (
+        <div className="bg-gradient-to-r from-indigo-900 via-indigo-800 to-slate-900 rounded-2xl p-5 sm:p-6 text-white shadow-md border border-indigo-700/50 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/40">
+                Đang ôn theo đề thi
+              </span>
+              <span className="text-xs text-indigo-200 font-semibold">
+                ● Quy mô: <strong>{examWords.length}</strong> từ vựng
+              </span>
+            </div>
+            <h3 className="text-base sm:text-lg font-black text-white leading-snug">
+              {currentExamFilter}
+            </h3>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-indigo-200 pt-1">
+              <span>● Đã thuộc: <strong className="text-emerald-300 font-bold">{masteredCount}</strong></span>
+              <span>● Đang học: <strong className="text-amber-300 font-bold">{learningCount}</strong></span>
+              <span>● Chưa thuộc: <strong className="text-rose-300 font-bold">{needReviewCount}</strong></span>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => onStartFlashcards(examWords, currentExamFilter)}
+              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              <Layers className="w-4 h-4" />
+              <span>Ôn Flashcards ({examWords.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onStartQuiz(examWords, currentExamFilter)}
+              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
+            >
+              <HelpCircle className="w-4 h-4" />
+              <span>Làm AI Quiz ({examWords.length})</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter and Search Box */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-4">
@@ -341,7 +517,8 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <div className="flex items-center gap-3">
             <span className="text-xs text-slate-500">
-              Hiển thị <strong>{filteredVocabulary.length}</strong> / {vocabulary.length} từ
+              Hiển thị <strong>{filteredVocabulary.length}</strong> / {examWords.length} từ
+              {currentExamFilter !== 'ALL' && ` (trong đề đã chọn)`}
             </span>
             {selectedIds.size > 0 && (
               <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
@@ -353,7 +530,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => onStartFlashcards(getSelectedItemsOrFiltered())}
+              onClick={() => onStartFlashcards(getSelectedItemsOrFiltered(), currentExamFilter !== 'ALL' ? currentExamFilter : undefined)}
               className="px-3.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
             >
               <Layers className="w-3.5 h-3.5" />
@@ -362,7 +539,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
 
             <button
               type="button"
-              onClick={() => onStartQuiz(getSelectedItemsOrFiltered())}
+              onClick={() => onStartQuiz(getSelectedItemsOrFiltered(), currentExamFilter !== 'ALL' ? currentExamFilter : undefined)}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" />
@@ -491,6 +668,14 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
                       💡 {item.examTip}
                     </div>
                   )}
+
+                  {/* Source Exam Tag */}
+                  {item.sourceExam && (
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200/80 mb-3" title={`Đề thi: ${item.sourceExam}`}>
+                      <BookOpen className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                      <span className="truncate">{item.sourceExam}</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Footer: Tracking info & Actions */}
@@ -540,6 +725,25 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
             </h3>
 
             <form onSubmit={handleSaveNewWord} className="space-y-4 text-xs sm:text-sm">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Thuộc Đề thi / Chuyên đề:
+                </label>
+                <input
+                  type="text"
+                  list="exam-options-list"
+                  value={newSourceExam}
+                  onChange={(e) => setNewSourceExam(e.target.value)}
+                  placeholder="VD: Đề thi Chính thức 2024, Đề Tham Khảo 2025..."
+                  className="w-full px-3.5 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                />
+                <datalist id="exam-options-list">
+                  {examOptions.map(({ exam }) => (
+                    <option key={exam} value={exam} />
+                  ))}
+                </datalist>
+              </div>
+
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">
                   Từ / Cụm từ gốc (Term): *

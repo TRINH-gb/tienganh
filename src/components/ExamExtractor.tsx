@@ -704,9 +704,9 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     )}
 
       {/* Input Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         {/* Left: Input Text & Config */}
-        <div className="lg:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
+        <div className="xl:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
               <FileText className="w-5 h-5 text-indigo-600" />
@@ -925,7 +925,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         </div>
 
         {/* Right: Architectural Rules & Summary */}
-        <div className="lg:col-span-5 space-y-4">
+        <div className="xl:col-span-5 space-y-4">
           {/* AI Pedagogical Summary Card */}
           <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 border border-slate-800 shadow-sm">
             <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">

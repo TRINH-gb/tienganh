@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Navbar } from './components/Navbar';
+import { Sidebar } from './components/Sidebar';
 import { ExamExtractor } from './components/ExamExtractor';
 import { VocabularyNotebook } from './components/VocabularyNotebook';
 import { FlashcardDeck } from './components/FlashcardDeck';
@@ -9,6 +9,7 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { SAMPLE_EXAMS } from './data/sampleExams';
 import { VocabularyItem, MasteryStatus } from './types';
 import { getStoredApiKey } from './services/geminiService';
+import { Menu, GraduationCap, KeyRound } from 'lucide-react';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
@@ -45,6 +46,7 @@ export default function App() {
   const [accent, setAccent] = useState<'UK' | 'US'>('US');
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
   const [selectedExamFilter, setSelectedExamFilter] = useState<string>('ALL');
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
 
   // Manage API Key Modal state (shows automatically if no key is stored)
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(() => {
@@ -194,72 +196,124 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800">
-      {/* Top Navigation with Settings (API Key) */}
-      <Navbar
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col lg:flex-row">
+      {/* 1. Left Sidebar Navigation Column (Cột chức năng bên tay trái) */}
+      <Sidebar
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         vocabulary={vocabulary}
         accent={accent}
         setAccent={setAccent}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        isMobileOpen={isMobileMenuOpen}
+        setIsMobileOpen={setIsMobileMenuOpen}
       />
 
-      {/* Main Content Area - Clean, focused on the active tool */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {/* Tab 1: Phân tích & Trích xuất Đề thi */}
-        {activeTab === 'extract' && (
-          <ExamExtractor
-            onAddVocabBatch={handleAddVocabBatch}
-            onOpenFlashcardsWithWords={handleOpenFlashcardsWithWords}
-            onGenerateQuizWithWords={handleGenerateQuizWithWords}
-            onInspectWord={setInspectedWord}
-            accent={accent}
-            onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
-          />
-        )}
+      {/* 2. Right Main Content Area (Nội dung chính xuất hiện bên phải) */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-slate-50">
+        {/* Mobile Header (hiển thị trên màn hình nhỏ < lg khi chưa mở drawer) */}
+        <header className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
+          <div className="flex items-center space-x-3">
+            <button
+              type="button"
+              onClick={() => setIsMobileMenuOpen(true)}
+              className="p-2 rounded-xl text-slate-700 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
+              aria-label="Mở danh mục chức năng"
+            >
+              <Menu className="w-5 h-5 text-slate-700" />
+            </button>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
+                <GraduationCap className="w-4 h-4" />
+              </div>
+              <span className="font-extrabold text-slate-900 text-sm tracking-tight">
+                EVM <span className="text-indigo-600 font-semibold">Architect</span>
+              </span>
+            </div>
+          </div>
 
-        {/* Tab 2: Sổ tay từ vựng cá nhân */}
-        {activeTab === 'notebook' && (
-          <VocabularyNotebook
-            vocabulary={vocabulary}
-            onUpdateStatus={handleUpdateStatus}
-            onDeleteItem={handleDeleteItem}
-            onAddNewWord={handleAddNewWord}
-            onInspectWord={setInspectedWord}
-            onStartFlashcards={handleOpenFlashcardsWithWords}
-            onStartQuiz={handleGenerateQuizWithWords}
-            accent={accent}
-            selectedExamFilter={selectedExamFilter}
-            onSelectExamFilter={setSelectedExamFilter}
-          />
-        )}
+          <button
+            type="button"
+            onClick={() => setIsApiKeyModalOpen(true)}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+              getStoredApiKey()
+                ? 'bg-slate-50 text-slate-700 border-slate-200'
+                : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400/30 animate-pulse'
+            }`}
+          >
+            <KeyRound className="w-3.5 h-3.5" />
+            <span>{getStoredApiKey() ? 'API Key' : 'Nhập Key'}</span>
+          </button>
+        </header>
 
-        {/* Tab 3: Flashcards */}
-        {activeTab === 'flashcards' && (
-          <FlashcardDeck
-            vocabulary={vocabulary}
-            onUpdateStatus={handleUpdateStatus}
-            onIncrementInteraction={handleIncrementInteraction}
-            onInspectWord={setInspectedWord}
-            accent={accent}
-            selectedExamFilter={selectedExamFilter}
-            onSelectExamFilter={setSelectedExamFilter}
-          />
-        )}
+        {/* Main Content Area - Clean, focused on the active tool */}
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          {/* Tab 1: Phân tích & Trích xuất Đề thi */}
+          {activeTab === 'extract' && (
+            <ExamExtractor
+              onAddVocabBatch={handleAddVocabBatch}
+              onOpenFlashcardsWithWords={handleOpenFlashcardsWithWords}
+              onGenerateQuizWithWords={handleGenerateQuizWithWords}
+              onInspectWord={setInspectedWord}
+              accent={accent}
+              onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+            />
+          )}
 
-        {/* Tab 4: AI Quiz */}
-        {activeTab === 'quiz' && (
-          <AiQuizEngine
-            vocabulary={vocabulary}
-            onUpdateQuizResult={handleUpdateQuizResult}
-            accent={accent}
-            onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
-            selectedExamFilter={selectedExamFilter}
-            onSelectExamFilter={setSelectedExamFilter}
-          />
-        )}
-      </main>
+          {/* Tab 2: Sổ tay từ vựng cá nhân */}
+          {activeTab === 'notebook' && (
+            <VocabularyNotebook
+              vocabulary={vocabulary}
+              onUpdateStatus={handleUpdateStatus}
+              onDeleteItem={handleDeleteItem}
+              onAddNewWord={handleAddNewWord}
+              onInspectWord={setInspectedWord}
+              onStartFlashcards={handleOpenFlashcardsWithWords}
+              onStartQuiz={handleGenerateQuizWithWords}
+              accent={accent}
+              selectedExamFilter={selectedExamFilter}
+              onSelectExamFilter={setSelectedExamFilter}
+            />
+          )}
+
+          {/* Tab 3: Flashcards */}
+          {activeTab === 'flashcards' && (
+            <FlashcardDeck
+              vocabulary={vocabulary}
+              onUpdateStatus={handleUpdateStatus}
+              onIncrementInteraction={handleIncrementInteraction}
+              onInspectWord={setInspectedWord}
+              accent={accent}
+              selectedExamFilter={selectedExamFilter}
+              onSelectExamFilter={setSelectedExamFilter}
+            />
+          )}
+
+          {/* Tab 4: AI Quiz */}
+          {activeTab === 'quiz' && (
+            <AiQuizEngine
+              vocabulary={vocabulary}
+              onUpdateQuizResult={handleUpdateQuizResult}
+              accent={accent}
+              onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+              selectedExamFilter={selectedExamFilter}
+              onSelectExamFilter={setSelectedExamFilter}
+            />
+          )}
+        </main>
+
+        {/* Footer */}
+        <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
+            <span>
+              <strong>AI English Exam Vocabulary Architect (EVM)</strong> • Ôn thi Tốt nghiệp THPT Quốc Gia
+            </span>
+            <span className="text-slate-400">
+              Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics
+            </span>
+          </div>
+        </footer>
+      </div>
 
       {/* Word Deep Dive Modal */}
       <WordDetailModal
@@ -275,18 +329,6 @@ export default function App() {
         onClose={() => setIsApiKeyModalOpen(false)}
         isMandatory={false}
       />
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
-          <span>
-            <strong>AI English Exam Vocabulary Architect (EVM)</strong> • Ôn thi Tốt nghiệp THPT Quốc Gia
-          </span>
-          <span className="text-slate-400">
-            Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics
-          </span>
-        </div>
-      </footer>
     </div>
   );
 }

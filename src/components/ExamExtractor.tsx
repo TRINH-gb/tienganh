@@ -4,20 +4,15 @@ import {
   FileText,
   UploadCloud,
   CheckCircle,
-  Plus,
   Volume2,
   BookmarkPlus,
   Layers,
   HelpCircle,
   ExternalLink,
-  ChevronDown,
   Loader2,
-  Filter,
   AlertTriangle,
   XCircle,
   CheckCircle2,
-  Clock,
-  KeyRound,
   RefreshCw,
   Cpu
 } from 'lucide-react';
@@ -27,8 +22,7 @@ import { speakEnglish } from '../utils/tts';
 import {
   extractVocabularyWithFallback,
   getStoredApiKey,
-  getStoredModel,
-  SUPPORTED_MODELS
+  getStoredModel
 } from '../services/geminiService';
 
 interface ExamExtractorProps {
@@ -58,9 +52,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   accent,
   onOpenApiKeyModal
 }) => {
-  const [selectedSampleId, setSelectedSampleId] = useState<string>(SAMPLE_EXAMS[0].id);
-  const [examTitle, setExamTitle] = useState<string>(SAMPLE_EXAMS[0].title);
-  const [examText, setExamText] = useState<string>(SAMPLE_EXAMS[0].content);
+  const [examTitle, setExamTitle] = useState<string>(SAMPLE_EXAMS[0]?.title || 'Đề thi THPT Quốc Gia');
+  const [examText, setExamText] = useState<string>(SAMPLE_EXAMS[0]?.content || '');
   const [selectedCategories, setSelectedCategories] = useState<VocabCategory[]>([
     'Collocation',
     'Phrasal verb',
@@ -105,7 +98,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   ]);
 
   const [extractedList, setExtractedList] = useState<VocabularyItem[]>(
-    SAMPLE_EXAMS[0].initialVocab.map((item, idx) => ({
+    SAMPLE_EXAMS[0]?.initialVocab.map((item, idx) => ({
       ...item,
       id: `sample-${SAMPLE_EXAMS[0].id}-${idx}`,
       sourceExam: SAMPLE_EXAMS[0].title,
@@ -114,7 +107,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       quizCorrectCount: 0,
       quizTotalCount: 0,
       addedAt: new Date().toISOString()
-    }))
+    })) || []
   );
 
   const [aiSummary, setAiSummary] = useState<string>(
@@ -124,53 +117,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(
     new Set(extractedList.map((i) => i.id))
   );
-
-  const handleSelectSample = (sampleId: string) => {
-    const found = SAMPLE_EXAMS.find((s) => s.id === sampleId);
-    if (!found) return;
-    setSelectedSampleId(sampleId);
-    setExamTitle(found.title);
-    setExamText(found.content);
-
-    const initial = found.initialVocab.map((item, idx) => ({
-      ...item,
-      id: `sample-${found.id}-${idx}`,
-      sourceExam: found.title,
-      status: 'Chưa thuộc' as const,
-      interactionCount: 0,
-      quizCorrectCount: 0,
-      quizTotalCount: 0,
-      addedAt: new Date().toISOString()
-    }));
-    setExtractedList(initial);
-    setSelectedWordIds(new Set(initial.map((i) => i.id)));
-    setAiSummary(`Đề: ${found.title} - ${found.description}`);
-    setErrorMsg(null);
-    setFallbackNotice(null);
-    setUploadedPdfBase64(null);
-
-    // Reset steps to idle
-    setSteps([
-      {
-        step: 1,
-        title: 'Bước 1: Phân tích Ngữ liệu',
-        desc: 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
-        status: 'idle'
-      },
-      {
-        step: 2,
-        title: 'Bước 2: Bóc tách 5 Nhóm Từ vựng',
-        desc: 'Trích xuất Collocations, Phrasal verbs, Idioms, Prepositions & IPA',
-        status: 'idle'
-      },
-      {
-        step: 3,
-        title: 'Bước 3: Tổng hợp Sư phạm & Mẹo thi',
-        desc: 'Ghi chú bẫy thi THPT, câu nguyên văn & hoàn thiện kết quả',
-        status: 'idle'
-      }
-    ]);
-  };
 
   const handleToggleCategory = (cat: VocabCategory) => {
     if (selectedCategories.includes(cat)) {
@@ -509,36 +455,16 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Clean, Focused Header */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Sleek, Modern Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-xs font-semibold text-indigo-700 mb-2">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Trích xuất từ vựng chuẩn ma trận đề thi THPT Quốc Gia</span>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-            Phân tích & Trích xuất Từ vựng Đề thi
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-indigo-600" />
+            <span>Phân tích & Trích xuất Từ vựng Đề thi</span>
           </h1>
-          <p className="mt-1 text-slate-600 text-xs sm:text-sm">
-            Tải lên tệp đề thi (.PDF / .TXT) hoặc chọn đề mẫu để AI tự động nhận diện Collocations, Phrasal verbs, Idioms, Prepositions và Single words.
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Tải tệp PDF/TXT hoặc dán đề thi để AI nhận diện Collocations, Phrasal verbs, Idioms, Prepositions & IPA.
           </p>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-xs text-slate-500 flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
-            <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Model:</span>
-            <strong className="text-slate-800 font-mono text-[11px] font-bold">
-              {currentRunningModel}
-            </strong>
-          </span>
-          <button
-            type="button"
-            onClick={onOpenApiKeyModal}
-            className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer"
-          >
-            Đổi Model / Key
-          </button>
         </div>
       </div>
 
@@ -703,177 +629,109 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       </div>
     )}
 
-      {/* Input Section */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
-        {/* Left: Input Text & Config */}
-        <div className="xl:col-span-7 bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="font-bold text-slate-900 flex items-center gap-2 text-base">
-              <FileText className="w-5 h-5 text-indigo-600" />
-              <span>Nguồn Ngữ liệu Đề thi</span>
-            </h3>
-
-            {/* Upload or Load Sample */}
-            <div className="flex items-center gap-2">
-              <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold cursor-pointer transition-all shadow-xs">
-                {isReadingPdf ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
-                ) : (
-                  <UploadCloud className="w-4 h-4 text-indigo-600" />
-                )}
-                <span>{isReadingPdf ? 'Đang giải mã PDF...' : 'Tải tệp đề thi (.PDF / .TXT)'}</span>
-                <input
-                  type="file"
-                  accept=".pdf,.txt,.doc,.docx"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                  disabled={isReadingPdf}
-                />
-              </label>
-            </div>
-          </div>
-
-          {/* PDF / File Extraction Status Feedback */}
-          {pdfStatusMsg && (
-            <div
-              className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-2.5 animate-in fade-in ${
-                pdfStatusMsg.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                  : pdfStatusMsg.type === 'warning'
-                  ? 'bg-amber-50 border-amber-300 text-amber-800'
-                  : pdfStatusMsg.type === 'error'
-                  ? 'bg-rose-50 border-rose-300 text-rose-800'
-                  : 'bg-indigo-50 border-indigo-300 text-indigo-800'
-              }`}
-            >
-              {pdfStatusMsg.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
-              {pdfStatusMsg.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
-              {pdfStatusMsg.type === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
-              {pdfStatusMsg.type === 'info' && <Loader2 className="w-4 h-4 animate-spin text-indigo-600 shrink-0 mt-0.5" />}
-              <div className="flex-1">{pdfStatusMsg.text}</div>
-            </div>
-          )}
-
-          {/* Quick Preset Selector */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-2">
-              Chọn đề thi mẫu chuẩn Bộ GD&ĐT:
-            </label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              {SAMPLE_EXAMS.map((sample) => (
-                <button
-                  key={sample.id}
-                  type="button"
-                  onClick={() => handleSelectSample(sample.id)}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    selectedSampleId === sample.id
-                      ? 'border-indigo-600 bg-indigo-50/70 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 bg-white'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-md bg-slate-200 text-slate-700">
-                      {sample.year}
-                    </span>
-                    <span className="text-[11px] font-semibold text-indigo-600">
-                      {sample.tag}
-                    </span>
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-900 line-clamp-1">
-                    {sample.title}
-                  </h4>
-                  <p className="text-[11px] text-slate-500 line-clamp-2 mt-0.5">
-                    {sample.description}
-                  </p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Title Input */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tiêu đề đề thi / Mã đề / Nguồn trích dẫn:
-            </label>
+      {/* Streamlined & Professional Input Workspace Card */}
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+        {/* Row 1: Title Input & Upload Button */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          <div className="flex-1 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-indigo-600 shrink-0 hidden sm:block" />
             <input
               type="text"
               value={examTitle}
               onChange={(e) => setExamTitle(e.target.value)}
-              placeholder="VD: Đề thi THPT Quốc Gia 2024 - Mã đề 401..."
-              className="w-full px-3.5 py-2 text-sm border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              placeholder="Tiêu đề đề thi / Mã đề (VD: Đề thi THPT Quốc Gia - Mã 401)..."
+              className="w-full px-3.5 py-2 text-xs sm:text-sm bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-hidden transition-all text-slate-800 font-medium"
             />
           </div>
 
-          {/* Yellow Highlight Vision Focus Control */}
-          <div className={`p-4 rounded-xl border-2 transition-all ${
-            uploadedPdfBase64
-              ? 'bg-amber-50/90 border-amber-300 text-amber-950 shadow-xs'
-              : 'bg-slate-50 border-slate-200 text-slate-700'
-          }`}>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex items-start gap-2.5">
-                <span className={`w-3.5 h-3.5 rounded-full mt-0.5 shrink-0 ${
-                  uploadedPdfBase64 ? 'bg-amber-500 animate-pulse ring-4 ring-amber-200' : 'bg-slate-300'
-                }`} />
-                <div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <strong className="text-xs font-bold text-slate-900">
-                      {uploadedPdfBase64
-                        ? 'Chế độ Quét Thị Giác (Vision PDF) Nhận Diện Từ Bôi Vàng: ĐÃ KÍCH HOẠT'
-                        : 'Chế độ Nhận diện Từ Bôi Vàng (Yellow Highlight Focus)'}
-                    </strong>
-                    {uploadedPdfBase64 && (
-                      <span className="px-2 py-0.5 text-[10px] font-extrabold bg-amber-300 text-amber-950 rounded-full border border-amber-400">
-                        ⭐ Tệp PDF gốc đã sẵn sàng
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                    {uploadedPdfBase64
-                      ? 'AI Gemini Vision sẽ quét trực tiếp từng trang PDF để nhận diện 100% tất cả các từ, cụm từ và thành ngữ được bôi màu vàng trong đề thi gốc.'
-                      : 'Khi bạn tải tệp PDF hoặc dán văn bản có đánh dấu ==từ bôi vàng==, hệ thống sẽ ưu tiên trích xuất và hiển thị nhãn nổi bật cho tất cả các từ này.'}
-                  </p>
-                </div>
-              </div>
-
-              <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-white border border-slate-300 text-xs font-bold cursor-pointer shrink-0 shadow-2xs hover:bg-slate-50">
-                <input
-                  type="checkbox"
-                  checked={prioritizeHighlights}
-                  onChange={(e) => setPrioritizeHighlights(e.target.checked)}
-                  className="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4 cursor-pointer"
-                />
-                <span>Ưu tiên 100% từ bôi vàng</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Text Area */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label className="block text-xs font-semibold text-slate-700">
-                Văn bản bài thi / Bài đọc hiểu / Đoạn văn cần bóc tách từ vựng:
-              </label>
-              <span className="text-xs text-slate-400">
-                {examText.length} ký tự
-              </span>
-            </div>
-            <textarea
-              rows={8}
-              value={examText}
-              onChange={(e) => setExamText(e.target.value)}
-              placeholder="Dán nội dung đoạn văn, bài đọc hoặc các câu hỏi trong đề thi tiếng Anh tại đây..."
-              className="w-full p-3.5 text-sm font-mono border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden leading-relaxed"
+          <label className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold cursor-pointer transition-all shadow-2xs shrink-0">
+            {isReadingPdf ? (
+              <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+            ) : (
+              <UploadCloud className="w-4 h-4 text-indigo-600" />
+            )}
+            <span>{isReadingPdf ? 'Đang đọc PDF...' : 'Tải tệp đề thi (.PDF / .TXT)'}</span>
+            <input
+              type="file"
+              accept=".pdf,.txt,.doc,.docx"
+              onChange={handleFileUpload}
+              className="hidden"
+              disabled={isReadingPdf}
             />
-          </div>
+          </label>
+        </div>
 
-          {/* Category Filter Selection */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-2 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Nhóm ngôn ngữ ưu tiên trích xuất (EVM 5 Categories):</span>
+        {/* Feedback for PDF/File decoding */}
+        {pdfStatusMsg && (
+          <div
+            className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-2.5 animate-in fade-in ${
+              pdfStatusMsg.type === 'success'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                : pdfStatusMsg.type === 'warning'
+                ? 'bg-amber-50 border-amber-300 text-amber-800'
+                : pdfStatusMsg.type === 'error'
+                ? 'bg-rose-50 border-rose-300 text-rose-800'
+                : 'bg-indigo-50 border-indigo-300 text-indigo-800'
+            }`}
+          >
+            {pdfStatusMsg.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
+            {pdfStatusMsg.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
+            {pdfStatusMsg.type === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
+            {pdfStatusMsg.type === 'info' && <Loader2 className="w-4 h-4 animate-spin text-indigo-600 shrink-0 mt-0.5" />}
+            <div className="flex-1">{pdfStatusMsg.text}</div>
+          </div>
+        )}
+
+        {/* Textarea Area */}
+        <div className="relative">
+          <textarea
+            rows={7}
+            value={examText}
+            onChange={(e) => setExamText(e.target.value)}
+            placeholder="Dán nội dung đoạn văn bài đọc, câu hỏi hoặc toàn bộ đề thi tiếng Anh tại đây (hoặc tải tệp .PDF / .TXT)..."
+            className="w-full p-4 text-xs sm:text-sm font-mono border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden leading-relaxed text-slate-800 bg-slate-50/50 focus:bg-white transition-all resize-y"
+          />
+        </div>
+
+        {/* Options Toolbar: Highlights, Categories & Action */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          {/* Left tools: Char count, clear, highlight toggle */}
+          <div className="flex flex-wrap items-center gap-3 text-xs">
+            <span className="text-[11px] text-slate-400 font-mono">
+              {examText.length} ký tự
+            </span>
+            {examText.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setExamText('');
+                  setPdfStatusMsg(null);
+                  setUploadedPdfBase64(null);
+                }}
+                className="text-[11px] text-slate-400 hover:text-rose-600 underline cursor-pointer"
+              >
+                Xóa văn bản
+              </button>
+            )}
+
+            <span className="text-slate-200 hidden sm:inline">|</span>
+
+            {/* Compact Yellow Highlight Toggle */}
+            <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 hover:text-slate-900 select-none bg-amber-50/80 px-2.5 py-1 rounded-lg border border-amber-200/80">
+              <input
+                type="checkbox"
+                checked={prioritizeHighlights}
+                onChange={(e) => setPrioritizeHighlights(e.target.checked)}
+                className="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+              />
+              <span className="text-amber-950 font-bold text-[11px]">⭐ Ưu tiên từ bôi vàng</span>
             </label>
-            <div className="flex flex-wrap gap-2">
+          </div>
+
+          {/* Right tools: 5 Category Chips + Big Run Button */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Category chips */}
+            <div className="hidden sm:flex items-center gap-1 bg-slate-100 p-0.5 rounded-lg text-xs">
               {(
                 [
                   'Collocation',
@@ -889,83 +747,90 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                     key={cat}
                     type="button"
                     onClick={() => handleToggleCategory(cat)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                    className={`px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
                       isChecked
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                        ? 'bg-white text-indigo-700 shadow-2xs font-bold'
+                        : 'text-slate-500 hover:text-slate-800'
                     }`}
                   >
-                    {isChecked && <CheckCircle className="w-3.5 h-3.5" />}
-                    <span>{cat}</span>
+                    {cat}
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Action Trigger */}
-          <button
-            type="button"
-            disabled={isLoading || !examText.trim()}
-            onClick={handleRunAiExtraction}
-            className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-bold text-sm shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
-          >
-            {isLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>AI đang phân tích ngữ liệu & trích xuất câu gốc...</span>
-              </>
-            ) : (
-              <>
-                <Sparkles className="w-4 h-4 text-amber-300" />
-                <span>Phân tích & Trích xuất Từ vựng Ngay ({currentRunningModel})</span>
-              </>
-            )}
-          </button>
+            {/* Main Run Button */}
+            <button
+              type="button"
+              disabled={isLoading || !examText.trim()}
+              onClick={handleRunAiExtraction}
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 disabled:opacity-50 text-white font-bold text-xs sm:text-sm shadow-md shadow-indigo-200 flex items-center justify-center gap-2 transition-all cursor-pointer"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang phân tích...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 text-amber-300" />
+                  <span>Phân tích & Trích xuất Từ vựng</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
+      </div>
 
-        {/* Right: Architectural Rules & Summary */}
-        <div className="xl:col-span-5 space-y-4">
-          {/* AI Pedagogical Summary Card */}
-          <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 border border-slate-800 shadow-sm">
-            <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-2">
-              <Sparkles className="w-4 h-4 text-amber-400" />
-              <span>Đánh giá Ngữ liệu Đề thi (Corpus Insight)</span>
+      {/* Results Section */}
+      {extractedList.length > 0 && (
+        <div className="space-y-4">
+          {/* Corpus Insight Summary Card */}
+          <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white rounded-2xl p-5 border border-slate-800 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1 flex-1">
+              <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider">
+                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                <span>Đánh giá Ngữ liệu Đề thi (Corpus Insight)</span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
+                {aiSummary}
+              </p>
             </div>
-            <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
-              {aiSummary}
-            </p>
-            <div className="mt-4 pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
-              <span>Độ dài ngữ liệu: ~{examText.split(/\s+/).length} từ</span>
-              <span className="text-emerald-400 font-semibold">
-                Đã nhận diện: {extractedList.length} mục từ
-              </span>
+            <div className="flex items-center gap-4 text-xs text-slate-300 shrink-0 border-t md:border-t-0 md:border-l border-slate-800 pt-2 md:pt-0 md:pl-5">
+              <div>
+                <div className="text-[10px] text-slate-400 font-medium">Độ dài ngữ liệu</div>
+                <strong className="text-slate-100 font-bold">~{examText.split(/\s+/).filter(Boolean).length} từ</strong>
+              </div>
+              <div>
+                <div className="text-[10px] text-slate-400 font-medium">Đã bóc tách</div>
+                <strong className="text-emerald-400 font-bold">{extractedList.length} mục từ</strong>
+              </div>
             </div>
           </div>
 
-          {/* Quick Batch Actions Box */}
-          <div className="bg-indigo-50/80 rounded-2xl p-5 border border-indigo-200/80 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-indigo-900">
-                Đã chọn: {selectedWordIds.size} / {extractedList.length} từ
+          {/* Quick Batch Action Toolbar */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-800">
+                Đã chọn: <strong className="text-indigo-600">{selectedWordIds.size}</strong> / {extractedList.length} mục từ
               </span>
               <button
                 type="button"
                 onClick={handleSelectAll}
-                className="text-xs text-indigo-700 hover:text-indigo-900 font-semibold underline cursor-pointer"
+                className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline cursor-pointer ml-1"
               >
                 {selectedWordIds.size === extractedList.length
-                  ? 'Bỏ chọn tất cả'
+                  ? 'Bỏ chọn'
                   : 'Chọn tất cả'}
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 disabled={selectedWordIds.size === 0}
                 onClick={handleAddSelectedToNotebook}
-                className="w-full py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <BookmarkPlus className="w-4 h-4" />
                 <span>Lưu vào Sổ tay ({selectedWordIds.size})</span>
@@ -975,25 +840,23 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 type="button"
                 disabled={selectedWordIds.size === 0}
                 onClick={() => onOpenFlashcardsWithWords(getSelectedItems(), examTitle)}
-                className="w-full py-2.5 px-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
               >
                 <Layers className="w-4 h-4" />
                 <span>Xem Flashcards</span>
               </button>
-            </div>
 
-            <button
-              type="button"
-              disabled={selectedWordIds.size === 0}
-              onClick={() => onGenerateQuizWithWords(getSelectedItems(), examTitle)}
-              className="w-full py-2.5 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all cursor-pointer"
-            >
-              <HelpCircle className="w-4 h-4" />
-              <span>Tạo đề trắc nghiệm AI Quiz từ nhóm này</span>
-            </button>
+              <button
+                type="button"
+                disabled={selectedWordIds.size === 0}
+                onClick={() => onGenerateQuizWithWords(getSelectedItems(), examTitle)}
+                className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+              >
+                <HelpCircle className="w-4 h-4" />
+                <span>Tạo đề AI Quiz</span>
+              </button>
+            </div>
           </div>
-        </div>
-      </div>
 
       {/* Extracted Results Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -1045,25 +908,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 </button>
               </div>
             )}
-
-            <button
-              type="button"
-              onClick={handleSelectAll}
-              className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold cursor-pointer"
-            >
-              {selectedWordIds.size === extractedList.length
-                ? 'Bỏ chọn'
-                : 'Chọn tất cả'}
-            </button>
-            <button
-              type="button"
-              disabled={selectedWordIds.size === 0}
-              onClick={handleAddSelectedToNotebook}
-              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold disabled:opacity-40 flex items-center gap-1 cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>Lưu {selectedWordIds.size} mục từ</span>
-            </button>
           </div>
         </div>
 
@@ -1202,6 +1046,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           </table>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 };

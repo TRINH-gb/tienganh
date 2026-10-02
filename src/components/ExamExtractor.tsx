@@ -15,9 +15,7 @@ import {
   CheckCircle2,
   RefreshCw,
   Cpu,
-  Trash2,
-  ChevronDown,
-  ChevronUp
+  Trash2
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory } from '../types';
 import { speakEnglish } from '../utils/tts';
@@ -58,7 +56,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [examTitle, setExamTitle] = useState<string>('');
   const [examText, setExamText] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const [showManualInput, setShowManualInput] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedCategories, setSelectedCategories] = useState<VocabCategory[]>([
@@ -481,18 +478,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Sleek, Modern Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-600" />
-            <span>Phân tích & Trích xuất Từ vựng Đề thi</span>
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Tải lên tệp đề thi PDF của bạn để AI tự động trích xuất Collocations, Idioms, Phrasal verbs & từ vựng bôi vàng.
-          </p>
-        </div>
-      </div>
 
       {/* RULE 1 & 3: Multi-Step Visual Pipeline & Fallback Monitor (Shown when running, failed, completed, or notice) */}
       {(isLoading || hasFailed || completedCount > 0 || errorMsg || fallbackNotice) && (
@@ -695,9 +680,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </p>
             </div>
 
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-medium mt-1">
-              <span>Hỗ trợ tệp .PDF • Tự động quét thị giác & nhận diện 100% từ bôi vàng</span>
-            </div>
           </div>
         ) : isReadingPdf ? (
           <div className="border-2 border-indigo-200 bg-indigo-50/40 rounded-2xl p-8 text-center flex flex-col items-center justify-center gap-3 animate-pulse">
@@ -776,76 +758,30 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           </div>
         )}
 
-        {/* Action Row: Highlight Option & Dynamic Analyze Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2 border-t border-slate-100">
-          <div className="flex items-center gap-2">
-            <label className="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-700 select-none bg-amber-50/80 hover:bg-amber-100/70 px-3 py-1.5 rounded-xl border border-amber-200/80 transition-colors">
-              <input
-                type="checkbox"
-                checked={prioritizeHighlights}
-                onChange={(e) => setPrioritizeHighlights(e.target.checked)}
-                className="rounded text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
-              />
-              <span className="text-amber-950 font-bold text-[11px]">⭐ Ưu tiên bóc tách từ bôi vàng</span>
-            </label>
-          </div>
-
-          {/* Analyze Button: Ban đầu hiện mờ, sau khi tải đề xong thì sáng lên */}
+        {/* Action Row: Nút Phân tích (Ban đầu hiện mờ, sau khi tải đề xong thì sáng lên) */}
+        <div className="flex justify-end pt-2 border-t border-slate-100">
           <button
             type="button"
             disabled={!isFileUploaded || isLoading || isReadingPdf}
             onClick={handleRunAiExtraction}
-            className={`w-full sm:w-auto px-7 py-3 rounded-xl text-xs sm:text-sm flex items-center justify-center gap-2.5 transition-all duration-300 ${
+            className={`w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all duration-300 ${
               !isFileUploaded
-                ? 'opacity-40 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none shadow-none font-bold'
-                : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-black shadow-lg shadow-indigo-300 ring-2 ring-indigo-400/50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
+                ? 'opacity-40 bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed select-none shadow-none font-bold'
+                : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-extrabold shadow-lg shadow-indigo-300 ring-2 ring-indigo-400/50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
             }`}
           >
             {isLoading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>Đang phân tích đề thi...</span>
+                <span>Đang phân tích...</span>
               </>
             ) : (
               <>
                 <Sparkles className={`w-4 h-4 ${isFileUploaded ? 'text-amber-300 animate-pulse' : 'text-slate-400'}`} />
-                <span>
-                  {isFileUploaded ? 'Phân tích & Trích xuất Từ vựng ngay' : 'Phân tích (Vui lòng tải đề thi PDF trước)'}
-                </span>
+                <span>Phân tích</span>
               </>
             )}
           </button>
-        </div>
-
-        {/* Collapsible Manual Input (Clean & unobtrusive, collapsed by default) */}
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => setShowManualInput(!showManualInput)}
-            className="text-[11px] text-slate-400 hover:text-indigo-600 font-medium inline-flex items-center gap-1 cursor-pointer transition-colors"
-          >
-            {showManualInput ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            <span>{showManualInput ? 'Ẩn khung nhập thủ công' : 'Hoặc dán nội dung văn bản thủ công / đặt tiêu đề'}</span>
-          </button>
-
-          {showManualInput && (
-            <div className="mt-3 space-y-3 p-4 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in">
-              <input
-                type="text"
-                value={examTitle}
-                onChange={(e) => setExamTitle(e.target.value)}
-                placeholder="Tiêu đề đề thi / Mã đề (tùy chọn)..."
-                className="w-full px-3.5 py-2 text-xs bg-white border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-indigo-500 font-medium"
-              />
-              <textarea
-                rows={5}
-                value={examText}
-                onChange={(e) => setExamText(e.target.value)}
-                placeholder="Dán nội dung đề thi tiếng Anh tại đây..."
-                className="w-full p-3 text-xs font-mono border border-slate-200 rounded-lg text-slate-800 bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500 leading-relaxed"
-              />
-            </div>
-          )}
         </div>
       </div>
 

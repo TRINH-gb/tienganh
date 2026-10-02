@@ -10,7 +10,6 @@ import {
   Layers,
   HelpCircle,
   Download,
-  Printer,
   CheckCircle2,
   Clock,
   AlertTriangle,
@@ -18,7 +17,7 @@ import {
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory, MasteryStatus, CefrLevel } from '../types';
 import { speakEnglish } from '../utils/tts';
-import { downloadDocxFile, printExamDocument } from '../utils/documentExport';
+import { downloadDocxFile } from '../utils/documentExport';
 
 interface VocabularyNotebookProps {
   vocabulary: VocabularyItem[];
@@ -66,11 +65,19 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
     setSelectedIds(new Set());
   };
 
-  // Extract list of unique exams and count of words in each
+  // Extract list of unique exams uploaded by user (zero machine suggestions)
   const examOptions = React.useMemo(() => {
     const map = new Map<string, number>();
     vocabulary.forEach((v) => {
-      const examName = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
+      const examName = v.sourceExam?.trim();
+      if (!examName) return;
+      if (
+        examName.includes('THPT 2024 (Mã đề 401)') ||
+        examName.includes('Đề Tham Khảo Bộ GD&ĐT 2025') ||
+        examName.includes('Chuyên đề 9+:')
+      ) {
+        return;
+      }
       map.set(examName, (map.get(examName) || 0) + 1);
     });
     return Array.from(map.entries()).map(([exam, count]) => ({ exam, count }));
@@ -80,7 +87,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   const examWords = React.useMemo(() => {
     if (currentExamFilter === 'ALL') return vocabulary;
     return vocabulary.filter(
-      (v) => (v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác') === currentExamFilter
+      (v) => v.sourceExam?.trim() === currentExamFilter
     );
   }, [vocabulary, currentExamFilter]);
 
@@ -182,54 +189,6 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
     setNewExamTip('');
   };
 
-  // Export as CSV
-  const handleExportCSV = () => {
-    const headers = ['Loại', 'Từ/Cụm từ', 'IPA', 'Nghĩa', 'Ngữ cảnh trong đề', 'Trình độ', 'Trạng thái', 'Mẹo thi'];
-    const rows = filteredVocabulary.map((v) => [
-      `"${v.type}"`,
-      `"${v.term.replace(/"/g, '""')}"`,
-      `"${v.ipa}"`,
-      `"${v.meaning.replace(/"/g, '""')}"`,
-      `"${v.context.replace(/"/g, '""')}"`,
-      `"${v.cefrLevel}"`,
-      `"${v.status}"`,
-      `"${(v.examTip || '').replace(/"/g, '""')}"`
-    ]);
-
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `EVM_Vocab_THPT_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Export as Anki / Quizlet (Tab-separated)
-  const handleExportAnki = () => {
-    const lines = filteredVocabulary.map((v) => {
-      const front = `${v.term} <br><small>(${v.type} • ${v.cefrLevel})</small>`;
-      const back = `<b>${v.ipa}</b><br><b>Nghĩa:</b> ${v.meaning}<br><br><i>"${v.context.replace(/\*\*/g, '<b>$1</b>')}"</i>${
-        v.examTip ? `<br><br><span style="color:#b45309">💡 Mẹo: ${v.examTip}</span>` : ''
-      }`;
-      return `${front}\t${back}`;
-    });
-
-    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Anki_EVM_Deck_${Date.now()}.txt`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // Print view
-  const handlePrint = () => {
-    window.print();
-  };
-
   const getSelectedItemsOrFiltered = () => {
     if (selectedIds.size > 0) {
       return vocabulary.filter((v) => selectedIds.has(v.id));
@@ -275,26 +234,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
             <span>Thêm từ mới</span>
           </button>
 
-          <button
-            type="button"
-            onClick={handleExportCSV}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-            title="Xuất file Excel/CSV"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>CSV</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleExportAnki}
-            className="px-3 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
-            title="Xuất định dạng Anki / Quizlet"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>Anki Deck</span>
-          </button>
-
+          {/* Chỉ tải xuống định dạng Word (.doc) theo yêu cầu */}
           <button
             type="button"
             onClick={() =>
@@ -305,26 +245,11 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
                 getSelectedItemsOrFiltered()
               )
             }
-            className="px-3 py-2 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+            className="px-3.5 py-2 rounded-xl bg-blue-50 border border-blue-200 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
             title="Xuất phiếu từ vựng định dạng Microsoft Word (.doc) kèm bảng tra cứu & mẹo thi"
           >
             <Download className="w-3.5 h-3.5" />
             <span>Xuất Word (.doc)</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() =>
-              printExamDocument(
-                'BẢNG TỔNG HỢP TỪ VỰNG TRỌNG TÂM ÔN THI THPT QUỐC GIA',
-                [],
-                getSelectedItemsOrFiltered()
-              )
-            }
-            className="p-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 shadow-xs transition-all cursor-pointer"
-            title="In / Lưu PDF phiếu bài tập"
-          >
-            <Printer className="w-4 h-4" />
           </button>
         </div>
       </div>
@@ -429,26 +354,6 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
               <span>● Đang học: <strong className="text-amber-300 font-bold">{learningCount}</strong></span>
               <span>● Chưa thuộc: <strong className="text-rose-300 font-bold">{needReviewCount}</strong></span>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => onStartFlashcards(examWords, currentExamFilter)}
-              className="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
-            >
-              <Layers className="w-4 h-4" />
-              <span>Ôn Flashcards ({examWords.length})</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => onStartQuiz(examWords, currentExamFilter)}
-              className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all cursor-pointer"
-            >
-              <HelpCircle className="w-4 h-4" />
-              <span>Làm AI Quiz ({examWords.length})</span>
-            </button>
           </div>
         </div>
       )}

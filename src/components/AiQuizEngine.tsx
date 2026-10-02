@@ -12,14 +12,13 @@ import {
   BookOpen,
   Volume2,
   Download,
-  Printer,
   FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { VocabularyItem, QuizQuestion, MasteryStatus } from '../types';
 import { speakEnglish } from '../utils/tts';
 import { generateQuizWithFallback, getStoredApiKey } from '../services/geminiService';
-import { downloadDocxFile, printExamDocument } from '../utils/documentExport';
+import { downloadDocxFile } from '../utils/documentExport';
 
 interface AiQuizEngineProps {
   vocabulary: VocabularyItem[];
@@ -484,21 +483,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>Xuất Word (.doc)</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      printExamDocument(
-                        'ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT QUỐC GIA',
-                        questions,
-                        targetVocabList
-                      )
-                    }
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer"
-                    title="In đề thi và bảng đáp án"
-                  >
-                    <Printer className="w-3.5 h-3.5" />
-                    <span>In đề</span>
                   </button>
                 </div>
               </div>

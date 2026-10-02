@@ -6,39 +6,44 @@ import { FlashcardDeck } from './components/FlashcardDeck';
 import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { SAMPLE_EXAMS } from './data/sampleExams';
 import { VocabularyItem, MasteryStatus } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { Menu, GraduationCap, KeyRound } from 'lucide-react';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
-// Helper to assign proper sourceExam to legacy or untagged words
+// Helper to identify and filter out computer-suggested legacy sample exams
+const isMachineSuggestedExam = (item: VocabularyItem): boolean => {
+  const id = (item.id || '').toLowerCase();
+  const source = (item.sourceExam || '').trim();
+  if (id.startsWith('starter-') || id.startsWith('sample-')) {
+    return true;
+  }
+  if (
+    source.includes('THPT 2024 (Mã đề 401)') ||
+    source.includes('Đề Tham Khảo Bộ GD&ĐT 2025') ||
+    source.includes('Chuyên đề 9+:')
+  ) {
+    return true;
+  }
+  return false;
+};
+
+// Helper to assign proper sourceExam
 const normalizeItemSourceExam = (item: VocabularyItem): string => {
   if (item.sourceExam && item.sourceExam.trim()) {
     return item.sourceExam.trim();
   }
-
-  const itemId = (item.id || '').toLowerCase();
-  const termLower = (item.term || '').toLowerCase().trim();
-
-  for (const exam of SAMPLE_EXAMS) {
-    if (itemId.includes(exam.id.toLowerCase())) {
-      return exam.title;
-    }
-    if (exam.initialVocab.some((v) => v.term.toLowerCase().trim() === termLower)) {
-      return exam.title;
-    }
-  }
-
-  return 'Từ vựng tự nhập / Khác';
+  return 'Đề thi trích dẫn';
 };
 
 const migrateVocabularyData = (items: VocabularyItem[]): VocabularyItem[] => {
-  return items.map((item) => ({
-    ...item,
-    sourceExam: normalizeItemSourceExam(item)
-  }));
+  return items
+    .filter((item) => !isMachineSuggestedExam(item))
+    .map((item) => ({
+      ...item,
+      sourceExam: normalizeItemSourceExam(item)
+    }));
 };
 
 export default function App() {
@@ -56,7 +61,7 @@ export default function App() {
     return false;
   });
 
-  // Initialize vocabulary with saved data or sample authentic words
+  // Initialize vocabulary: only user-uploaded exams, zero suggested exams
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -72,23 +77,8 @@ export default function App() {
       }
     }
 
-    // Default starter dataset from Sample Exam (clean without simulated fake test data)
-    const starter: VocabularyItem[] = [];
-    if (SAMPLE_EXAMS.length > 0) {
-      SAMPLE_EXAMS[0].initialVocab.forEach((item, idx) => {
-        starter.push({
-          ...item,
-          id: `starter-${SAMPLE_EXAMS[0].id}-${idx}`,
-          sourceExam: SAMPLE_EXAMS[0].title,
-          status: 'Chưa thuộc',
-          interactionCount: 0,
-          quizCorrectCount: 0,
-          quizTotalCount: 0,
-          addedAt: new Date().toISOString()
-        });
-      });
-    }
-    return starter;
+    // Default: completely empty dataset (zero machine suggestions)
+    return [];
   });
 
   // Save to localStorage on changes

@@ -7,6 +7,18 @@ export type VocabCategory =
 
 export type MasteryStatus = 'Chưa thuộc' | 'Đang học' | 'Đã thành thạo';
 
+export const normalizeStatus = (status: any): MasteryStatus => {
+  if (!status) return 'Chưa thuộc';
+  const s = String(status).trim().toLowerCase().normalize('NFC');
+  if (s.includes('thành thạo') || s.includes('thanh thao') || s.includes('mastered')) {
+    return 'Đã thành thạo';
+  }
+  if (s.includes('đang học') || s.includes('dang hoc') || s.includes('learning')) {
+    return 'Đang học';
+  }
+  return 'Chưa thuộc';
+};
+
 export type CefrLevel = 'B1' | 'B2' | 'C1';
 
 export interface VocabularyItem {

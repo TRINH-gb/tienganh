@@ -15,7 +15,7 @@ import {
   AlertTriangle,
   RotateCcw
 } from 'lucide-react';
-import { VocabularyItem, VocabCategory, MasteryStatus, CefrLevel } from '../types';
+import { VocabularyItem, VocabCategory, MasteryStatus, CefrLevel, normalizeStatus } from '../types';
 import { speakEnglish } from '../utils/tts';
 import { downloadDocxFile } from '../utils/documentExport';
 
@@ -106,9 +106,9 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Statistics for the currently selected exam scope
-  const masteredCount = examWords.filter((v) => v.status === 'Đã thành thạo').length;
-  const learningCount = examWords.filter((v) => v.status === 'Đang học').length;
-  const needReviewCount = examWords.filter((v) => v.status === 'Chưa thuộc').length;
+  const masteredCount = examWords.filter((v) => normalizeStatus(v.status) === 'Đã thành thạo').length;
+  const learningCount = examWords.filter((v) => normalizeStatus(v.status) === 'Đang học').length;
+  const needReviewCount = examWords.filter((v) => normalizeStatus(v.status) === 'Chưa thuộc').length;
 
   // Filtered List
   const filteredVocabulary = React.useMemo(() => {
@@ -122,7 +122,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         selectedCategory === 'ALL' || item.type === selectedCategory;
 
       const matchesStatus =
-        selectedStatus === 'ALL' || item.status === selectedStatus;
+        selectedStatus === 'ALL' || normalizeStatus(item.status) === normalizeStatus(selectedStatus);
 
       const matchesCefr =
         selectedCefr === 'ALL' || item.cefrLevel === selectedCefr;
@@ -471,6 +471,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
             const isSelected = selectedIds.has(item.id);
 
             // Status styling
+            const currentStatus = normalizeStatus(item.status);
             const statusConfig = {
               'Đã thành thạo': {
                 bg: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -487,7 +488,11 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
                 icon: AlertTriangle,
                 dot: 'bg-rose-500'
               }
-            }[item.status];
+            }[currentStatus] || {
+              bg: 'bg-rose-50 text-rose-700 border-rose-200',
+              icon: AlertTriangle,
+              dot: 'bg-rose-500'
+            };
 
             const StatusIcon = statusConfig.icon;
 

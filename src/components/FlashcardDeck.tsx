@@ -14,7 +14,7 @@ import {
   VolumeX,
   Keyboard
 } from 'lucide-react';
-import { VocabularyItem, MasteryStatus, VocabCategory } from '../types';
+import { VocabularyItem, MasteryStatus, VocabCategory, normalizeStatus } from '../types';
 import { speakEnglish } from '../utils/tts';
 
 interface FlashcardDeckProps {
@@ -59,13 +59,37 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
     return Array.from(set);
   }, [vocabulary]);
 
-  // Filter vocabulary based on active filters
+  // Words matching current exam & category (used for status counts preview)
+  const examCatFiltered = React.useMemo(() => {
+    return vocabulary.filter((v) => {
+      const vExam = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
+      const matchExam = filterExam === 'ALL' || vExam === filterExam;
+      const matchCat = filterCategory === 'ALL' || v.type === filterCategory;
+      return matchExam && matchCat;
+    });
+  }, [vocabulary, filterExam, filterCategory]);
+
+  const countNeedReview = React.useMemo(
+    () => examCatFiltered.filter((v) => normalizeStatus(v.status) === 'Chưa thuộc').length,
+    [examCatFiltered]
+  );
+  const countLearning = React.useMemo(
+    () => examCatFiltered.filter((v) => normalizeStatus(v.status) === 'Đang học').length,
+    [examCatFiltered]
+  );
+  const countMastered = React.useMemo(
+    () => examCatFiltered.filter((v) => normalizeStatus(v.status) === 'Đã thành thạo').length,
+    [examCatFiltered]
+  );
+
+  // Filter vocabulary based on active filters (with normalizeStatus to avoid Unicode/casing mismatches)
   const filteredVocabulary = React.useMemo(() => {
     return vocabulary.filter((v) => {
       const vExam = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
       const matchExam = filterExam === 'ALL' || vExam === filterExam;
       const matchCat = filterCategory === 'ALL' || v.type === filterCategory;
-      const matchStat = filterStatus === 'ALL' || v.status === filterStatus;
+      const matchStat =
+        filterStatus === 'ALL' || normalizeStatus(v.status) === normalizeStatus(filterStatus);
       return matchExam && matchCat && matchStat;
     });
   }, [vocabulary, filterExam, filterCategory, filterStatus]);
@@ -99,22 +123,24 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
     return result;
   }, [filteredVocabulary, shuffledIds]);
 
+  // Safe index calculation prevents "Cannot read properties of undefined" during render
+  const safeIndex = deck.length > 0 ? Math.min(currentIndex, deck.length - 1) : 0;
+  const currentItem = deck[safeIndex];
+
   // Safely clamp currentIndex if deck size shrinks
   useEffect(() => {
     if (deck.length > 0 && currentIndex >= deck.length) {
-      setCurrentIndex(Math.max(0, deck.length - 1));
+      setCurrentIndex(safeIndex);
       setIsFlipped(false);
     }
-  }, [deck.length, currentIndex]);
-
-  const currentItem = deck[currentIndex];
+  }, [deck.length, currentIndex, safeIndex]);
 
   // Auto pronounce front card when changed
   useEffect(() => {
     if (currentItem && autoPronounce && !isFlipped) {
       speakEnglish(currentItem.term, accent);
     }
-  }, [currentIndex, currentItem?.id, autoPronounce]);
+  }, [safeIndex, currentItem?.id, autoPronounce]);
 
   // Flip Handler
   const handleFlip = () => {
@@ -224,6 +250,8 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
             value={filterExam}
             onChange={(e) => {
               setFilterExam(e.target.value);
+              setCurrentIndex(0);
+              setIsFlipped(false);
               if (onSelectExamFilter) onSelectExamFilter(e.target.value);
             }}
             className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-xl focus:outline-hidden max-w-[190px] truncate"
@@ -244,7 +272,11 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
           <select
             value={filterCategory}
-            onChange={(e) => setFilterCategory(e.target.value as any)}
+            onChange={(e) => {
+              setFilterCategory(e.target.value as any);
+              setCurrentIndex(0);
+              setIsFlipped(false);
+            }}
             className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-xl focus:outline-hidden"
           >
             <option value="ALL">Tất cả nhóm từ</option>
@@ -257,13 +289,18 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value as any)}
+            onChange={(e) => {
+              setFilterStatus(e.target.value as any);
+              setCurrentIndex(0);
+              setIsFlipped(false);
+            }}
             className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 rounded-xl focus:outline-hidden"
+            title="Lọc theo Trạng thái học"
           >
-            <option value="ALL">Tất cả trạng thái</option>
-            <option value="Chưa thuộc">Chưa thuộc</option>
-            <option value="Đang học">Đang học</option>
-            <option value="Đã thành thạo">Đã thành thạo</option>
+            <option value="ALL">Tất cả trạng thái ({examCatFiltered.length})</option>
+            <option value="Chưa thuộc">Chưa thuộc ({countNeedReview})</option>
+            <option value="Đang học">Đang học ({countLearning})</option>
+            <option value="Đã thành thạo">Đã thành thạo ({countMastered})</option>
           </select>
 
           <button
@@ -305,6 +342,8 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
             type="button"
             onClick={() => {
               setFilterExam('ALL');
+              setCurrentIndex(0);
+              setIsFlipped(false);
               if (onSelectExamFilter) onSelectExamFilter('ALL');
             }}
             className="text-xs text-indigo-600 hover:text-indigo-800 font-bold ml-2 underline shrink-0 cursor-pointer"
@@ -315,30 +354,78 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
       )}
 
       {deck.length === 0 ? (
-        <div className="bg-white rounded-3xl p-12 text-center border border-slate-200 shadow-sm">
-          <Layers className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <h3 className="text-base font-bold text-slate-700">
-            Không có Flashcard nào trong danh mục đã chọn
-          </h3>
-          <p className="text-xs text-slate-500 mt-1">
-            Hãy chọn "Tất cả trạng thái" hoặc vào tab "Phân tích Đề thi" để thêm từ vựng mới vào bộ thẻ.
-          </p>
+        <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-slate-200 shadow-sm space-y-4">
+          <Layers className="w-12 h-12 text-slate-300 mx-auto" />
+          <div>
+            <h3 className="text-base sm:text-lg font-bold text-slate-800">
+              {filterStatus !== 'ALL'
+                ? `Không có Flashcard nào ở trạng thái "${filterStatus}"`
+                : 'Không có Flashcard nào trong danh mục đã chọn'}
+            </h3>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1 max-w-md mx-auto">
+              {filterStatus === 'Đang học' && countLearning === 0
+                ? 'Hiện tại bạn chưa có từ vựng nào ở mục "Đang học". Hãy lật thẻ và bấm nút [2] Đang học để đưa từ vào danh sách này.'
+                : filterStatus === 'Đã thành thạo' && countMastered === 0
+                ? 'Hiện tại chưa có từ vựng nào đạt "Đã thành thạo". Hãy luyện tập và đánh giá [3] Thành thạo để đưa từ vào đây.'
+                : 'Thử chuyển sang trạng thái khác hoặc bấm bên dưới để xem toàn bộ danh sách từ.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setFilterStatus('ALL');
+                setCurrentIndex(0);
+                setIsFlipped(false);
+              }}
+              className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-xs cursor-pointer transition-all"
+            >
+              Xem tất cả ({examCatFiltered.length} từ)
+            </button>
+            {countNeedReview > 0 && filterStatus !== 'Chưa thuộc' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterStatus('Chưa thuộc');
+                  setCurrentIndex(0);
+                  setIsFlipped(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs cursor-pointer transition-all"
+              >
+                Học từ Chưa thuộc ({countNeedReview})
+              </button>
+            )}
+            {countMastered > 0 && filterStatus !== 'Đã thành thạo' && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFilterStatus('Đã thành thạo');
+                  setCurrentIndex(0);
+                  setIsFlipped(false);
+                }}
+                className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs cursor-pointer transition-all"
+              >
+                Ôn từ Đã thành thạo ({countMastered})
+              </button>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
           {/* Progress Indicator */}
           <div className="flex items-center justify-between text-xs text-slate-500 font-semibold px-2">
             <span>
-              Thẻ {currentIndex + 1} / {deck.length}
+              Thẻ {safeIndex + 1} / {deck.length}
             </span>
             <div className="w-48 h-2 bg-slate-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-indigo-600 transition-all duration-300"
-                style={{ width: `${((currentIndex + 1) / deck.length) * 100}%` }}
+                style={{ width: `${((safeIndex + 1) / deck.length) * 100}%` }}
               />
             </div>
             <span className="flex items-center gap-1 text-indigo-600 font-bold">
-              {currentItem.type} • {currentItem.cefrLevel}
+              {currentItem?.type} • {currentItem?.cefrLevel}
             </span>
           </div>
 
@@ -394,22 +481,22 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
                   <div className="flex items-center gap-2">
                     <span
                       className={`px-3 py-1 rounded-full text-xs font-bold border ${
-                        currentItem.status === 'Đã thành thạo'
+                        normalizeStatus(currentItem.status) === 'Đã thành thạo'
                           ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                          : currentItem.status === 'Đang học'
+                          : normalizeStatus(currentItem.status) === 'Đang học'
                           ? 'bg-amber-50 text-amber-700 border-amber-200'
                           : 'bg-rose-50 text-rose-700 border-rose-200'
                       }`}
                     >
-                      ● {currentItem.status}
+                      ● {normalizeStatus(currentItem.status)}
                     </span>
                     <span
                       className="hidden sm:inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200"
                       title="Thuật toán lặp lại ngắt quãng (Leitner Spaced Repetition System)"
                     >
-                      {currentItem.status === 'Đã thành thạo'
+                      {normalizeStatus(currentItem.status) === 'Đã thành thạo'
                         ? '📦 Hộp 3 (Ôn sau 7 ngày)'
-                        : currentItem.status === 'Đang học'
+                        : normalizeStatus(currentItem.status) === 'Đang học'
                         ? '📦 Hộp 2 (Ôn sau 3 ngày)'
                         : '📦 Hộp 1 (Ôn hàng ngày)'}
                     </span>

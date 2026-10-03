@@ -8,7 +8,7 @@ import {
   Sparkles,
   BarChart3
 } from 'lucide-react';
-import { VocabularyItem, VocabCategory } from '../types';
+import { VocabularyItem, VocabCategory, normalizeStatus } from '../types';
 
 interface StatsOverviewProps {
   vocabulary: VocabularyItem[];
@@ -22,9 +22,9 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
   onFilterStatus
 }) => {
   const total = vocabulary.length;
-  const mastered = vocabulary.filter((v) => v.status === 'Đã thành thạo').length;
-  const learning = vocabulary.filter((v) => v.status === 'Đang học').length;
-  const needReview = vocabulary.filter((v) => v.status === 'Chưa thuộc').length;
+  const mastered = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đã thành thạo').length;
+  const learning = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đang học').length;
+  const needReview = vocabulary.filter((v) => normalizeStatus(v.status) === 'Chưa thuộc').length;
 
   const masteredPercent = total > 0 ? Math.round((mastered / total) * 100) : 0;
   const learningPercent = total > 0 ? Math.round((learning / total) * 100) : 0;

@@ -6,7 +6,7 @@ import { FlashcardDeck } from './components/FlashcardDeck';
 import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { VocabularyItem, MasteryStatus } from './types';
+import { VocabularyItem, MasteryStatus, normalizeStatus } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { Menu, GraduationCap, KeyRound } from 'lucide-react';
 
@@ -42,7 +42,8 @@ const migrateVocabularyData = (items: VocabularyItem[]): VocabularyItem[] => {
     .filter((item) => !isMachineSuggestedExam(item))
     .map((item) => ({
       ...item,
-      sourceExam: normalizeItemSourceExam(item)
+      sourceExam: normalizeItemSourceExam(item),
+      status: normalizeStatus(item.status)
     }));
 };
 

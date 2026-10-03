@@ -12,7 +12,7 @@ import {
   X,
   Cpu
 } from 'lucide-react';
-import { VocabularyItem } from '../types';
+import { VocabularyItem, normalizeStatus } from '../types';
 import { getStoredApiKey, getStoredModel } from '../services/geminiService';
 
 export interface SidebarProps {
@@ -42,9 +42,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Calculate learning progress statistics
   const totalWords = vocabulary.length;
-  const masteredCount = vocabulary.filter((v) => v.status === 'Đã thành thạo').length;
-  const learningCount = vocabulary.filter((v) => v.status === 'Đang học').length;
-  const needReviewCount = vocabulary.filter((v) => v.status === 'Chưa thuộc').length;
+  const masteredCount = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đã thành thạo').length;
+  const learningCount = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đang học').length;
+  const needReviewCount = vocabulary.filter((v) => normalizeStatus(v.status) === 'Chưa thuộc').length;
   const masteryRate = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
 
   const handleSelectTab = (tab: 'extract' | 'notebook' | 'flashcards' | 'quiz') => {

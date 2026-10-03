@@ -99,56 +99,19 @@ function sortVocabByHistory(
   });
 }
 
-function renderFormattedInstruction(instructionText: string, type: string, subtype?: string) {
-  if (type !== 'Synonyms/Antonyms') {
-    return (
-      <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/90 border border-slate-200 text-xs sm:text-sm">
-        <span className="font-bold text-slate-800 mr-2">Yêu cầu:</span>
-        <span className="italic leading-relaxed font-medium text-slate-700">
-          {instructionText}
-        </span>
-      </div>
-    );
-  }
-
-  const isAntonym = subtype === 'Antonym';
+function renderFormattedInstruction(instructionText: string) {
   const parts = instructionText.split(/(CLOSEST|OPPOSITE)/gi);
 
   return (
-    <div
-      className={`p-4 rounded-2xl border-2 text-xs sm:text-sm space-y-2.5 shadow-xs transition-all ${
-        isAntonym
-          ? 'bg-rose-50/90 border-rose-300 text-rose-950 ring-1 ring-rose-200'
-          : 'bg-emerald-50/90 border-emerald-300 text-emerald-950 ring-1 ring-emerald-200'
-      }`}
-    >
-      <div className="flex items-center gap-2 flex-wrap">
-        <span
-          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-white font-black text-xs uppercase tracking-wider shadow-2xs ${
-            isAntonym ? 'bg-rose-600' : 'bg-emerald-600'
-          }`}
-        >
-          {isAntonym ? (
-            <>
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>YÊU CẦU ĐỀ BÀI: TÌM TỪ TRÁI NGHĨA (OPPOSITE)</span>
-            </>
-          ) : (
-            <>
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>YÊU CẦU ĐỀ BÀI: TÌM TỪ ĐỒNG NGHĨA (CLOSEST)</span>
-            </>
-          )}
-        </span>
-      </div>
-
-      <p className="italic leading-relaxed font-medium text-slate-800 text-xs sm:text-sm pl-0.5">
+    <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/90 border border-slate-200 text-xs sm:text-sm">
+      <span className="font-bold text-slate-800 mr-2">Yêu cầu:</span>
+      <span className="italic leading-relaxed font-medium text-slate-700">
         {parts.map((part, idx) => {
           if (/^OPPOSITE$/i.test(part)) {
             return (
               <span
                 key={idx}
-                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-rose-600 text-white font-black not-italic text-xs tracking-wider shadow-xs uppercase ring-2 ring-rose-300"
+                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-rose-600 text-white font-black not-italic text-xs tracking-wider shadow-2xs uppercase"
               >
                 OPPOSITE
               </span>
@@ -158,7 +121,7 @@ function renderFormattedInstruction(instructionText: string, type: string, subty
             return (
               <span
                 key={idx}
-                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-emerald-600 text-white font-black not-italic text-xs tracking-wider shadow-xs uppercase ring-2 ring-emerald-300"
+                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-emerald-600 text-white font-black not-italic text-xs tracking-wider shadow-2xs uppercase"
               >
                 CLOSEST
               </span>
@@ -166,7 +129,7 @@ function renderFormattedInstruction(instructionText: string, type: string, subty
           }
           return part;
         })}
-      </p>
+      </span>
     </div>
   );
 }
@@ -679,23 +642,15 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 <span>Câu {activeQuestionIdx + 1} / {questions.length}</span>
                 {currentQ.type === 'Synonyms/Antonyms' && (
                   <span
-                    className={`text-xs px-3 py-1 rounded-xl font-black shadow-xs flex items-center gap-1.5 ${
+                    className={`text-xs px-2.5 py-0.5 rounded-md font-bold ${
                       currentQ.subtype === 'Antonym'
-                        ? 'bg-rose-600 text-white ring-2 ring-rose-400/40'
-                        : 'bg-emerald-600 text-white ring-2 ring-emerald-400/40'
+                        ? 'text-rose-700 bg-rose-50 border border-rose-200'
+                        : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
                     }`}
                   >
-                    {currentQ.subtype === 'Antonym' ? (
-                      <>
-                        <AlertCircle className="w-3.5 h-3.5" />
-                        <span>Tìm từ TRÁI NGHĨA (Opposite)</span>
-                      </>
-                    ) : (
-                      <>
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Tìm từ ĐỒNG NGHĨA (Closest)</span>
-                      </>
-                    )}
+                    {currentQ.subtype === 'Antonym'
+                      ? 'Tìm từ trái nghĩa (Opposite)'
+                      : 'Tìm từ đồng nghĩa (Closest)'}
                   </span>
                 )}
                 {currentQ.type === 'Fill-in-the-blank' && (
@@ -747,7 +702,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
           {/* Question Prompt */}
           <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-            {/* Instruction Box: Làm nổi bật đặc biệt dạng CLOSEST và OPPOSITE */}
+            {/* Instruction Box: Chỉ làm nổi bật từ khóa trong yêu cầu đề tiếng Anh */}
             {renderFormattedInstruction(
               currentQ.instruction ||
                 (currentQ.type === 'Synonyms/Antonyms'
@@ -756,9 +711,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
                   : currentQ.type === 'Fill-in-the-blank'
                   ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
-                  : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.'),
-              currentQ.type,
-              currentQ.subtype
+                  : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.')
             )}
 
             {/* Sentence Box */}
@@ -879,7 +832,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     <span>Nghe từ: <strong className="text-indigo-600">{currentQ.targetTerm}</strong></span>
                   </button>
                 </div>
-                {currentQ.explanation}
+
+                <div className="whitespace-pre-line leading-relaxed">
+                  {currentQ.explanation}
+                </div>
               </div>
             </div>
           )}

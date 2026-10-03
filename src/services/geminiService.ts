@@ -633,6 +633,7 @@ export async function generateQuizWithFallback(
         targetTerm: h.term,
         previousQuestionType: h.type,
         previousSubtype: h.subtype || 'None',
+        previousCorrectAnswerWord: h.correctAnswerText || 'N/A',
         testedFocus: h.testedFocus || h.correctAnswerText || 'N/A',
         mandatoryActionIfReused: flipAction,
         previousQuestionSnippet: h.question ? h.question.slice(0, 90) : ''
@@ -759,7 +760,7 @@ DO NOT generate any question type that is not in this allowed list!
         D: "clumsy"
       },
       correctAnswer: "A",
-      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'."
+      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'.\n• Từ đồng nghĩa khác cùng ngữ cảnh: complex, intricate, state-of-the-art\n• Từ trái nghĩa cùng ngữ cảnh: primitive, rudimentary, simple"
     });
   }
   if (allowedTypes.includes('Sentence Completion') && exampleQuestions.length < 2) {
@@ -803,6 +804,10 @@ ${specList.join('\n')}
    CRITICAL NEGATIVE CONSTRAINT FOR EXPLANATION:
    - NEVER mention previous rounds, quiz history, "lượt trước", "lượt này", "vòng trước", "đề trước", "đã kiểm tra ... trước đó" in the explanation.
    - ONLY explain the grammatical rule, vocabulary meaning, or collocation directly for the learner.
+
+6. ĐỐI VỚI DẠNG ĐỒNG NGHĨA / TRÁI NGHĨA (SYNONYMS & ANTONYMS):
+   - MỞ RỘNG TỪ VỰNG TRONG LỜI GIẢI (EXPLANATION): Sau phần giải nghĩa và phân tích đáp án, hãy nêu thêm các từ đồng nghĩa và trái nghĩa KHÁC cũng hoàn toàn phù hợp với ngữ cảnh câu văn (ví dụ: "• Từ đồng nghĩa khác cùng ngữ cảnh: influence, sway; • Từ trái nghĩa khác cùng ngữ cảnh: leave alone, respect").
+   - ĐA DẠNG HÓA KHI TÁI SỬ DỤNG TỪ ĐỂ TẠO ĐỀ MỚI: Nếu chọn lại từ đã từng kiểm tra ở lượt trước, hãy sử dụng các từ đồng nghĩa hoặc trái nghĩa KHÁC phù hợp ngữ cảnh làm đáp án (không lặp lại từ đáp án cũ).
 
 Return valid JSON in this exact structure:
 {

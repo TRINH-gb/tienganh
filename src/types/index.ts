@@ -44,7 +44,9 @@ export interface QuizQuestion {
   type: 'Fill-in-the-blank' | 'Synonyms/Antonyms' | 'Sentence Completion';
   subtype?: 'Synonym' | 'Antonym' | 'None';
   targetTerm: string;
+  instruction: string;
   question: string;
+  testedFocus?: string;
   options: {
     A: string;
     B: string;

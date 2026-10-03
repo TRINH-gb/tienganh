@@ -232,6 +232,7 @@ export function generateExamDocHtml(
       .map(
         (q, idx) => `
       <div class="question-block">
+        ${q.instruction ? `<div style="font-style: italic; color: #4b5563; font-size: 11pt; margin-bottom: 4px;"><i>${q.instruction}</i></div>` : ''}
         <div class="question-prompt">
           Question ${idx + 1} (${q.type}${q.subtype && q.subtype !== 'None' ? ` - ${q.subtype}` : ''}): ${q.question}
         </div>

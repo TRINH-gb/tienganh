@@ -17,8 +17,79 @@ import {
 import confetti from 'canvas-confetti';
 import { VocabularyItem, QuizQuestion, MasteryStatus } from '../types';
 import { speakEnglish } from '../utils/tts';
-import { generateQuizWithFallback, getStoredApiKey } from '../services/geminiService';
+import {
+  generateQuizWithFallback,
+  getStoredApiKey,
+  PreviousQuestionHistory
+} from '../services/geminiService';
 import { downloadDocxFile } from '../utils/documentExport';
+
+/**
+ * Prioritizes vocabulary items that were NOT tested in previous quiz rounds.
+ * If all items were tested, sorts by least recently tested.
+ */
+function sortVocabByHistory(
+  vocabList: VocabularyItem[],
+  history: PreviousQuestionHistory[]
+): VocabularyItem[] {
+  if (!history || history.length === 0) {
+    return [...vocabList].sort(() => Math.random() - 0.5);
+  }
+
+  const countMap = new Map<string, number>();
+  const lastIndexMap = new Map<string, number>();
+
+  history.forEach((h, idx) => {
+    const key = h.term.toLowerCase().trim();
+    countMap.set(key, (countMap.get(key) || 0) + 1);
+    lastIndexMap.set(key, idx);
+  });
+
+  return [...vocabList].sort((a, b) => {
+    const keyA = a.term.toLowerCase().trim();
+    const keyB = b.term.toLowerCase().trim();
+
+    const countA = countMap.get(keyA) || 0;
+    const countB = countMap.get(keyB) || 0;
+
+    // 1st criterion: tested fewer times in history (0 times first, then 1, etc.)
+    if (countA !== countB) {
+      return countA - countB;
+    }
+
+    // 2nd criterion: if tested same times, pick the one tested least recently
+    const lastA = lastIndexMap.get(keyA) ?? -1;
+    const lastB = lastIndexMap.get(keyB) ?? -1;
+    if (lastA !== lastB) {
+      return lastA - lastB;
+    }
+
+    // 3rd criterion: random tie-breaker
+    return Math.random() - 0.5;
+  });
+}
+
+function renderFormattedQuestionSentence(text: string) {
+  if (!text) return null;
+  const parts = text.split(/(\*\*[^*]+\*\*)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return (
+            <span
+              key={i}
+              className="underline decoration-indigo-500 decoration-2 font-black text-indigo-900 bg-indigo-50/80 px-1.5 py-0.5 rounded mx-0.5 shadow-2xs"
+            >
+              {part.slice(2, -2)}
+            </span>
+          );
+        }
+        return part;
+      })}
+    </>
+  );
+}
 
 interface AiQuizEngineProps {
   vocabulary: VocabularyItem[];
@@ -77,6 +148,8 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D'>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>([]);
+  const [quizRound, setQuizRound] = useState<number>(1);
 
   // Filter Target Vocabulary for Quiz Generation
   const targetVocabList = examScopedVocab.filter((v) => {
@@ -108,6 +181,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
       return;
     }
 
+    // Accumulate finished questions into history for subsequent round generation
+    let accumulatedHistory = [...quizHistory];
+    if (questions.length > 0) {
+      const currentRoundItems: PreviousQuestionHistory[] = questions.map((q) => ({
+        term: q.targetTerm,
+        type: q.type,
+        subtype: q.subtype,
+        question: q.question,
+        testedFocus: q.testedFocus || q.options[q.correctAnswer] || '',
+        correctAnswerText: q.options[q.correctAnswer] || ''
+      }));
+      accumulatedHistory = [...accumulatedHistory, ...currentRoundItems];
+      setQuizHistory(accumulatedHistory);
+      setQuizRound((r) => r + 1);
+    }
+
     setIsLoading(true);
     setErrorMsg(null);
     setFallbackNotice(null);
@@ -115,16 +204,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     setIsSubmitted(false);
     setActiveQuestionIdx(0);
 
+    // Prioritize words that were NOT yet tested in history
+    const prioritizedVocab = sortVocabByHistory(targetVocabList, accumulatedHistory);
+
     try {
       const generatedQuestions = await generateQuizWithFallback(
-        targetVocabList,
+        prioritizedVocab,
         questionCount,
         selectedTypes,
         (failedModel, nextModel, error) => {
           setFallbackNotice(
             `Model "${failedModel}" gặp sự cố (${error.slice(0, 80)}...). Tự động chuyển sang model dự phòng "${nextModel}".`
           );
-        }
+        },
+        accumulatedHistory
       );
 
       setQuestions(generatedQuestions);
@@ -467,6 +560,11 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
                   Đề thi trắc nghiệm AI • {questions.length} câu hỏi
                 </span>
+                {quizRound > 1 && (
+                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
+                    Lượt {quizRound} (Đã đổi mới từ vựng & cấu trúc)
+                  </span>
+                )}
                 <div className="flex items-center gap-1.5 ml-2">
                   <button
                     type="button"
@@ -486,8 +584,33 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   </button>
                 </div>
               </div>
-              <h3 className="text-lg font-black text-slate-900 mt-1">
-                Câu hỏi {activeQuestionIdx + 1}: [{currentQ.type}]
+              <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2 flex-wrap">
+                <span>Câu hỏi {activeQuestionIdx + 1}:</span>
+                <span className="text-indigo-600 font-black">[{currentQ.type}</span>
+                {currentQ.type === 'Synonyms/Antonyms' && (
+                  <span
+                    className={`text-xs px-2.5 py-0.5 rounded-md font-bold ${
+                      currentQ.subtype === 'Antonym'
+                        ? 'text-rose-700 bg-rose-50 border border-rose-200'
+                        : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                    }`}
+                  >
+                    {currentQ.subtype === 'Antonym'
+                      ? '• Tìm từ TRÁI NGHĨA (OPPOSITE)'
+                      : '• Tìm từ ĐỒNG NGHĨA (CLOSEST)'}
+                  </span>
+                )}
+                {currentQ.type === 'Fill-in-the-blank' && (
+                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs px-2 py-0.5 rounded-md font-bold">
+                    • Điền từ vào chỗ trống
+                  </span>
+                )}
+                {currentQ.type === 'Sentence Completion' && (
+                  <span className="text-teal-700 bg-teal-50 border border-teal-200 text-xs px-2 py-0.5 rounded-md font-bold">
+                    • Hoàn thành câu
+                  </span>
+                )}
+                <span className="text-indigo-600 font-black">]</span>
               </h3>
             </div>
 
@@ -525,26 +648,81 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             </div>
           </div>
 
-          {/* Question Prompt */}
-          <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
-              <span className="px-2 py-0.5 rounded-md bg-white border border-slate-200 text-slate-700 font-bold">
-                Mục từ kiểm tra: <strong>{currentQ.targetTerm}</strong>
-              </span>
+          {/* Question Prompt: Tách rõ ràng Yêu cầu đề bài và Câu hỏi ngữ cảnh */}
+          <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
+            {/* Top row: Target Term badge, testedFocus badge & Listen button */}
+            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold border-b border-slate-200/60 pb-3 gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-bold shadow-2xs">
+                  Mục từ kiểm tra: <strong className="text-indigo-600">{currentQ.targetTerm}</strong>
+                </span>
+                {currentQ.testedFocus && (
+                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    Trọng tâm khảo sát: <strong>{currentQ.testedFocus}</strong>
+                  </span>
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => speakEnglish(currentQ.targetTerm, accent)}
-                className="hover:text-indigo-600 flex items-center gap-1"
+                className="hover:text-indigo-600 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold transition-colors cursor-pointer"
                 title="Nghe phát âm từ mục tiêu"
               >
-                <Volume2 className="w-3.5 h-3.5" />
+                <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
                 <span>Nghe từ</span>
               </button>
             </div>
 
-            <p className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed pt-2">
-              {currentQ.question}
-            </p>
+            {/* Instruction Box: Tách biệt rõ ràng Yêu cầu đề bài */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-950 text-xs sm:text-sm space-y-1.5 shadow-2xs">
+              <div className="flex items-center gap-2 font-bold text-amber-800 text-[11px] uppercase tracking-wider flex-wrap">
+                <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Yêu cầu đề bài (Exam Instruction):</span>
+                {currentQ.type === 'Synonyms/Antonyms' && (
+                  <span
+                    className={`px-2 py-0.5 rounded font-bold text-[10px] normal-case ml-auto ${
+                      currentQ.subtype === 'Antonym'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-emerald-100 text-emerald-800'
+                    }`}
+                  >
+                    {currentQ.subtype === 'Antonym'
+                      ? 'Tìm từ TRÁI NGHĨA (Opposite in meaning)'
+                      : 'Tìm từ ĐỒNG NGHĨA (Closest in meaning)'}
+                  </span>
+                )}
+                {currentQ.type === 'Fill-in-the-blank' && (
+                  <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold text-[10px] normal-case ml-auto">
+                    Điền từ / Cụm từ vào chỗ trống
+                  </span>
+                )}
+                {currentQ.type === 'Sentence Completion' && (
+                  <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-bold text-[10px] normal-case ml-auto">
+                    Hoàn thành câu ngữ pháp / Cấu trúc
+                  </span>
+                )}
+              </div>
+              <p className="italic text-slate-700 leading-relaxed font-medium pl-5 text-xs sm:text-sm">
+                {currentQ.instruction ||
+                  (currentQ.type === 'Synonyms/Antonyms'
+                    ? currentQ.subtype === 'Antonym'
+                      ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question.'
+                      : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
+                    : currentQ.type === 'Fill-in-the-blank'
+                    ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
+                    : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.')}
+              </p>
+            </div>
+
+            {/* Sentence Box: Tách biệt Câu hỏi ngữ cảnh */}
+            <div className="pt-1 space-y-1.5">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
+                Câu hỏi:
+              </span>
+              <p className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
+                {renderFormattedQuestionSentence(currentQ.question)}
+              </p>
+            </div>
           </div>
 
           {/* 4 Options (A, B, C, D) */}
@@ -680,9 +858,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   type="button"
                   onClick={handleGenerateQuiz}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                  title="Tạo bộ đề mới với các từ vựng khác hoặc kiểm tra vị trí khuyết khác trong cụm từ"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Tạo bộ đề mới</span>
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Tạo bộ đề mới (Đổi từ vựng)</span>
                 </button>
               )}
             </div>
@@ -706,9 +885,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 <button
                   type="button"
                   onClick={handleGenerateQuiz}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
-                  Làm đề luyện tập khác
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Làm đề luyện tập khác (Đổi từ vựng)</span>
                 </button>
               </div>
             </div>

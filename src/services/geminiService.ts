@@ -156,7 +156,14 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
         .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
         .map((m: any) => cleanModelId(m.name));
 
-      const valid = candidates.filter((id) => !id.includes('deprecated'));
+      const valid = candidates.filter(
+        (id) =>
+          !id.includes('deprecated') &&
+          !id.includes('-tts') &&
+          !id.includes('audio') &&
+          !id.includes('embedding') &&
+          !id.includes('imagen')
+      );
 
       // Sort: flash models first, then pro, then others
       return valid.sort((a, b) => {
@@ -502,15 +509,94 @@ Ensure the response is valid JSON matching this schema:
 /**
  * Task 2: Generate AI Quiz from vocabulary items
  */
+export interface PreviousQuestionHistory {
+  term: string;
+  type?: string;
+  subtype?: string;
+  question?: string;
+  testedFocus?: string;
+  correctAnswerText?: string;
+}
+
+export function cleanAndSeparateInstruction(
+  rawInstruction: string | undefined,
+  rawQuestion: string,
+  type: string,
+  subtype?: string,
+  explanation?: string
+): { instruction: string; question: string; resolvedSubtype: 'Synonym' | 'Antonym' | 'None' } {
+  let instruction = (rawInstruction || '').trim();
+  let question = (rawQuestion || '').trim();
+
+  // Determine/Refine subtype for Synonyms/Antonyms
+  let resolvedSubtype: 'Synonym' | 'Antonym' | 'None' = (subtype as any) || 'None';
+  if (type === 'Synonyms/Antonyms') {
+    const combinedLower = `${instruction} ${question} ${explanation || ''}`.toLowerCase();
+    if (resolvedSubtype !== 'Antonym' && resolvedSubtype !== 'Synonym') {
+      if (
+        combinedLower.includes('opposite') ||
+        combinedLower.includes('trái nghĩa') ||
+        combinedLower.includes('antonym')
+      ) {
+        resolvedSubtype = 'Antonym';
+      } else {
+        resolvedSubtype = 'Synonym';
+      }
+    }
+  }
+
+  // Common patterns where instruction is prepended to question sentence:
+  const instructionRegexes = [
+    /^(?:Mark the letter [A-D](?:,\s*[A-D])*(?:,\s*or\s*[A-D])?(?:\s+on your answer sheet)?\s+to indicate the (?:word\(s\)|word|phrase) (?:CLOSEST|OPPOSITE) in meaning to the underlined (?:word\(s\)|word|phrase)?\s+in (?:the following question|each of the following questions|the following sentence)[\.:]?\s*)/i,
+    /^(?:Mark the letter [A-D](?:,\s*[A-D])*(?:,\s*or\s*[A-D])?(?:\s+on your answer sheet)?\s+to indicate the [^.]+(?:following question|following questions|following sentence|following sentences)[\.:]?\s*)/i,
+    /^(?:Choose the (?:letter|word|phrase|correct answer|best answer)[^.]+(?:following question|following questions|following sentence|following sentences)[\.:]?\s*)/i,
+    /^(?:Indicate the (?:word\(s\)|word|phrase) (?:CLOSEST|OPPOSITE) in meaning[^.]+(?:following question|following questions)[\.:]?\s*)/i
+  ];
+
+  for (const regex of instructionRegexes) {
+    const match = question.match(regex);
+    if (match) {
+      if (!instruction) {
+        instruction = match[0].trim().replace(/[\.:]$/, '.');
+      }
+      question = question.slice(match[0].length).trim();
+      break;
+    }
+  }
+
+  // Strip accidental "Question X:" prefix if present
+  question = question.replace(/^Question\s+\d+[:\.]\s*/i, '').trim();
+
+  // If instruction is still empty or minimal, build standard Ministry instruction
+  if (!instruction || instruction.length < 15) {
+    if (type === 'Synonyms/Antonyms') {
+      if (resolvedSubtype === 'Antonym') {
+        instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question.';
+      } else {
+        instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.';
+      }
+    } else if (type === 'Fill-in-the-blank') {
+      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.';
+    } else if (type === 'Sentence Completion') {
+      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.';
+    } else {
+      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct answer to the following question.';
+    }
+  }
+
+  return { instruction, question, resolvedSubtype };
+}
+
 export async function generateQuizWithFallback(
   vocabularyList: VocabularyItem[],
   count: number = 5,
   questionTypes: string[] = ['Fill-in-the-blank', 'Synonyms/Antonyms', 'Sentence Completion'],
-  onModelFallback?: (failedModel: string, nextModel: string, error: string) => void
+  onModelFallback?: (failedModel: string, nextModel: string, error: string) => void,
+  history: PreviousQuestionHistory[] = []
 ): Promise<QuizQuestion[]> {
-  const typesFilter = questionTypes && questionTypes.length > 0
-    ? questionTypes.join(', ')
-    : 'Fill-in-the-blank, Synonyms/Antonyms, Sentence Completion';
+  const allowedTypes = questionTypes && questionTypes.length > 0
+    ? questionTypes
+    : ['Fill-in-the-blank', 'Synonyms/Antonyms', 'Sentence Completion'];
 
   const vocabSummary = vocabularyList.slice(0, 30).map((v) => ({
     term: v.term,
@@ -519,47 +605,179 @@ export async function generateQuizWithFallback(
     context: v.context
   }));
 
+  let historySection = '';
+  if (history && history.length > 0) {
+    const recentHistory = history.slice(-15).map((h, i) => ({
+      index: i + 1,
+      targetTerm: h.term,
+      questionType: h.type,
+      subtype: h.subtype || 'None',
+      testedPartOrBlank: h.testedFocus || h.correctAnswerText || 'N/A',
+      previousQuestionSnippet: h.question ? h.question.slice(0, 100) : ''
+    }));
+
+    historySection = `
+DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
+${JSON.stringify(recentHistory, null, 2)}
+
+QUY TẮC BẮT BUỘC KHI TẠO ĐỀ MỚI (MANDATORY RULES FOR NEW QUIZ GENERATION):
+1. ƯU TIÊN ĐỔI MỚI TỪ VỰNG (NOVELTY PRIORITY):
+   - Tuyệt đối ưu tiên chọn các từ/cụm từ trong danh sách từ vựng MÀ CHƯA XUẤT HIỆN trong danh sách câu hỏi đã kiểm tra ở trên.
+2. NGUYÊN TẮC THAY ĐỔI ĐIỂM KIỂM TRA KHI LẶP LẠI TỪ / CỤM TỪ (VARIATION ON REPEATED ITEMS):
+   - Nếu phải chọn lại từ/cụm từ đã kiểm tra ở lượt trước (do số lượng từ vựng ít hoặc để củng cố ôn tập):
+     * TUYỆT ĐỐI KHÔNG lặp lại câu hỏi cũ hoặc kiểm tra vị trí từ khuyết đã làm!
+     * ĐỐI VỚI COLLOCATION / PHRASAL VERB / IDIOM / CỤM TỪ:
+       BẮT BUỘC PHẢI KIỂM TRA MỘT THÀNH PHẦN KHÁC CỦA CỤM TỪ ĐÓ!
+       - Ví dụ cụ thể: Nếu lượt trước kiểm tra điền chữ 'make' trong cụm 'make an impact' ('_______ an impact'), thì ở lượt này BẮT BUỘC phải điền chữ 'impact' ('make a profound _______') hoặc giới từ đi kèm ('make an impact _______').
+       - Ví dụ: Nếu lượt trước kiểm tra động từ 'take' trong 'take after' ('_______ after'), lượt này BẮT BUỘC phải kiểm tra giới từ 'after' ('take _______').
+     * ĐỐI VỚI TỪ ĐƠN (SINGLE WORD):
+       BẮT BUỘC phải đổi ngữ cảnh ngữ pháp hoặc dạng câu hỏi hoàn toàn mới.
+`;
+  }
+
+  // Dynamic Type Constraint instructions
+  let typeConstraintNotice = '';
+  if (allowedTypes.length === 1) {
+    typeConstraintNotice = `
+CRITICAL MANDATORY CONSTRAINT - 100% STRICT QUESTION TYPE:
+The user has EXCLUSIVELY selected ONLY ONE question type: "${allowedTypes[0]}".
+YOU MUST ONLY GENERATE QUESTIONS OF TYPE: "${allowedTypes[0]}".
+IT IS STRICTLY FORBIDDEN to generate any other question type!
+DO NOT generate "Synonyms/Antonyms" or any unselected type!
+EVERY SINGLE QUESTION (all ${count} questions) in the returned JSON array MUST have: "type": "${allowedTypes[0]}".
+`;
+  } else {
+    typeConstraintNotice = `
+CRITICAL MANDATORY CONSTRAINT - STRICT QUESTION TYPES:
+The user has selected ONLY these question types: [${allowedTypes.join(', ')}].
+All generated questions must strictly belong to one of these allowed types: [${allowedTypes.join(', ')}].
+DO NOT generate any question type that is not in this allowed list!
+`;
+  }
+
+  // Dynamic specifications for ONLY the allowed types
+  const specList: string[] = [];
+  if (allowedTypes.includes('Fill-in-the-blank')) {
+    specList.push(`- 'Fill-in-the-blank':
+    * Create a rich, authentic contextual sentence with a blank ("_______") requiring the exact target word/phrase or a key constituent.
+    * The sentence MUST contain the blank "_______".
+    * Instruction MUST be: "Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence."
+    * subtype: "None".`);
+  }
+  if (allowedTypes.includes('Synonyms/Antonyms')) {
+    specList.push(`- 'Synonyms/Antonyms':
+    * "subtype" MUST be explicitly 'Synonym' or 'Antonym' (NEVER 'None').
+    * If 'Synonym': Instruction MUST state "CLOSEST in meaning": "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question." The target word in the sentence MUST be enclosed in **bold** or CAPITALIZED.
+    * If 'Antonym': Instruction MUST state "OPPOSITE in meaning": "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question." The target word in the sentence MUST be enclosed in **bold** or CAPITALIZED.`);
+  }
+  if (allowedTypes.includes('Sentence Completion')) {
+    specList.push(`- 'Sentence Completion':
+    * Test grammatical usage, dependent preposition, or collocation in a complete sentence with a blank ("_______").
+    * Instruction MUST be: "Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions."
+    * subtype: "None".`);
+  }
+
+  // Dynamic few-shot JSON example tailored ONLY to allowed types
+  const exampleQuestions: any[] = [];
+  if (allowedTypes.includes('Fill-in-the-blank')) {
+    exampleQuestions.push({
+      id: "q1",
+      type: "Fill-in-the-blank",
+      subtype: "None",
+      targetTerm: "sophisticated",
+      testedFocus: "từ 'sophisticated'",
+      instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.",
+      question: "Modern self-driving cars rely on _______ AI algorithms to navigate through bustling urban traffic safely.",
+      options: {
+        A: "sophisticated",
+        B: "primitive",
+        C: "fragile",
+        D: "casual"
+      },
+      correctAnswer: "A",
+      explanation: "Từ 'sophisticated' mang nghĩa tinh vi, tinh xảo, hiện đại, rất phù hợp khi nói về thuật toán AI của xe tự hành."
+    });
+    if (allowedTypes.length === 1) {
+      exampleQuestions.push({
+        id: "q2",
+        type: "Fill-in-the-blank",
+        subtype: "None",
+        targetTerm: "make an impact",
+        testedFocus: "impact (trong collocation 'make an impact')",
+        instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.",
+        question: "The new community campaign is expected to make a profound _______ on local environmental awareness.",
+        options: {
+          A: "impact",
+          B: "force",
+          C: "conflict",
+          D: "affect"
+        },
+        correctAnswer: "A",
+        explanation: "Cụm danh từ cố định (Collocation) chuẩn là 'make an impact on' (tạo sức ảnh hưởng lớn đến)."
+      });
+    }
+  }
+  if (allowedTypes.includes('Synonyms/Antonyms') && exampleQuestions.length < 2) {
+    exampleQuestions.push({
+      id: "q_syn",
+      type: "Synonyms/Antonyms",
+      subtype: "Synonym",
+      targetTerm: "sophisticated",
+      testedFocus: "sophisticated (Từ đồng nghĩa - Closest)",
+      instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.",
+      question: "Modern self-driving vehicles utilize **sophisticated** radar sensors to detect nearby obstacles.",
+      options: {
+        A: "advanced",
+        B: "rudimentary",
+        C: "simple",
+        D: "clumsy"
+      },
+      correctAnswer: "A",
+      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'."
+    });
+  }
+  if (allowedTypes.includes('Sentence Completion') && exampleQuestions.length < 2) {
+    exampleQuestions.push({
+      id: "q_sc",
+      type: "Sentence Completion",
+      subtype: "None",
+      targetTerm: "take after",
+      testedFocus: "tiểu từ 'after' trong 'take after'",
+      instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.",
+      question: "In terms of temperament, the young boy seems to take _______ his grandfather.",
+      options: {
+        A: "after",
+        B: "up",
+        C: "down",
+        D: "over"
+      },
+      correctAnswer: "A",
+      explanation: "Cụm động từ 'take after' có nghĩa là giống ai đó (về ngoại hình hoặc tính cách)."
+    });
+  }
+
   const prompt = `Act as the EVM Architect to create high-quality multiple choice exam questions strictly following the format of Vietnam's National High School Graduation Exam (Tốt nghiệp THPT).
 
-USER'S TARGET VOCABULARY LIST:
+USER'S TARGET VOCABULARY LIST (Prioritized order):
 ${JSON.stringify(vocabSummary, null, 2)}
-
+${historySection}
+${typeConstraintNotice}
 SPECIFICATIONS:
-1. Target Question Types to generate: ${typesFilter}
-   - 'Fill-in-the-blank': Create a rich, clear contextual sentence with a blank (e.g. "_______") requiring the exact target word/phrase.
-   - 'Synonyms/Antonyms': Closest in meaning (Synonym) or Opposite in meaning (Antonym) with the target vocabulary underlined or capitalized in a full contextual sentence.
-   - 'Sentence Completion': Test grammatical usage, dependent preposition, or collocation in a complete sentence.
-2. IMPORTANT RULE: Only test vocabulary items from the user's provided list! Distractors (wrong options) can be other natural English words/collocations appropriate for THPT level.
-3. Number of questions to generate: ${Math.min(Number(count) || 5, 15)}
-4. Each question must have:
-   - id: unique string id
-   - type: 'Fill-in-the-blank' | 'Synonyms/Antonyms' | 'Sentence Completion'
-   - subtype: 'Synonym' | 'Antonym' | 'None'
-   - targetTerm: the exact word/collocation being tested
-   - question: The full sentence with the prompt
-   - options: object with keys 'A', 'B', 'C', 'D'
-   - correctAnswer: 'A' | 'B' | 'C' | 'D'
-   - explanation: Thorough, encouraging explanation in Vietnamese detailing why the correct answer fits and what each distractor means.
+1. Target Question Types to generate:
+${specList.join('\n')}
 
-Return a JSON object with:
+2. STRICT SEPARATION OF INSTRUCTION AND QUESTION SENTENCE (QUAN TRỌNG):
+   - "instruction": MANDATORY standard THPT exam direction in English. MUST be separate from the sentence!
+   - "question": ONLY the authentic context sentence containing the blank ("_______") or the capitalized/bold target word. DO NOT include the instruction prefix inside "question"!
+   - "testedFocus": A concise phrase stating the tested constituent (e.g. "điền từ 'impact' trong cụm 'make an impact'", "điền 'sophisticated'", "sophisticated (Từ đồng nghĩa - Closest)").
+
+3. Number of questions to generate: ${Math.min(Number(count) || 5, 15)}
+4. Distractors (wrong options) must be natural, plausible THPT-level distractors.
+5. Provide detailed pedagogical explanation in Vietnamese.
+
+Return valid JSON in this exact structure:
 {
-  "questions": [
-    {
-      "id": "q1",
-      "type": "Sentence Completion",
-      "subtype": "None",
-      "targetTerm": "make a decision",
-      "question": "Students must _______ a decision regarding their university preferences before July.",
-      "options": {
-        "A": "take",
-        "B": "make",
-        "C": "do",
-        "D": "bring"
-      },
-      "correctAnswer": "B",
-      "explanation": "Cụm cố định (Collocation) chuẩn là 'make a decision' (đưa ra quyết định). Các đáp án khác không kết hợp tự nhiên với 'decision'."
-    }
-  ]
+  "questions": ${JSON.stringify(exampleQuestions, null, 2)}
 }`;
 
   const rawText = await executeWithFallback(async (model, apiKey) => {
@@ -571,7 +789,73 @@ Return a JSON object with:
     throw new Error('Dữ liệu câu hỏi trắc nghiệm không hợp lệ.');
   }
 
-  return parsed.questions;
+  const formatted: QuizQuestion[] = parsed.questions.map((item: any, idx: number) => {
+    let type = (item.type || allowedTypes[0]) as QuizQuestion['type'];
+
+    // Strict Code-level enforcement: If Gemini deviated from allowedTypes, force it!
+    if (!allowedTypes.includes(type)) {
+      type = allowedTypes[0] as QuizQuestion['type'];
+    }
+
+    let rawQuestion = String(item.question || '').trim();
+
+    // If type is Fill-in-the-blank or Sentence Completion, ensure question has "_______"
+    if (type === 'Fill-in-the-blank' || type === 'Sentence Completion') {
+      if (!rawQuestion.includes('_______') && !rawQuestion.includes('______') && !rawQuestion.includes('____')) {
+        if (/\*\*[^*]+\*\*/.test(rawQuestion)) {
+          rawQuestion = rawQuestion.replace(/\*\*[^*]+\*\*/, '_______');
+        } else if (item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
+          const re = new RegExp(item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          rawQuestion = rawQuestion.replace(re, '_______');
+        } else {
+          const capsMatch = rawQuestion.match(/\b[A-Z]{3,}\b/);
+          if (capsMatch) {
+            rawQuestion = rawQuestion.replace(capsMatch[0], '_______');
+          }
+        }
+      }
+    }
+
+    // If type is Synonyms/Antonyms, ensure target word is formatted and not a blank
+    if (type === 'Synonyms/Antonyms') {
+      if (rawQuestion.includes('_______') && item.targetTerm) {
+        rawQuestion = rawQuestion.replace('_______', `**${item.targetTerm}**`);
+      } else if (!rawQuestion.includes('**') && item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
+        const re = new RegExp(`\\b${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+        rawQuestion = rawQuestion.replace(re, `**${item.targetTerm}**`);
+      }
+    }
+
+    const { instruction, question, resolvedSubtype } = cleanAndSeparateInstruction(
+      item.instruction,
+      rawQuestion,
+      type,
+      item.subtype,
+      item.explanation
+    );
+
+    return {
+      id: item.id || `q-${Date.now()}-${idx}`,
+      type,
+      subtype: resolvedSubtype,
+      targetTerm: String(item.targetTerm || '').trim(),
+      instruction,
+      question,
+      testedFocus: String(item.testedFocus || '').trim(),
+      options: {
+        A: String(item.options?.A || ''),
+        B: String(item.options?.B || ''),
+        C: String(item.options?.C || ''),
+        D: String(item.options?.D || '')
+      },
+      correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
+        ? item.correctAnswer
+        : 'A') as 'A' | 'B' | 'C' | 'D',
+      explanation: String(item.explanation || '')
+    };
+  });
+
+  return formatted;
 }
 
 /**

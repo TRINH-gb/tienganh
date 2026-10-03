@@ -42,7 +42,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
   const [filterCategory, setFilterCategory] = useState<VocabCategory | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<MasteryStatus | 'ALL'>('ALL');
   const [autoPronounce, setAutoPronounce] = useState<boolean>(true);
-  const [deck, setDeck] = useState<VocabularyItem[]>(vocabulary);
+  const [shuffledIds, setShuffledIds] = useState<string[] | null>(null);
 
   // Sync with selectedExamFilter prop
   useEffect(() => {
@@ -59,20 +59,53 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
     return Array.from(set);
   }, [vocabulary]);
 
-  // Synchronize deck with filter and vocabulary changes
-  useEffect(() => {
-    let list = vocabulary.filter((v) => {
+  // Filter vocabulary based on active filters
+  const filteredVocabulary = React.useMemo(() => {
+    return vocabulary.filter((v) => {
       const vExam = v.sourceExam?.trim() || 'Từ vựng tự nhập / Khác';
       const matchExam = filterExam === 'ALL' || vExam === filterExam;
       const matchCat = filterCategory === 'ALL' || v.type === filterCategory;
       const matchStat = filterStatus === 'ALL' || v.status === filterStatus;
       return matchExam && matchCat && matchStat;
     });
+  }, [vocabulary, filterExam, filterCategory, filterStatus]);
 
-    setDeck(list);
+  // Reset deck position and state ONLY when user intentionally changes filters
+  useEffect(() => {
+    setShuffledIds(null);
     setCurrentIndex(0);
     setIsFlipped(false);
-  }, [vocabulary, filterExam, filterCategory, filterStatus]);
+  }, [filterExam, filterCategory, filterStatus]);
+
+  // Build deck adhering to shuffled order if active
+  const deck = React.useMemo(() => {
+    if (!shuffledIds || shuffledIds.length === 0) {
+      return filteredVocabulary;
+    }
+    const map = new Map(filteredVocabulary.map((item) => [item.id, item]));
+    const result: VocabularyItem[] = [];
+    for (const id of shuffledIds) {
+      const item = map.get(id);
+      if (item) {
+        result.push(item);
+      }
+    }
+    // Any remaining items not yet in shuffledIds
+    for (const item of filteredVocabulary) {
+      if (!shuffledIds.includes(item.id)) {
+        result.push(item);
+      }
+    }
+    return result;
+  }, [filteredVocabulary, shuffledIds]);
+
+  // Safely clamp currentIndex if deck size shrinks
+  useEffect(() => {
+    if (deck.length > 0 && currentIndex >= deck.length) {
+      setCurrentIndex(Math.max(0, deck.length - 1));
+      setIsFlipped(false);
+    }
+  }, [deck.length, currentIndex]);
 
   const currentItem = deck[currentIndex];
 
@@ -81,16 +114,15 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
     if (currentItem && autoPronounce && !isFlipped) {
       speakEnglish(currentItem.term, accent);
     }
-  }, [currentIndex, autoPronounce]);
+  }, [currentIndex, currentItem?.id, autoPronounce]);
 
   // Flip Handler
   const handleFlip = () => {
-    const nextFlipped = !isFlipped;
-    setIsFlipped(nextFlipped);
-
-    if (currentItem) {
+    if (!currentItem) return;
+    if (!isFlipped) {
       onIncrementInteraction(currentItem.id);
     }
+    setIsFlipped((prev) => !prev);
   };
 
   // Navigation Handlers
@@ -107,19 +139,33 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
   };
 
   const handleShuffle = () => {
-    const shuffled = [...deck].sort(() => Math.random() - 0.5);
-    setDeck(shuffled);
+    if (filteredVocabulary.length === 0) return;
+    const shuffled = [...filteredVocabulary]
+      .sort(() => Math.random() - 0.5)
+      .map((item) => item.id);
+    setShuffledIds(shuffled);
     setCurrentIndex(0);
     setIsFlipped(false);
   };
 
   const handleSetStatus = (status: MasteryStatus) => {
     if (!currentItem) return;
-    onUpdateStatus(currentItem.id, status);
-    onIncrementInteraction(currentItem.id);
-    // Proceed to next card
+    const targetId = currentItem.id;
+    onUpdateStatus(targetId, status);
+    onIncrementInteraction(targetId);
+
+    // Proceed to next card smoothly
     setTimeout(() => {
-      handleNext();
+      setIsFlipped(false);
+      if (filterStatus !== 'ALL' && filterStatus !== status) {
+        setCurrentIndex((prev) => {
+          const nextLength = deck.length - 1;
+          if (nextLength <= 0) return 0;
+          return prev >= nextLength ? 0 : prev;
+        });
+      } else {
+        setCurrentIndex((prev) => (deck.length > 0 ? (prev + 1) % deck.length : 0));
+      }
     }, 250);
   };
 
@@ -154,7 +200,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [currentItem, isFlipped, deck.length]);
+  }, [currentItem, isFlipped, deck.length, filterStatus]);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -326,9 +372,7 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
                   transform: 'rotateY(0deg)',
                   WebkitTransform: 'rotateY(0deg)',
                   zIndex: isFlipped ? 0 : 2,
-                  pointerEvents: isFlipped ? 'none' : 'auto',
-                  opacity: isFlipped ? 0 : 1,
-                  transition: 'opacity 0.25s ease-in-out'
+                  pointerEvents: isFlipped ? 'none' : 'auto'
                 }}
               >
                 {/* Header Front */}
@@ -409,16 +453,14 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
 
               {/* BACK OF CARD (Mặt sau: IPA, Meaning, Example, Audio Hint) */}
               <div
-                className="card-back absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-8 sm:p-10 border-2 border-indigo-500/40 shadow-2xl flex flex-col justify-between select-none"
+                className="card-back absolute inset-0 w-full h-full bg-gradient-to-br from-indigo-900 via-indigo-950 to-slate-950 text-white rounded-3xl p-6 sm:p-10 border-2 border-indigo-500/40 shadow-2xl flex flex-col justify-between select-none overflow-y-auto"
                 style={{
                   backfaceVisibility: 'hidden',
                   WebkitBackfaceVisibility: 'hidden',
                   transform: 'rotateY(180deg)',
                   WebkitTransform: 'rotateY(180deg)',
                   zIndex: isFlipped ? 2 : 0,
-                  pointerEvents: isFlipped ? 'auto' : 'none',
-                  opacity: isFlipped ? 1 : 0,
-                  transition: 'opacity 0.25s ease-in-out'
+                  pointerEvents: isFlipped ? 'auto' : 'none'
                 }}
               >
                 {/* Header Back */}

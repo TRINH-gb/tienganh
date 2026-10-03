@@ -233,13 +233,9 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
       {/* Title & Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold mb-1">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Nhiệm vụ 3: Hệ thống hóa Flashcards Tương tác (Cấu trúc 2)
-          </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
             <Layers className="w-6 h-6 text-amber-500" />
-            <span>Smart Flashcards - Ghi nhớ Ngữ cảnh Đề thi</span>
+            <span>Thẻ Flashcards</span>
           </h2>
         </div>
 

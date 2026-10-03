@@ -56,38 +56,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'extract' as const,
       name: 'Phân tích Đề thi',
-      subtitle: 'Trích xuất ma trận & từ vựng',
       icon: Sparkles,
       iconColor: 'text-indigo-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: 'Trọng tâm'
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'notebook' as const,
       name: 'Sổ tay Từ vựng',
-      subtitle: 'Kho từ vựng cá nhân đã lưu',
       icon: BookOpen,
       iconColor: 'text-blue-600',
       activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: `${totalWords} từ`
+      badge: totalWords > 0 ? `${totalWords}` : undefined
     },
     {
       id: 'flashcards' as const,
       name: 'Thẻ Flashcards',
-      subtitle: 'Lật thẻ & Spaced Repetition',
       icon: Layers,
       iconColor: 'text-amber-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: 'Ghi nhớ'
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'quiz' as const,
       name: 'Luyện thi AI Quiz',
-      subtitle: 'Trắc nghiệm ngữ cảnh đề thi',
       icon: HelpCircle,
       iconColor: 'text-emerald-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: 'Đề thi AI'
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     }
   ];
 
@@ -112,7 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </div>
             <p className="text-[11px] text-slate-500 line-clamp-1 font-medium">
-              Kiến trúc sư Từ vựng Đề thi
+              Ôn thi THPT Quốc Gia
             </p>
           </div>
         </div>
@@ -132,12 +125,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto px-4 py-5 space-y-6">
         {/* Module Section: Core Features */}
         <div>
-          <div className="px-2 mb-2 flex items-center justify-between">
+          <div className="px-2 mb-2.5">
             <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider">
-              Chức năng ứng dụng
-            </span>
-            <span className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded">
-              4 Module
+              Chức năng
             </span>
           </div>
 
@@ -151,7 +141,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   type="button"
                   onClick={() => handleSelectTab(item.id)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl transition-all text-left group cursor-pointer ${
+                  className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl transition-all text-left group cursor-pointer ${
                     isActive
                       ? item.activeBg
                       : 'hover:bg-slate-50 border border-transparent hover:border-slate-200 text-slate-700'
@@ -167,38 +157,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     >
                       <IconComponent className="w-4 h-4" />
                     </div>
-                    <div className="truncate">
-                      <div className="flex items-center gap-1.5">
-                        <span
-                          className={`text-sm font-bold truncate ${
-                            isActive ? 'text-white' : 'text-slate-800'
-                          }`}
-                        >
-                          {item.name}
-                        </span>
-                      </div>
-                      <p
-                        className={`text-[11px] truncate ${
-                          isActive ? 'text-indigo-100' : 'text-slate-500'
-                        }`}
-                      >
-                        {item.subtitle}
-                      </p>
-                    </div>
+                    <span
+                      className={`text-sm font-bold truncate ${
+                        isActive ? 'text-white' : 'text-slate-800'
+                      }`}
+                    >
+                      {item.name}
+                    </span>
                   </div>
 
                   {/* Badge */}
-                  <div className="ml-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        isActive
-                          ? 'bg-white/25 text-white'
-                          : 'bg-slate-100 text-slate-600 border border-slate-200/60'
-                      }`}
-                    >
-                      {item.badge}
-                    </span>
-                  </div>
+                  {item.badge && (
+                    <div className="ml-2 shrink-0">
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          isActive
+                            ? 'bg-white/25 text-white'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200/60'
+                        }`}
+                      >
+                        {item.badge}
+                      </span>
+                    </div>
+                  )}
                 </button>
               );
             })}

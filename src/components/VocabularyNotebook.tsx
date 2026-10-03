@@ -203,11 +203,8 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         <div>
           <h2 className="text-xl sm:text-2xl font-extrabold text-slate-900 flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-indigo-600" />
-            <span>Sổ tay Từ vựng Cá nhân</span>
+            <span>Sổ tay Từ vựng</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
-            Quản lý từ vựng mục tiêu, tra cứu và ôn luyện trực tiếp qua Flashcard & AI Quiz
-          </p>
           <div className="flex flex-wrap items-center gap-2 mt-2.5">
             <span className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
               Tổng số: <strong className="text-slate-900">{vocabulary.length}</strong> từ
@@ -262,12 +259,9 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
               <BookOpen className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-                Phân Loại Từ Vựng Theo Từng Đề Thi
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
+                Lọc theo đề thi
               </h3>
-              <p className="text-[11px] text-slate-500">
-                Chọn một đề thi cụ thể để chỉ ôn luyện các từ thuộc đề đó (Flashcards & AI Quiz)
-              </p>
             </div>
           </div>
           {currentExamFilter !== 'ALL' && (

@@ -793,7 +793,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             <div className="space-y-1 flex-1">
               <div className="flex items-center gap-2 text-indigo-300 text-xs font-bold uppercase tracking-wider">
                 <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                <span>Đánh giá Ngữ liệu Đề thi (Corpus Insight)</span>
+                <span>Đánh giá Ngữ liệu Đề thi</span>
               </div>
               <p className="text-xs sm:text-sm text-slate-200 leading-relaxed">
                 {aiSummary}
@@ -878,9 +878,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 </span>
               )}
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Dữ liệu được chuẩn hóa và gắn thẻ theo quy tắc ngôn ngữ học ứng dụng EVM
-            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">

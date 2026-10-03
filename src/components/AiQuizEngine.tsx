@@ -283,19 +283,13 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   return (
     <div className="space-y-8 max-w-4xl mx-auto">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-emerald-900 via-teal-900 to-indigo-900 rounded-3xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden">
-        <div className="relative z-10 max-w-2xl">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-emerald-200 border border-white/20 text-xs font-semibold mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            Nhiệm vụ 4: Biên soạn Bài tập Trắc nghiệm Chuẩn Đề THPT (Cấu trúc 3)
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-            AI Exam Quiz Generator & Adaptive Tracking
-          </h1>
-          <p className="mt-2 text-emerald-100 text-xs sm:text-sm leading-relaxed">
-            Hệ thống tạo câu hỏi trắc nghiệm khách quan bám sát 100% danh mục từ vựng trong sổ tay của bạn theo 3 dạng chuẩn: Điền từ vào chỗ trống, Tìm từ Đồng nghĩa/Trái nghĩa, và Hoàn thành câu. Kết quả làm bài sẽ tự động cập nhật độ thành thạo của từng từ vựng.
-          </p>
-        </div>
+      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 rounded-2xl p-5 sm:p-6 text-white shadow-md">
+        <h1 className="text-xl sm:text-2xl font-black tracking-tight">
+          Luyện thi Trắc nghiệm Từ vựng AI
+        </h1>
+        <p className="mt-1 text-emerald-100 text-xs sm:text-sm">
+          Luyện tập các dạng câu hỏi trắc nghiệm bám sát cấu trúc đề thi THPT Quốc Gia từ kho từ vựng cá nhân.
+        </p>
       </div>
 
       {/* Quiz Configuration Panel */}
@@ -303,10 +297,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
         <div className="flex items-center justify-between">
           <h3 className="font-extrabold text-slate-900 flex items-center gap-2 text-base">
             <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
-            <span>Cấu hình Bài tập Trắc nghiệm AI</span>
+            <span>Cấu hình Bài tập Trắc nghiệm</span>
           </h3>
           <span className="text-xs text-slate-500">
-            Nguồn khả dụng: <strong>{targetVocabList.length}</strong> từ vựng
+            Nguồn: <strong>{targetVocabList.length}</strong> từ vựng
           </span>
         </div>
 
@@ -350,10 +344,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             >
               <option value="all">Tất cả ({examScopedVocab.length})</option>
               <option value="needReview">
-                Chỉ "Chưa thuộc" ({examScopedVocab.filter((v) => v.status === 'Chưa thuộc').length})
+                Chưa thuộc ({examScopedVocab.filter((v) => v.status === 'Chưa thuộc').length})
               </option>
               <option value="learning">
-                Chỉ "Đang học" ({examScopedVocab.filter((v) => v.status === 'Đang học').length})
+                Đang học ({examScopedVocab.filter((v) => v.status === 'Đang học').length})
               </option>
             </select>
           </div>
@@ -429,10 +423,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           </div>
         )}
 
-        {/* 3 Standard THPT Formats */}
+        {/* 3 Standard Formats */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-2">
-            3 Dạng bài tập chuẩn Đề thi THPT Quốc Gia (Quiz Generation Rules):
+            Dạng bài tập trắc nghiệm:
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
@@ -446,14 +440,14 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-900">
-                  Dạng 1: Fill-in-the-blank
+                  Điền từ vào câu
                 </span>
                 <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                  Điền từ
+                  Fill-in-the-blank
                 </span>
               </div>
               <p className="text-[11px] text-slate-600">
-                Tạo câu mới có ngữ cảnh rõ ràng, yêu cầu điền đúng từ/cụm từ mục tiêu.
+                Điền từ/cụm từ mục tiêu vào chỗ trống phù hợp ngữ cảnh.
               </p>
             </button>
 
@@ -468,14 +462,14 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-900">
-                  Dạng 2: Synonyms / Antonyms
+                  Đồng nghĩa / Trái nghĩa
                 </span>
                 <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                  Đồng/Trái nghĩa
+                  Synonyms / Antonyms
                 </span>
               </div>
               <p className="text-[11px] text-slate-600">
-                Tìm từ đồng nghĩa (Closest) hoặc trái nghĩa (Opposite) trong câu đầy đủ.
+                Tìm từ đồng nghĩa (Closest) hoặc trái nghĩa (Opposite).
               </p>
             </button>
 
@@ -490,14 +484,14 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-xs font-bold text-slate-900">
-                  Dạng 3: Sentence Completion
+                  Hoàn thành câu
                 </span>
                 <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
-                  Hoàn thành câu
+                  Sentence Completion
                 </span>
               </div>
               <p className="text-[11px] text-slate-600">
-                Hoàn thành câu dựa trên ngữ pháp, giới từ phụ thuộc và cấu trúc cụm từ.
+                Kiểm tra ngữ pháp, giới từ phụ thuộc và cấu trúc cụm từ.
               </p>
             </button>
           </div>
@@ -544,7 +538,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           ) : (
             <>
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Biên soạn Bài tập Trắc nghiệm Ngay (Gemini AI)</span>
+              <span>Biên soạn Đề trắc nghiệm</span>
             </>
           )}
         </button>
@@ -558,13 +552,8 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
-                  Đề thi trắc nghiệm AI • {questions.length} câu hỏi
+                  Đề trắc nghiệm • {questions.length} câu
                 </span>
-                {quizRound > 1 && (
-                  <span className="px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-[10px] font-bold">
-                    Lượt {quizRound} (Đã đổi mới từ vựng & cấu trúc)
-                  </span>
-                )}
                 <div className="flex items-center gap-1.5 ml-2">
                   <button
                     type="button"
@@ -585,8 +574,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 </div>
               </div>
               <h3 className="text-lg font-black text-slate-900 mt-1 flex items-center gap-2 flex-wrap">
-                <span>Câu hỏi {activeQuestionIdx + 1}:</span>
-                <span className="text-indigo-600 font-black">[{currentQ.type}</span>
+                <span>Câu {activeQuestionIdx + 1} / {questions.length}</span>
                 {currentQ.type === 'Synonyms/Antonyms' && (
                   <span
                     className={`text-xs px-2.5 py-0.5 rounded-md font-bold ${
@@ -596,21 +584,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     }`}
                   >
                     {currentQ.subtype === 'Antonym'
-                      ? '• Tìm từ TRÁI NGHĨA (OPPOSITE)'
-                      : '• Tìm từ ĐỒNG NGHĨA (CLOSEST)'}
+                      ? 'Tìm từ trái nghĩa (Opposite)'
+                      : 'Tìm từ đồng nghĩa (Closest)'}
                   </span>
                 )}
                 {currentQ.type === 'Fill-in-the-blank' && (
-                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs px-2 py-0.5 rounded-md font-bold">
-                    • Điền từ vào chỗ trống
+                  <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs px-2.5 py-0.5 rounded-md font-bold">
+                    Điền từ vào chỗ trống
                   </span>
                 )}
                 {currentQ.type === 'Sentence Completion' && (
-                  <span className="text-teal-700 bg-teal-50 border border-teal-200 text-xs px-2 py-0.5 rounded-md font-bold">
-                    • Hoàn thành câu
+                  <span className="text-teal-700 bg-teal-50 border border-teal-200 text-xs px-2.5 py-0.5 rounded-md font-bold">
+                    Hoàn thành câu
                   </span>
                 )}
-                <span className="text-indigo-600 font-black">]</span>
               </h3>
             </div>
 
@@ -648,61 +635,12 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             </div>
           </div>
 
-          {/* Question Prompt: Tách rõ ràng Yêu cầu đề bài và Câu hỏi ngữ cảnh */}
+          {/* Question Prompt */}
           <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-            {/* Top row: Target Term badge, testedFocus badge & Listen button */}
-            <div className="flex items-center justify-between text-xs text-slate-500 font-semibold border-b border-slate-200/60 pb-3 gap-2 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-bold shadow-2xs">
-                  Mục từ kiểm tra: <strong className="text-indigo-600">{currentQ.targetTerm}</strong>
-                </span>
-                {currentQ.testedFocus && (
-                  <span className="px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
-                    Trọng tâm khảo sát: <strong>{currentQ.testedFocus}</strong>
-                  </span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => speakEnglish(currentQ.targetTerm, accent)}
-                className="hover:text-indigo-600 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold transition-colors cursor-pointer"
-                title="Nghe phát âm từ mục tiêu"
-              >
-                <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Nghe từ</span>
-              </button>
-            </div>
-
-            {/* Instruction Box: Tách biệt rõ ràng Yêu cầu đề bài */}
-            <div className="p-3.5 sm:p-4 rounded-xl bg-amber-50/80 border border-amber-200/80 text-amber-950 text-xs sm:text-sm space-y-1.5 shadow-2xs">
-              <div className="flex items-center gap-2 font-bold text-amber-800 text-[11px] uppercase tracking-wider flex-wrap">
-                <HelpCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                <span>Yêu cầu đề bài (Exam Instruction):</span>
-                {currentQ.type === 'Synonyms/Antonyms' && (
-                  <span
-                    className={`px-2 py-0.5 rounded font-bold text-[10px] normal-case ml-auto ${
-                      currentQ.subtype === 'Antonym'
-                        ? 'bg-rose-100 text-rose-800'
-                        : 'bg-emerald-100 text-emerald-800'
-                    }`}
-                  >
-                    {currentQ.subtype === 'Antonym'
-                      ? 'Tìm từ TRÁI NGHĨA (Opposite in meaning)'
-                      : 'Tìm từ ĐỒNG NGHĨA (Closest in meaning)'}
-                  </span>
-                )}
-                {currentQ.type === 'Fill-in-the-blank' && (
-                  <span className="px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 font-bold text-[10px] normal-case ml-auto">
-                    Điền từ / Cụm từ vào chỗ trống
-                  </span>
-                )}
-                {currentQ.type === 'Sentence Completion' && (
-                  <span className="px-2 py-0.5 rounded bg-teal-100 text-teal-800 font-bold text-[10px] normal-case ml-auto">
-                    Hoàn thành câu ngữ pháp / Cấu trúc
-                  </span>
-                )}
-              </div>
-              <p className="italic text-slate-700 leading-relaxed font-medium pl-5 text-xs sm:text-sm">
+            {/* Instruction Box */}
+            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/90 border border-slate-200 text-xs sm:text-sm">
+              <span className="font-bold text-slate-800 mr-2">Yêu cầu:</span>
+              <span className="italic leading-relaxed font-medium text-slate-700">
                 {currentQ.instruction ||
                   (currentQ.type === 'Synonyms/Antonyms'
                     ? currentQ.subtype === 'Antonym'
@@ -711,14 +649,11 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     : currentQ.type === 'Fill-in-the-blank'
                     ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
                     : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.')}
-              </p>
+              </span>
             </div>
 
-            {/* Sentence Box: Tách biệt Câu hỏi ngữ cảnh */}
-            <div className="pt-1 space-y-1.5">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">
-                Câu hỏi:
-              </span>
+            {/* Sentence Box */}
+            <div className="pt-2">
               <p className="text-base sm:text-lg font-bold text-slate-900 leading-relaxed">
                 {renderFormattedQuestionSentence(currentQ.question)}
               </p>
@@ -808,9 +743,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
               </div>
 
               <div className="pt-2 border-t border-slate-200/60 leading-relaxed text-slate-800">
-                <strong className="block text-slate-900 font-bold mb-1">
-                  Giải thích sư phạm EVM:
-                </strong>
+                <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+                  <strong className="text-slate-900 font-bold">
+                    Giải thích:
+                  </strong>
+                  <button
+                    type="button"
+                    onClick={() => speakEnglish(currentQ.targetTerm, accent)}
+                    className="hover:text-indigo-600 flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white border border-slate-200 text-xs font-semibold text-slate-700 cursor-pointer"
+                    title="Nghe phát âm từ vựng"
+                  >
+                    <Volume2 className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Nghe từ: <strong className="text-indigo-600">{currentQ.targetTerm}</strong></span>
+                  </button>
+                </div>
                 {currentQ.explanation}
               </div>
             </div>
@@ -858,10 +804,10 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   type="button"
                   onClick={handleGenerateQuiz}
                   className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  title="Tạo bộ đề mới với các từ vựng khác hoặc kiểm tra vị trí khuyết khác trong cụm từ"
+                  title="Tạo bộ đề mới với các câu hỏi khác"
                 >
                   <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Tạo bộ đề mới (Đổi từ vựng)</span>
+                  <span>Tạo bộ đề mới</span>
                 </button>
               )}
             </div>
@@ -888,7 +834,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
-                  <span>Làm đề luyện tập khác (Đổi từ vựng)</span>
+                  <span>Làm đề luyện tập khác</span>
                 </button>
               </div>
             </div>

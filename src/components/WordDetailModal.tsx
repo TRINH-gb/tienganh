@@ -112,7 +112,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
         <div className="space-y-3">
           <div>
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Nghĩa tiếng Việt chuẩn ngữ cảnh:
+              Nghĩa tiếng Việt:
             </span>
             <p className="text-base font-bold text-slate-900 bg-amber-50/70 p-3 rounded-xl border border-amber-200/60">
               {item.meaning}
@@ -121,7 +121,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
 
           <div>
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block mb-1">
-              Ngữ cảnh xuất hiện trong đề thi (Context):
+              Ngữ cảnh trong đề:
             </span>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs sm:text-sm text-slate-700 italic leading-relaxed">
               "{item.context.replace(/\*\*/g, '')}"
@@ -134,7 +134,7 @@ export const WordDetailModal: React.FC<WordDetailModalProps> = ({
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-indigo-600" />
             <h3 className="font-bold text-slate-900 text-sm">
-              Phân tích Ngôn ngữ học Chuyên sâu & Bẫy Đề thi (EVM Deep Dive)
+              Phân tích chuyên sâu & Mẹo thi
             </h3>
           </div>
 

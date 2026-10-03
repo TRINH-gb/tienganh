@@ -769,11 +769,14 @@ ${specList.join('\n')}
 2. STRICT SEPARATION OF INSTRUCTION AND QUESTION SENTENCE (QUAN TRỌNG):
    - "instruction": MANDATORY standard THPT exam direction in English. MUST be separate from the sentence!
    - "question": ONLY the authentic context sentence containing the blank ("_______") or the capitalized/bold target word. DO NOT include the instruction prefix inside "question"!
-   - "testedFocus": A concise phrase stating the tested constituent (e.g. "điền từ 'impact' trong cụm 'make an impact'", "điền 'sophisticated'", "sophisticated (Từ đồng nghĩa - Closest)").
+   - "testedFocus": A concise phrase stating only the tested constituent (e.g. "impact", "take", "sophisticated"). DO NOT include any meta-commentary like "(đề trước đã ra...)".
 
 3. Number of questions to generate: ${Math.min(Number(count) || 5, 15)}
 4. Distractors (wrong options) must be natural, plausible THPT-level distractors.
-5. Provide detailed pedagogical explanation in Vietnamese.
+5. Provide clear pedagogical explanation in Vietnamese.
+   CRITICAL NEGATIVE CONSTRAINT FOR EXPLANATION:
+   - NEVER mention previous rounds, quiz history, "lượt trước", "lượt này", "vòng trước", "đề trước", "đã kiểm tra ... trước đó" in the explanation.
+   - ONLY explain the grammatical rule, vocabulary meaning, or collocation directly for the learner.
 
 Return valid JSON in this exact structure:
 {
@@ -834,6 +837,18 @@ Return valid JSON in this exact structure:
       item.explanation
     );
 
+    let sanitizedExplanation = String(item.explanation || '').trim();
+    // Strip any accidental meta-commentary regarding previous rounds or question history
+    sanitizedExplanation = sanitizedExplanation
+      .replace(/(?:Lượt|Vòng|Đề|Câu)\s+(?:trước|này|sau|cũ)\s+(?:đã\s+)?(?:kiểm tra|ra|hỏi|thi)[^.]*[\.]?/gi, '')
+      .replace(/\(?(?:lượt|vòng|đề|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
+      .trim();
+
+    let sanitizedFocus = String(item.testedFocus || '').trim();
+    sanitizedFocus = sanitizedFocus
+      .replace(/\(?(?:đề|lượt|vòng|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
+      .trim();
+
     return {
       id: item.id || `q-${Date.now()}-${idx}`,
       type,
@@ -841,7 +856,7 @@ Return valid JSON in this exact structure:
       targetTerm: String(item.targetTerm || '').trim(),
       instruction,
       question,
-      testedFocus: String(item.testedFocus || '').trim(),
+      testedFocus: sanitizedFocus,
       options: {
         A: String(item.options?.A || ''),
         B: String(item.options?.B || ''),
@@ -851,7 +866,7 @@ Return valid JSON in this exact structure:
       correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
         ? item.correctAnswer
         : 'A') as 'A' | 'B' | 'C' | 'D',
-      explanation: String(item.explanation || '')
+      explanation: sanitizedExplanation
     };
   });
 

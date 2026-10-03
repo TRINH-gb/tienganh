@@ -12,7 +12,8 @@ import {
   BookOpen,
   Volume2,
   Download,
-  FileText
+  FileText,
+  AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { VocabularyItem, QuizQuestion, MasteryStatus } from '../types';
@@ -25,17 +26,21 @@ import {
 import { downloadDocxFile } from '../utils/documentExport';
 
 /**
- * Prioritizes vocabulary items that were NOT tested in previous quiz rounds.
- * If all items were tested, sorts by least recently tested.
+ * Prioritizes vocabulary items:
+ * 1. Items tested in only 1 direction (Synonym without Antonym, or vice versa) get top priority to flip perspective!
+ * 2. Untested items.
+ * 3. Items tested in other formats (least recently tested).
  */
 function sortVocabByHistory(
   vocabList: VocabularyItem[],
-  history: PreviousQuestionHistory[]
+  history: PreviousQuestionHistory[],
+  selectedTypes: string[] = []
 ): VocabularyItem[] {
   if (!history || history.length === 0) {
     return [...vocabList].sort(() => Math.random() - 0.5);
   }
 
+  const testedSubtypesMap = new Map<string, Set<string>>();
   const countMap = new Map<string, number>();
   const lastIndexMap = new Map<string, number>();
 
@@ -43,7 +48,16 @@ function sortVocabByHistory(
     const key = h.term.toLowerCase().trim();
     countMap.set(key, (countMap.get(key) || 0) + 1);
     lastIndexMap.set(key, idx);
+
+    if (!testedSubtypesMap.has(key)) {
+      testedSubtypesMap.set(key, new Set());
+    }
+    if (h.subtype) {
+      testedSubtypesMap.get(key)!.add(h.subtype);
+    }
   });
+
+  const allowsSynAnt = selectedTypes.length === 0 || selectedTypes.includes('Synonyms/Antonyms');
 
   return [...vocabList].sort((a, b) => {
     const keyA = a.term.toLowerCase().trim();
@@ -52,21 +66,109 @@ function sortVocabByHistory(
     const countA = countMap.get(keyA) || 0;
     const countB = countMap.get(keyB) || 0;
 
-    // 1st criterion: tested fewer times in history (0 times first, then 1, etc.)
-    if (countA !== countB) {
-      return countA - countB;
+    // Check if item has flip potential (e.g. tested as Synonym but not Antonym, or vice versa)
+    const subA = testedSubtypesMap.get(keyA);
+    const subB = testedSubtypesMap.get(keyB);
+
+    const flippableA = allowsSynAnt && subA && (
+      (subA.has('Synonym') && !subA.has('Antonym')) ||
+      (subA.has('Antonym') && !subA.has('Synonym'))
+    );
+    const flippableB = allowsSynAnt && subB && (
+      (subB.has('Synonym') && !subB.has('Antonym')) ||
+      (subB.has('Antonym') && !subB.has('Synonym'))
+    );
+
+    // Flippable items (tested in 1 direction) get priority 0 so they can be flipped to the opposite
+    // Untested items get priority 1
+    // Other tested items get priority 2 + count
+    const scoreA = flippableA ? 0 : countA === 0 ? 1 : 2 + countA;
+    const scoreB = flippableB ? 0 : countB === 0 ? 1 : 2 + countB;
+
+    if (scoreA !== scoreB) {
+      return scoreA - scoreB;
     }
 
-    // 2nd criterion: if tested same times, pick the one tested least recently
     const lastA = lastIndexMap.get(keyA) ?? -1;
     const lastB = lastIndexMap.get(keyB) ?? -1;
     if (lastA !== lastB) {
       return lastA - lastB;
     }
 
-    // 3rd criterion: random tie-breaker
     return Math.random() - 0.5;
   });
+}
+
+function renderFormattedInstruction(instructionText: string, type: string, subtype?: string) {
+  if (type !== 'Synonyms/Antonyms') {
+    return (
+      <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/90 border border-slate-200 text-xs sm:text-sm">
+        <span className="font-bold text-slate-800 mr-2">Yêu cầu:</span>
+        <span className="italic leading-relaxed font-medium text-slate-700">
+          {instructionText}
+        </span>
+      </div>
+    );
+  }
+
+  const isAntonym = subtype === 'Antonym';
+  const parts = instructionText.split(/(CLOSEST|OPPOSITE)/gi);
+
+  return (
+    <div
+      className={`p-4 rounded-2xl border-2 text-xs sm:text-sm space-y-2.5 shadow-xs transition-all ${
+        isAntonym
+          ? 'bg-rose-50/90 border-rose-300 text-rose-950 ring-1 ring-rose-200'
+          : 'bg-emerald-50/90 border-emerald-300 text-emerald-950 ring-1 ring-emerald-200'
+      }`}
+    >
+      <div className="flex items-center gap-2 flex-wrap">
+        <span
+          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-white font-black text-xs uppercase tracking-wider shadow-2xs ${
+            isAntonym ? 'bg-rose-600' : 'bg-emerald-600'
+          }`}
+        >
+          {isAntonym ? (
+            <>
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>YÊU CẦU ĐỀ BÀI: TÌM TỪ TRÁI NGHĨA (OPPOSITE)</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>YÊU CẦU ĐỀ BÀI: TÌM TỪ ĐỒNG NGHĨA (CLOSEST)</span>
+            </>
+          )}
+        </span>
+      </div>
+
+      <p className="italic leading-relaxed font-medium text-slate-800 text-xs sm:text-sm pl-0.5">
+        {parts.map((part, idx) => {
+          if (/^OPPOSITE$/i.test(part)) {
+            return (
+              <span
+                key={idx}
+                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-rose-600 text-white font-black not-italic text-xs tracking-wider shadow-xs uppercase ring-2 ring-rose-300"
+              >
+                OPPOSITE
+              </span>
+            );
+          }
+          if (/^CLOSEST$/i.test(part)) {
+            return (
+              <span
+                key={idx}
+                className="inline-block px-2.5 py-0.5 mx-1 rounded-md bg-emerald-600 text-white font-black not-italic text-xs tracking-wider shadow-xs uppercase ring-2 ring-emerald-300"
+              >
+                CLOSEST
+              </span>
+            );
+          }
+          return part;
+        })}
+      </p>
+    </div>
+  );
 }
 
 function renderFormattedQuestionSentence(text: string) {
@@ -204,8 +306,8 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     setIsSubmitted(false);
     setActiveQuestionIdx(0);
 
-    // Prioritize words that were NOT yet tested in history
-    const prioritizedVocab = sortVocabByHistory(targetVocabList, accumulatedHistory);
+    // Prioritize flippable words (Synonym <-> Antonym) and untested words
+    const prioritizedVocab = sortVocabByHistory(targetVocabList, accumulatedHistory, selectedTypes);
 
     try {
       const generatedQuestions = await generateQuizWithFallback(
@@ -577,15 +679,23 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 <span>Câu {activeQuestionIdx + 1} / {questions.length}</span>
                 {currentQ.type === 'Synonyms/Antonyms' && (
                   <span
-                    className={`text-xs px-2.5 py-0.5 rounded-md font-bold ${
+                    className={`text-xs px-3 py-1 rounded-xl font-black shadow-xs flex items-center gap-1.5 ${
                       currentQ.subtype === 'Antonym'
-                        ? 'text-rose-700 bg-rose-50 border border-rose-200'
-                        : 'text-emerald-700 bg-emerald-50 border border-emerald-200'
+                        ? 'bg-rose-600 text-white ring-2 ring-rose-400/40'
+                        : 'bg-emerald-600 text-white ring-2 ring-emerald-400/40'
                     }`}
                   >
-                    {currentQ.subtype === 'Antonym'
-                      ? 'Tìm từ trái nghĩa (Opposite)'
-                      : 'Tìm từ đồng nghĩa (Closest)'}
+                    {currentQ.subtype === 'Antonym' ? (
+                      <>
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        <span>Tìm từ TRÁI NGHĨA (Opposite)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Tìm từ ĐỒNG NGHĨA (Closest)</span>
+                      </>
+                    )}
                   </span>
                 )}
                 {currentQ.type === 'Fill-in-the-blank' && (
@@ -637,20 +747,19 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
           {/* Question Prompt */}
           <div className="p-4 sm:p-6 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-4">
-            {/* Instruction Box */}
-            <div className="p-3.5 sm:p-4 rounded-xl bg-slate-100/90 border border-slate-200 text-xs sm:text-sm">
-              <span className="font-bold text-slate-800 mr-2">Yêu cầu:</span>
-              <span className="italic leading-relaxed font-medium text-slate-700">
-                {currentQ.instruction ||
-                  (currentQ.type === 'Synonyms/Antonyms'
-                    ? currentQ.subtype === 'Antonym'
-                      ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question.'
-                      : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
-                    : currentQ.type === 'Fill-in-the-blank'
-                    ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
-                    : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.')}
-              </span>
-            </div>
+            {/* Instruction Box: Làm nổi bật đặc biệt dạng CLOSEST và OPPOSITE */}
+            {renderFormattedInstruction(
+              currentQ.instruction ||
+                (currentQ.type === 'Synonyms/Antonyms'
+                  ? currentQ.subtype === 'Antonym'
+                    ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question.'
+                    : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
+                  : currentQ.type === 'Fill-in-the-blank'
+                  ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
+                  : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.'),
+              currentQ.type,
+              currentQ.subtype
+            )}
 
             {/* Sentence Box */}
             <div className="pt-2">
@@ -744,9 +853,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
               <div className="pt-2 border-t border-slate-200/60 leading-relaxed text-slate-800">
                 <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-                  <strong className="text-slate-900 font-bold">
-                    Giải thích:
-                  </strong>
+                  <div className="flex items-center gap-2">
+                    <strong className="text-slate-900 font-bold">
+                      Giải thích:
+                    </strong>
+                    {currentQ.type === 'Synonyms/Antonyms' && (
+                      <span
+                        className={`text-[10px] font-extrabold px-2 py-0.5 rounded-md ${
+                          currentQ.subtype === 'Antonym'
+                            ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        }`}
+                      >
+                        {currentQ.subtype === 'Antonym' ? 'Từ trái nghĩa (Opposite)' : 'Từ đồng nghĩa (Closest)'}
+                      </span>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() => speakEnglish(currentQ.targetTerm, accent)}

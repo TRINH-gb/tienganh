@@ -567,6 +567,15 @@ export function cleanAndSeparateInstruction(
   // Strip accidental "Question X:" prefix if present
   question = question.replace(/^Question\s+\d+[:\.]\s*/i, '').trim();
 
+  // Ensure Synonyms/Antonyms instruction has explicit CLOSEST or OPPOSITE
+  if (type === 'Synonyms/Antonyms') {
+    if (resolvedSubtype === 'Antonym' && !instruction.includes('OPPOSITE')) {
+      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question.';
+    } else if (resolvedSubtype === 'Synonym' && !instruction.includes('CLOSEST')) {
+      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.';
+    }
+  }
+
   // If instruction is still empty or minimal, build standard Ministry instruction
   if (!instruction || instruction.length < 15) {
     if (type === 'Synonyms/Antonyms') {
@@ -607,31 +616,48 @@ export async function generateQuizWithFallback(
 
   let historySection = '';
   if (history && history.length > 0) {
-    const recentHistory = history.slice(-15).map((h, i) => ({
-      index: i + 1,
-      targetTerm: h.term,
-      questionType: h.type,
-      subtype: h.subtype || 'None',
-      testedPartOrBlank: h.testedFocus || h.correctAnswerText || 'N/A',
-      previousQuestionSnippet: h.question ? h.question.slice(0, 100) : ''
-    }));
+    const recentHistory = history.slice(-15).map((h, i) => {
+      let flipAction = 'Đổi câu văn ngữ cảnh mới';
+      if (h.type === 'Synonyms/Antonyms') {
+        if (h.subtype === 'Synonym') {
+          flipAction = 'ĐÃ KIỂM TRA ĐỒNG NGHĨA (CLOSEST) -> NẾU CHỌN LẠI TỪ NÀY Ở LƯỢT NÀY, BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE)!';
+        } else if (h.subtype === 'Antonym') {
+          flipAction = 'ĐÃ KIỂM TRA TRÁI NGHĨA (OPPOSITE) -> NẾU CHỌN LẠI TỪ NÀY Ở LƯỢT NÀY, BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST)!';
+        }
+      } else if (h.type === 'Fill-in-the-blank') {
+        flipAction = `Đã kiểm tra điền '${h.testedFocus || h.correctAnswerText || 'từ này'}' -> Lượt này có thể chuyển sang kiểm tra Đồng nghĩa / Trái nghĩa hoặc điền thành phần khuyết khác`;
+      }
+
+      return {
+        index: i + 1,
+        targetTerm: h.term,
+        previousQuestionType: h.type,
+        previousSubtype: h.subtype || 'None',
+        testedFocus: h.testedFocus || h.correctAnswerText || 'N/A',
+        mandatoryActionIfReused: flipAction,
+        previousQuestionSnippet: h.question ? h.question.slice(0, 90) : ''
+      };
+    });
 
     historySection = `
 DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
 ${JSON.stringify(recentHistory, null, 2)}
 
 QUY TẮC BẮT BUỘC KHI TẠO ĐỀ MỚI (MANDATORY RULES FOR NEW QUIZ GENERATION):
-1. ƯU TIÊN ĐỔI MỚI TỪ VỰNG (NOVELTY PRIORITY):
-   - Tuyệt đối ưu tiên chọn các từ/cụm từ trong danh sách từ vựng MÀ CHƯA XUẤT HIỆN trong danh sách câu hỏi đã kiểm tra ở trên.
-2. NGUYÊN TẮC THAY ĐỔI ĐIỂM KIỂM TRA KHI LẶP LẠI TỪ / CỤM TỪ (VARIATION ON REPEATED ITEMS):
-   - Nếu phải chọn lại từ/cụm từ đã kiểm tra ở lượt trước (do số lượng từ vựng ít hoặc để củng cố ôn tập):
-     * TUYỆT ĐỐI KHÔNG lặp lại câu hỏi cũ hoặc kiểm tra vị trí từ khuyết đã làm!
-     * ĐỐI VỚI COLLOCATION / PHRASAL VERB / IDIOM / CỤM TỪ:
-       BẮT BUỘC PHẢI KIỂM TRA MỘT THÀNH PHẦN KHÁC CỦA CỤM TỪ ĐÓ!
-       - Ví dụ cụ thể: Nếu lượt trước kiểm tra điền chữ 'make' trong cụm 'make an impact' ('_______ an impact'), thì ở lượt này BẮT BUỘC phải điền chữ 'impact' ('make a profound _______') hoặc giới từ đi kèm ('make an impact _______').
-       - Ví dụ: Nếu lượt trước kiểm tra động từ 'take' trong 'take after' ('_______ after'), lượt này BẮT BUỘC phải kiểm tra giới từ 'after' ('take _______').
-     * ĐỐI VỚI TỪ ĐƠN (SINGLE WORD):
-       BẮT BUỘC phải đổi ngữ cảnh ngữ pháp hoặc dạng câu hỏi hoàn toàn mới.
+1. QUY TẮC ĐẢO CHIỀU ĐỒNG NGHĨA <-> TRÁI NGHĨA (CRITICAL SYNONYM <-> ANTONYM FLIP RULE):
+   - KHI TẠO BỘ ĐỀ MỚI, BẠN HOÀN TOÀN ĐƯỢC PHÉP VÀ ĐẶC BIỆT KHUYẾN KHÍCH CHỌN LẠI CÙNG MỘT TỪ ĐÃ KIỂM TRA Ở LƯỢT TRƯỚC ĐỂ ĐẢO CHIỀU:
+     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CHO TỪ ĐÓ:
+       -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CỦA TỪ ĐÓ (với câu ngữ cảnh mới, đáp án đúng là từ trái nghĩa)!
+     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CHO TỪ ĐÓ:
+       -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CỦA TỪ ĐÓ!
+     * NẾU CÂU TRƯỚC ĐÃ CHO ĐIỀN TỪ (FILL-IN-THE-BLANK):
+       -> Ở lượt này có thể chuyển sang tìm Đồng nghĩa hoặc Trái nghĩa!
+2. ĐỐI VỚI COLLOCATION / PHRASAL VERB / IDIOM / CỤM TỪ:
+   - Nếu chọn lại cụm từ đó: BẮT BUỘC kiểm tra một thành phần khuyết khác!
+     * Ví dụ: Nếu lượt trước kiểm tra điền chữ 'make' trong 'make an impact' ('_______ an impact'), lượt này BẮT BUỘC điền chữ 'impact' ('make a profound _______').
+     * Ví dụ: Nếu lượt trước kiểm tra 'take' trong 'take after' ('_______ after'), lượt này BẮT BUỘC kiểm tra giới từ 'after' ('take _______').
+3. CÂN BẰNG GIỮA TỪ ĐẢO CHIỀU VÀ TỪ MỚI:
+   - Hãy kết hợp nhịp nhàng: vừa chọn lại các từ của lượt trước để đảo chiều (Đồng nghĩa <-> Trái nghĩa), vừa chọn các từ mới trong danh sách để người học được củng cố và mở rộng tối đa!
 `;
   }
 

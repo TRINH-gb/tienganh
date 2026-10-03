@@ -232,9 +232,9 @@ export function generateExamDocHtml(
       .map(
         (q, idx) => `
       <div class="question-block">
-        ${q.instruction ? `<div style="font-style: italic; color: #4b5563; font-size: 11pt; margin-bottom: 4px;"><i>${q.instruction}</i></div>` : ''}
+        ${q.instruction ? `<div style="font-style: italic; color: #1f2937; font-size: 11pt; margin-bottom: 5px;"><i>${q.instruction.replace(/\b(CLOSEST|OPPOSITE)\b/g, '<b style="text-decoration: underline; color: #b91c1c;">$1</b>')}</i></div>` : ''}
         <div class="question-prompt">
-          Question ${idx + 1} (${q.type}${q.subtype && q.subtype !== 'None' ? ` - ${q.subtype}` : ''}): ${q.question}
+          <b>Question ${idx + 1}:</b> ${q.question.replace(/\*\*([^*]+)\*\*/g, '<u><b>$1</b></u>')}
         </div>
         <div class="options-grid">
           <div class="option-item"><b>A.</b> ${q.options.A}</div>

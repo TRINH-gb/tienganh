@@ -103,9 +103,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
                 </span>
               </div>
-              <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
-                Developed by Ms.Trinh 0397726024
-              </p>
             </div>
           </div>
 
@@ -120,7 +117,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Khung ảnh của cô Trịnh ngay dưới chữ Developed by Ms.Trinh */}
+        {/* Khung ảnh tác giả: Developed by Ms.Trinh & SĐT */}
         <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-sky-50/50 to-purple-50/60 border border-indigo-100/90 shadow-2xs">
           <div className="relative shrink-0">
             <img
@@ -135,17 +132,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div className="min-w-0 flex-1 text-left">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-slate-900">Ms. Trinh</span>
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800">
+              <span className="text-xs font-black text-slate-900 truncate">
+                Developed by Ms.Trinh
+              </span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 shrink-0">
                 Author & Teacher
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
-              Luyện thi THPT Quốc Gia
+            <p className="text-[10.5px] text-slate-600 font-semibold truncate mt-0.5" title="THPT Võ Thị Sáu Bà Rịa - Vũng Tàu">
+              🏫 THPT Võ Thị Sáu Bà Rịa - Vũng Tàu
             </p>
             <a
               href="tel:0397726024"
-              className="text-[10px] text-indigo-700 hover:text-indigo-900 font-mono font-bold flex items-center gap-1 mt-0.5 hover:underline"
+              className="text-[10.5px] text-indigo-700 hover:text-indigo-900 font-mono font-bold flex items-center gap-1 mt-0.5 hover:underline"
             >
               📞 0397726024
             </a>
@@ -382,7 +381,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="min-w-0">
           <p className="font-bold text-slate-700 leading-tight truncate">MASTER THPTQG TIENG ANH</p>
           <p className="text-[10px] text-indigo-700 font-semibold truncate mt-0.5">
-            Developed by Ms.Trinh 0397726024
+            Developed by Ms.Trinh 0397726024 • THPT Võ Thị Sáu (BR-VT)
           </p>
         </div>
       </div>

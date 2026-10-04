@@ -1073,7 +1073,7 @@ CRITICAL MANDATORY CONSTRAINT - 100% STRICT QUESTION TYPE:
 The user has EXCLUSIVELY selected ONLY ONE question type: "${allowedTypes[0]}".
 YOU MUST ONLY GENERATE QUESTIONS OF TYPE: "${allowedTypes[0]}".
 IT IS STRICTLY FORBIDDEN to generate any other question type!
-DO NOT generate "Synonyms/Antonyms" or any unselected type!
+DO NOT generate any unselected type!
 EVERY SINGLE QUESTION (all ${count} questions) in the returned JSON array MUST have: "type": "${allowedTypes[0]}".
 `;
   } else {

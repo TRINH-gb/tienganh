@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { VocabularyItem, normalizeStatus } from '../types';
 import { getStoredApiKey, getStoredModel } from '../services/geminiService';
+import msTrinhPhoto from '../assets/ms-trinh.jpg';
 
 export interface SidebarProps {
   activeTab: 'extract' | 'notebook' | 'flashcards' | 'quiz';
@@ -87,35 +88,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const sidebarContent = (
     <div className="flex flex-col h-full bg-white text-slate-800">
       {/* 1. App Branding Header */}
-      <div className="p-5 border-b border-slate-100 flex items-center justify-between">
-        <div
-          className="flex items-center space-x-3 cursor-pointer group"
-          onClick={() => handleSelectTab('extract')}
-        >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform shrink-0">
-            <GraduationCap className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-1.5">
-              <span className="font-extrabold text-slate-900 tracking-tight text-base leading-snug">
-                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
-              </span>
+      <div className="p-4 sm:p-5 border-b border-slate-100 space-y-3">
+        <div className="flex items-center justify-between">
+          <div
+            className="flex items-center space-x-3 cursor-pointer group"
+            onClick={() => handleSelectTab('extract')}
+          >
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-indigo-200 group-hover:scale-105 transition-transform shrink-0">
+              <GraduationCap className="w-6 h-6" />
             </div>
-            <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
-              Developed by Ms.Trinh 0397726024
-            </p>
+            <div>
+              <div className="flex items-center space-x-1.5">
+                <span className="font-extrabold text-slate-900 tracking-tight text-base leading-snug">
+                  MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
+                Developed by Ms.Trinh 0397726024
+              </p>
+            </div>
           </div>
+
+          {/* Mobile Close Button */}
+          <button
+            type="button"
+            onClick={() => setIsMobileOpen(false)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 lg:hidden"
+            aria-label="Đóng thanh chức năng"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        {/* Mobile Close Button */}
-        <button
-          type="button"
-          onClick={() => setIsMobileOpen(false)}
-          className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 lg:hidden"
-          aria-label="Đóng thanh chức năng"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        {/* Khung ảnh của cô Trịnh ngay dưới chữ Developed by Ms.Trinh */}
+        <div className="flex items-center gap-3 p-2.5 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-sky-50/50 to-purple-50/60 border border-indigo-100/90 shadow-2xs">
+          <div className="relative shrink-0">
+            <img
+              src={msTrinhPhoto}
+              alt="Ms. Trinh"
+              className="w-12 h-12 rounded-xl object-cover object-[center_18%] ring-2 ring-indigo-400/60 shadow-xs"
+            />
+            <span
+              className="absolute -bottom-1 -right-1 w-3.5 h-3.5 bg-emerald-500 border-2 border-white rounded-full shadow-2xs"
+              title="Online"
+            />
+          </div>
+          <div className="min-w-0 flex-1 text-left">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-black text-slate-900">Ms. Trinh</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800">
+                Author & Teacher
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium truncate mt-0.5">
+              Luyện thi THPT Quốc Gia
+            </p>
+            <a
+              href="tel:0397726024"
+              className="text-[10px] text-indigo-700 hover:text-indigo-900 font-mono font-bold flex items-center gap-1 mt-0.5 hover:underline"
+            >
+              📞 0397726024
+            </a>
+          </div>
+        </div>
       </div>
 
       {/* 2. Scrollable Body: Features & Tools */}
@@ -338,11 +373,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 3. Bottom Footer Info */}
-      <div className="p-3.5 border-t border-slate-100 bg-slate-50/70 text-center text-[11px] text-slate-500">
-        <p className="font-bold text-slate-700">MASTER THPTQG TIENG ANH</p>
-        <p className="text-[10px] text-indigo-700 font-semibold mt-0.5">
-          Developed by Ms.Trinh 0397726024
-        </p>
+      <div className="p-3 border-t border-slate-100 bg-slate-50/70 flex items-center justify-center gap-2.5 text-left text-[11px] text-slate-500">
+        <img
+          src={msTrinhPhoto}
+          alt="Ms. Trinh"
+          className="w-8 h-8 rounded-full object-cover object-[center_18%] ring-1.5 ring-indigo-400 shrink-0 shadow-2xs"
+        />
+        <div className="min-w-0">
+          <p className="font-bold text-slate-700 leading-tight truncate">MASTER THPTQG TIENG ANH</p>
+          <p className="text-[10px] text-indigo-700 font-semibold truncate mt-0.5">
+            Developed by Ms.Trinh 0397726024
+          </p>
+        </div>
       </div>
     </div>
   );

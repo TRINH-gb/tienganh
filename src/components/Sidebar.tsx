@@ -97,15 +97,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           <div>
             <div className="flex items-center space-x-1.5">
-              <span className="font-extrabold text-slate-900 tracking-tight text-lg">
-                EVM <span className="text-indigo-600 font-semibold">Architect</span>
-              </span>
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-black bg-indigo-50 text-indigo-700 border border-indigo-200">
-                THPT QG
+              <span className="font-extrabold text-slate-900 tracking-tight text-base leading-snug">
+                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 line-clamp-1 font-medium">
-              Ôn thi THPT Quốc Gia
+            <p className="text-[11px] text-indigo-700 font-semibold mt-0.5">
+              Developed by Ms.Trinh 0397726024
             </p>
           </div>
         </div>
@@ -341,10 +338,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* 3. Bottom Footer Info */}
-      <div className="p-3.5 border-t border-slate-100 bg-slate-50/70 text-center text-[11px] text-slate-400">
-        <p className="font-semibold text-slate-600">EVM Architect • THPT Quốc Gia</p>
-        <p className="text-[10px] text-slate-400 mt-0.5">
-          Ngữ liệu Oxford / Cambridge & Google Gemini
+      <div className="p-3.5 border-t border-slate-100 bg-slate-50/70 text-center text-[11px] text-slate-500">
+        <p className="font-bold text-slate-700">MASTER THPTQG TIENG ANH</p>
+        <p className="text-[10px] text-indigo-700 font-semibold mt-0.5">
+          Developed by Ms.Trinh 0397726024
         </p>
       </div>
     </div>

@@ -9,7 +9,6 @@ import { ApiKeyModal } from './components/ApiKeyModal';
 import { VocabularyItem, MasteryStatus, normalizeStatus } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { Menu, GraduationCap, KeyRound } from 'lucide-react';
-import msTrinhPhoto from './assets/ms-trinh.jpg';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
@@ -295,21 +294,9 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <img
-                src={msTrinhPhoto}
-                alt="Ms. Trinh"
-                className="w-7 h-7 rounded-full object-cover object-[center_18%] ring-1.5 ring-indigo-400 shadow-2xs shrink-0"
-              />
-              <span>
-                <strong>MASTER THPTQG TIENG ANH</strong> • Developed by Ms.Trinh 0397726024
-              </span>
-            </div>
-            <span className="text-slate-400">
-              Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics
-            </span>
+        <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
+          <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
+            <span>Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics</span>
           </div>
         </footer>
       </div>

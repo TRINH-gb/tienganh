@@ -110,6 +110,85 @@ Your role is a learning coordinator and corpus analysis architect:
 6. Comprehensive Synonym/Antonym Coverage Across All Lexical Types:
    - In Vietnam's National High School Graduation Exam, Synonym (CLOSEST) and Antonym (OPPOSITE) questions test BOTH single words AND multi-word expressions (Phrasal verbs, Collocations, Idioms, Prepositional phrases).
    - Every vocabulary item in the user's notebook regardless of type can and must be tested in Closest/Opposite formats.`;
+/**
+ * Cleans and repairs JSON strings from LLM outputs.
+ */
+function cleanAndRepairJson(raw: string): string {
+  let cleaned = raw.trim().replace(/^\uFEFF/, '');
+
+  // Extract markdown code blocks if any
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    cleaned = fenceMatch[1].trim();
+  } else {
+    // If no fence, try outermost { ... } or [ ... ]
+    const firstBrace = cleaned.indexOf('{');
+    const lastBrace = cleaned.lastIndexOf('}');
+    const firstBracket = cleaned.indexOf('[');
+    const lastBracket = cleaned.lastIndexOf(']');
+
+    if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket) && lastBrace > firstBrace) {
+      cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+    } else if (firstBracket !== -1 && lastBracket > firstBracket) {
+      cleaned = cleaned.slice(firstBracket, lastBracket + 1);
+    }
+  }
+
+  // Remove trailing commas before closing braces/brackets
+  cleaned = cleaned.replace(/,\s*([}\]])/g, '$1');
+
+  return cleaned;
+}
+
+function sanitizeControlCharsInStrings(raw: string): string {
+  let result = '';
+  let inString = false;
+  let escapeNext = false;
+
+  for (let i = 0; i < raw.length; i++) {
+    const char = raw[i];
+
+    if (escapeNext) {
+      result += char;
+      escapeNext = false;
+      continue;
+    }
+
+    if (char === '\\') {
+      escapeNext = true;
+      result += char;
+      continue;
+    }
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+      continue;
+    }
+
+    if (inString) {
+      if (char === '\n') {
+        result += '\\n';
+        continue;
+      }
+      if (char === '\r') {
+        result += '\\r';
+        continue;
+      }
+      if (char === '\t') {
+        result += '\\t';
+        continue;
+      }
+      const code = char.charCodeAt(0);
+      if (code < 32) {
+        continue;
+      }
+    }
+
+    result += char;
+  }
+  return result;
+}
 
 /**
  * Extracts and parses JSON from raw Gemini output that might be wrapped in markdown code blocks.
@@ -119,60 +198,32 @@ function extractJsonFromText(rawText: string): any {
     throw new Error('Phản hồi từ AI rỗng.');
   }
 
-  const cleaned = rawText.trim();
+  const trimmed = rawText.trim();
 
-  // Try direct parse first
+  // Attempt 1: Direct JSON parse
   try {
-    return JSON.parse(cleaned);
-  } catch {
-    // Continue to extract
-  }
+    return JSON.parse(trimmed);
+  } catch {}
 
-  // Extract from markdown code fences if present anywhere in the text
-  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
-  if (fenceMatch && fenceMatch[1]) {
-    const candidate = fenceMatch[1].trim();
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      // Continue to bracket matcher
-    }
-  }
+  // Attempt 2: Clean fences, outermost brackets, and trailing commas
+  const repaired = cleanAndRepairJson(trimmed);
+  try {
+    return JSON.parse(repaired);
+  } catch {}
 
-  // Check for outermost object {...}
-  const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
-  if (firstBrace !== -1 && lastBrace > firstBrace) {
-    const candidate = cleaned.slice(firstBrace, lastBrace + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      try {
-        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
-        return JSON.parse(fixed);
-      } catch {
-        // Fall through
-      }
-    }
-  }
+  // Attempt 3: Sanitize unescaped newlines/tabs inside strings on the repaired string
+  try {
+    const sanitized = sanitizeControlCharsInStrings(repaired);
+    return JSON.parse(sanitized);
+  } catch {}
 
-  // Check for outermost array [...]
-  const firstBracket = cleaned.indexOf('[');
-  const lastBracket = cleaned.lastIndexOf(']');
-  if (firstBracket !== -1 && lastBracket > firstBracket) {
-    const candidate = cleaned.slice(firstBracket, lastBracket + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch {
-      try {
-        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
-        return JSON.parse(fixed);
-      } catch {
-        // Fall through
-      }
-    }
-  }
+  // Attempt 4: Sanitize raw trimmed
+  try {
+    const sanitizedRaw = sanitizeControlCharsInStrings(trimmed);
+    return JSON.parse(sanitizedRaw);
+  } catch {}
 
+  console.error('[extractJsonFromText] Could not parse AI response. Raw output was:', rawText);
   throw new Error('Không thể giải mã dữ liệu JSON trả về từ AI.');
 }
 
@@ -310,6 +361,7 @@ async function callGeminiDirect(
   const payload: any = {
     contents: [
       {
+        role: 'user',
         parts: parts
       }
     ],
@@ -395,17 +447,13 @@ export async function executeWithFallback<T>(
     }
   }
 
-  // Then add any additional live models that Google returned
-  for (const lm of liveModels) {
-    if (!modelsToTry.includes(lm)) {
-      modelsToTry.push(lm);
-    }
-  }
+  // Limit to at most 3 candidate models to prevent long hanging loops
+  const candidatesToTry = modelsToTry.slice(0, 3);
 
   let lastError: Error | null = null;
 
-  for (let i = 0; i < modelsToTry.length; i++) {
-    const currentModel = modelsToTry[i];
+  for (let i = 0; i < candidatesToTry.length; i++) {
+    const currentModel = candidatesToTry[i];
     try {
       return await taskFn(currentModel, apiKey);
     } catch (err: any) {
@@ -413,8 +461,20 @@ export async function executeWithFallback<T>(
       const errorMsg = err?.message || String(err);
       console.warn(`[EVM Gemini Service] Model ${currentModel} failed:`, errorMsg);
 
-      if (i < modelsToTry.length - 1) {
-        const nextModel = modelsToTry[i + 1];
+      // If the error is fatal to the API key or quota, fail fast instead of looping
+      if (
+        errorMsg.includes('429') ||
+        errorMsg.includes('RESOURCE_EXHAUSTED') ||
+        errorMsg.includes('API_KEY_INVALID') ||
+        errorMsg.includes('PERMISSION_DENIED') ||
+        errorMsg.includes('Failed to fetch') ||
+        errorMsg.includes('NetworkError')
+      ) {
+        throw err;
+      }
+
+      if (i < candidatesToTry.length - 1) {
+        const nextModel = candidatesToTry[i + 1];
         if (onFallback) {
           onFallback(currentModel, nextModel, errorMsg);
         }
@@ -456,7 +516,7 @@ export async function testApiKey(
         'x-goog-api-key': key
       },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
+        contents: [{ role: 'user', parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
         generationConfig: { responseMimeType: 'application/json' }
       })
     });
@@ -1073,7 +1133,7 @@ CRITICAL MANDATORY CONSTRAINT - 100% STRICT QUESTION TYPE:
 The user has EXCLUSIVELY selected ONLY ONE question type: "${allowedTypes[0]}".
 YOU MUST ONLY GENERATE QUESTIONS OF TYPE: "${allowedTypes[0]}".
 IT IS STRICTLY FORBIDDEN to generate any other question type!
-DO NOT generate any unselected type!
+DO NOT generate any question type other than "${allowedTypes[0]}"!
 EVERY SINGLE QUESTION (all ${count} questions) in the returned JSON array MUST have: "type": "${allowedTypes[0]}".
 `;
   } else {
@@ -1413,7 +1473,8 @@ Return valid JSON in this exact structure:
 
       // If correctWord was inflected (e.g. variation -> variations), update occurrences in sanitizedExplanation
       if (correctWord && oldCorrectWord && correctWord !== oldCorrectWord) {
-        const replaceRegex = new RegExp(`(?<=['"\\s(]|^)${oldCorrectWord}(?=[)'"\\s.,;]|$)`, 'g');
+        const escapedWord = oldCorrectWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const replaceRegex = new RegExp(`(?<=['"\\s(]|^)${escapedWord}(?=[)'"\\s.,;]|$)`, 'g');
         sanitizedExplanation = sanitizedExplanation.replace(replaceRegex, correctWord);
       }
 

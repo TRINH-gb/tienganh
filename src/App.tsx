@@ -217,8 +217,8 @@ export default function App() {
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
                 <GraduationCap className="w-4 h-4" />
               </div>
-              <span className="font-extrabold text-slate-900 text-sm tracking-tight">
-                EVM <span className="text-indigo-600 font-semibold">Architect</span>
+              <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight">
+                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
               </span>
             </div>
           </div>
@@ -297,7 +297,7 @@ export default function App() {
         <footer className="mt-auto border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
           <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2">
             <span>
-              <strong>AI English Exam Vocabulary Architect (EVM)</strong> • Ôn thi Tốt nghiệp THPT Quốc Gia
+              <strong>MASTER THPTQG TIENG ANH</strong> • Developed by Ms.Trinh 0397726024
             </span>
             <span className="text-slate-400">
               Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics

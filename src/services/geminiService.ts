@@ -97,7 +97,15 @@ Your role is a learning coordinator and corpus analysis architect:
 
 4. Academic Exam Vocabulary Proposal Standards:
    - All synonym and antonym suggestions must be authentic, highly accurate to the specific sentence context, and strictly conform to CEFR B1-C1 standards for Vietnam's National High School Graduation Exam (THPT Quốc Gia).
-   - Closed-Loop Lexical Bank: Once a contextual synonym/antonym family is established for a word, questions testing that word in new quiz rounds must select answers from this verified family.`;
+   - Closed-Loop Lexical Bank: Once a contextual synonym/antonym family is established for a word, questions testing that word in new quiz rounds must select answers from this verified family.
+
+5. Strict Grammatical Form Concordance (Quy tắc tương hợp dạng từ):
+   - In multiple-choice questions (especially Synonyms, Antonyms, and Sentence Completion), options and correct answers MUST match the exact inflection of the target word in context (e.g. plural noun 'fluctuations' requires plural options 'variations'; past tense 'manipulated' requires past options 'controlled').
+   - The Substitution Test: Replacing the target word in the sentence with the correct answer must always produce a 100% grammatically perfect sentence.
+
+6. Comprehensive Synonym/Antonym Coverage Across All Lexical Types:
+   - In Vietnam's National High School Graduation Exam, Synonym (CLOSEST) and Antonym (OPPOSITE) questions test BOTH single words AND multi-word expressions (Phrasal verbs, Collocations, Idioms, Prepositional phrases).
+   - Every vocabulary item in the user's notebook regardless of type can and must be tested in Closest/Opposite formats.`;
 
 /**
  * Extracts and parses JSON from raw Gemini output that might be wrapped in markdown code blocks.
@@ -658,6 +666,142 @@ export function buildTermLexicalProfiles(
   return profileMap;
 }
 
+const STRICT_UNCOUNTABLE_NOUNS = new Set([
+  'information', 'advice', 'equipment', 'furniture', 'evidence',
+  'knowledge', 'news', 'homework', 'luggage', 'baggage', 'traffic'
+]);
+
+/**
+ * Inflects a word or phrase to match the grammatical inflection (plural, past, gerund, 3rd person)
+ * of the target word used in context.
+ */
+export function harmonizeWordForm(
+  word: string,
+  targetInSentence: string,
+  baseTerm?: string
+): string {
+  if (!word || !targetInSentence) return word;
+  const trimmedWord = word.trim();
+  const tgt = targetInSentence.trim().toLowerCase();
+  const base = (baseTerm || '').trim().toLowerCase();
+
+  // If already matches exact case or ends similarly, keep
+  if (trimmedWord.toLowerCase() === tgt) return trimmedWord;
+
+  // Handle multi-word phrases: inflect the head/final word
+  const parts = trimmedWord.split(/\s+/);
+  if (parts.length > 1) {
+    const lastWord = parts[parts.length - 1];
+    const inflectedLast = harmonizeWordForm(lastWord, targetInSentence, baseTerm);
+    parts[parts.length - 1] = inflectedLast;
+    return parts.join(' ');
+  }
+
+  const w = trimmedWord;
+  const wLower = w.toLowerCase();
+
+  if (STRICT_UNCOUNTABLE_NOUNS.has(wLower)) {
+    return w;
+  }
+
+  // 1. Plural Concordance:
+  // e.g. base: 'fluctuation', target in sentence: 'fluctuations'
+  const isTargetPlural =
+    (base && (tgt === `${base}s` || tgt === `${base}es` || (base.endsWith('y') && tgt === `${base.slice(0, -1)}ies`))) ||
+    (tgt.endsWith('s') && !tgt.endsWith('ss') && !tgt.endsWith('us') && !tgt.endsWith('is') && tgt.length > 3 && (!base || !base.endsWith('s')));
+
+  if (isTargetPlural) {
+    if (!wLower.endsWith('s')) {
+      // Irregular plurals
+      if (wLower === 'criterion') return w === w.toUpperCase() ? 'CRITERIA' : 'criteria';
+      if (wLower === 'phenomenon') return w === w.toUpperCase() ? 'PHENOMENA' : 'phenomena';
+      if (wLower === 'analysis') return w === w.toUpperCase() ? 'ANALYSES' : 'analyses';
+      if (wLower === 'crisis') return w === w.toUpperCase() ? 'CRISES' : 'crises';
+
+      if (wLower.endsWith('y') && !/[aeiou]y$/i.test(wLower)) {
+        return w.slice(0, -1) + (w === w.toUpperCase() ? 'IES' : 'ies');
+      }
+      if (/(?:s|x|z|ch|sh)$/i.test(wLower)) {
+        return w + (w === w.toUpperCase() ? 'ES' : 'es');
+      }
+      return w + (w === w.toUpperCase() ? 'S' : 's');
+    }
+    return w;
+  }
+
+  // 1b. Singular Concordance:
+  // e.g. target is singular 'fluctuation', but option was generated as 'variations'
+  const isTargetSingular = base && tgt === base && !tgt.endsWith('s');
+  if (isTargetSingular) {
+    if (wLower === 'criteria') return w === w.toUpperCase() ? 'CRITERION' : 'criterion';
+    if (wLower === 'phenomena') return w === w.toUpperCase() ? 'PHENOMENON' : 'phenomenon';
+    if (wLower === 'analyses') return w === w.toUpperCase() ? 'ANALYSIS' : 'analysis';
+    if (wLower === 'crises') return w === w.toUpperCase() ? 'CRISIS' : 'crisis';
+
+    if (wLower.endsWith('ies') && wLower.length > 4 && !/[aeiou]ies$/i.test(wLower)) {
+      return w.slice(0, -3) + (w === w.toUpperCase() ? 'Y' : 'y');
+    }
+    if (wLower.endsWith('es') && /(?:s|x|z|ch|sh)es$/i.test(wLower)) {
+      return w.slice(0, -2);
+    }
+    if (wLower.endsWith('s') && !wLower.endsWith('ss') && !wLower.endsWith('us') && !wLower.endsWith('is') && wLower.length > 3) {
+      return w.slice(0, -1);
+    }
+  }
+
+  // 2. Past Tense / Past Participle Concordance (-ed):
+  // e.g. base: 'manipulate', target in sentence: 'manipulated'
+  const isTargetPast =
+    (base && (tgt === `${base}d` || tgt === `${base}ed` || (base.endsWith('y') && tgt === `${base.slice(0, -1)}ied`))) ||
+    (tgt.endsWith('ed') && tgt.length > 4 && (!base || !base.endsWith('ed')));
+
+  if (isTargetPast) {
+    if (!wLower.endsWith('ed')) {
+      if (wLower === 'make') return w === w.toUpperCase() ? 'MADE' : 'made';
+      if (wLower === 'take') return w === w.toUpperCase() ? 'TOOK' : 'took';
+      if (wLower === 'bring') return w === w.toUpperCase() ? 'BROUGHT' : 'brought';
+
+      if (wLower.endsWith('e')) {
+        return w + (w === w.toUpperCase() ? 'D' : 'd');
+      }
+      if (wLower.endsWith('y') && !/[aeiou]y$/i.test(wLower)) {
+        return w.slice(0, -1) + (w === w.toUpperCase() ? 'IED' : 'ied');
+      }
+      if (/(?:control|stop|drop|plan|prefer)$/i.test(wLower)) {
+        const lastChar = w.slice(-1);
+        return w + lastChar + (w === w.toUpperCase() ? 'ED' : 'ed');
+      }
+      return w + (w === w.toUpperCase() ? 'ED' : 'ed');
+    }
+    return w;
+  }
+
+  // 3. Present Participle / Gerund Concordance (-ing):
+  // e.g. base: 'manipulate', target in sentence: 'manipulating'
+  const isTargetIng =
+    (base && (tgt === `${base.replace(/e$/, '')}ing` || tgt === `${base}ing`)) ||
+    (tgt.endsWith('ing') && tgt.length > 5 && (!base || !base.endsWith('ing')));
+
+  if (isTargetIng) {
+    if (!wLower.endsWith('ing')) {
+      if (wLower.endsWith('ie')) {
+        return w.slice(0, -2) + (w === w.toUpperCase() ? 'YING' : 'ying');
+      }
+      if (wLower.endsWith('e') && !wLower.endsWith('ee')) {
+        return w.slice(0, -1) + (w === w.toUpperCase() ? 'ING' : 'ing');
+      }
+      if (/(?:control|stop|drop|plan)$/i.test(wLower)) {
+        const lastChar = w.slice(-1);
+        return w + lastChar + (w === w.toUpperCase() ? 'ING' : 'ing');
+      }
+      return w + (w === w.toUpperCase() ? 'ING' : 'ing');
+    }
+    return w;
+  }
+
+  return w;
+}
+
 export function cleanAndSeparateInstruction(
   rawInstruction: string | undefined,
   rawQuestion: string,
@@ -918,20 +1062,20 @@ DO NOT generate any question type that is not in this allowed list!
       id: "q_syn",
       type: "Synonyms/Antonyms",
       subtype: "Synonym",
-      targetTerm: "sophisticated",
-      testedFocus: "sophisticated (Từ đồng nghĩa - Closest)",
+      targetTerm: "fluctuation",
+      testedFocus: "fluctuations (Dạng số nhiều - Plural noun)",
       instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.",
-      question: "Modern self-driving vehicles utilize **sophisticated** radar sensors to detect nearby obstacles.",
+      question: "Throughout the period, there were **fluctuations** in both groups, with a decline followed by an increase.",
       options: {
-        A: "advanced",
-        B: "rudimentary",
-        C: "simple",
-        D: "clumsy"
+        A: "stabilities",
+        B: "variations",
+        C: "constancies",
+        D: "uniformities"
       },
-      correctAnswer: "A",
-      suggestedSynonyms: ["advanced", "complex", "intricate", "state-of-the-art"],
-      suggestedAntonyms: ["primitive", "rudimentary", "simple", "basic"],
-      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'.\n• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: advanced, complex, intricate, state-of-the-art\n• Các từ trái nghĩa chuẩn cùng ngữ cảnh: primitive, rudimentary, simple, basic"
+      correctAnswer: "B",
+      suggestedSynonyms: ["variations", "shifts", "swings", "oscillations"],
+      suggestedAntonyms: ["stabilities", "continuities"],
+      explanation: "Từ 'fluctuations' (danh từ số nhiều: những sự biến động, dao động) đồng nghĩa với 'variations' (những sự biến thiên/thay đổi).\n• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: variations, shifts, swings, oscillations\n• Các từ trái nghĩa chuẩn cùng ngữ cảnh: stabilities, continuities"
     });
   }
   if (allowedTypes.includes('Sentence Completion') && exampleQuestions.length < 2) {
@@ -989,6 +1133,29 @@ ${specList.join('\n')}
      Sau phần giải nghĩa câu và phân tích đáp án, BẮT BUỘC ghi rõ bộ từ vựng chuẩn cùng ngữ cảnh (bao hàm cả từ đáp án đúng và toàn bộ các từ đã kiểm tra ở các lượt trước, TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT từ đã kiểm tra):
      • Các từ đồng nghĩa chuẩn cùng ngữ cảnh: [danh sách từ đồng nghĩa, ví dụ: control, influence, sway, steer, exploit]
      • Các từ trái nghĩa chuẩn cùng ngữ cảnh: [danh sách từ trái nghĩa, ví dụ: leave alone, respect, liberate]
+
+7. CRITICAL: STRICT GRAMMATICAL FORM CONCORDANCE (QUY TẮC FORM TỪ - ĐẶC BIỆT CHÚ Ý):
+   - QUY TẮC PHÉP THẾ HOÀN HẢO (PERFECT SUBSTITUTION TEST): Khi thay thế từ đáp án vào vị trí của từ gạch chân/in đậm trong câu, câu văn BẮT BUỘC PHẢI CHUẨN XÁC 100% VỀ MẶT NGỮ PHÁP!
+   - BẮT BUỘC CÙNG DẠNG THỨC CHIA NGỮ PHÁP (INFLECTION / FORM TỪ):
+     * NẾU TỪ TRONG CÂU LÀ DANH TỪ SỐ NHIỀU (PLURAL NOUN):
+       Ví dụ: Câu có "there were **fluctuations**" -> ĐÁP ÁN ĐÚNG BẮT BUỘC PHẢI Ở DẠNG SỐ NHIỀU: "variations" (TUYỆT ĐỐI KHÔNG ĐƯỢC để số ít "variation")! Cả 4 phương án A, B, C, D đều phải chia ở dạng số nhiều tương ứng!
+     * NẾU TỪ TRONG CÂU LÀ ĐỘNG TỪ QUÁ KHỨ / PHÂN TỪ (V-ed / V2 / V3):
+       Ví dụ: Câu có "algorithm **manipulated** data" -> ĐÁP ÁN ĐÚNG BẮT BUỘC PHẢI LÀ "controlled" / "influenced" (TUYỆT ĐỐI KHÔNG ĐƯỢC để nguyên thể "control")!
+     * NẾU TỪ TRONG CÂU LÀ V-ing (GERUND / PARTICIPLE):
+       Ví dụ: Câu có "**manipulating** voters" -> ĐÁP ÁN ĐÚNG BẮT BUỘC PHẢI LÀ "controlling" / "influencing"!
+     * NẾU TỪ TRONG CÂU LÀ NGÔI 3 SỐ ÍT (V-s / V-es):
+       Ví dụ: Câu có "she **manipulates**" -> ĐÁP ÁN ĐÚNG BẮT BUỘC PHẢI LÀ "controls" / "influences"!
+   - TUYỆT ĐỐI KHÔNG ĐỂ XẢY RA LỖI LỆCH FORM TỪ (như câu có 'fluctuations' mà đáp án lại là 'variation')!
+
+8. RÀ SOÁT VÀ PHÂN BỔ ĐỒNG NGHĨA / TRÁI NGHĨA CHO MỌI THỂ LOẠI TỪ VỰNG (ALL CATEGORIES):
+   - ĐẶC BIỆT LƯU Ý: Dạng bài Đồng nghĩa (CLOSEST) và Trái nghĩa (OPPOSITE) KHÔNG ĐƯỢC chỉ giới hạn ở từ đơn (Single words)!
+   - BẮT BUỘC rà soát và tạo câu hỏi Đồng nghĩa / Trái nghĩa cho cả CỤM TỪ (Phrasal verb, Collocation, Idiom, Prepositional phrase) theo đúng cấu trúc chuẩn của đề thi THPT Quốc Gia:
+     * Phrasal verb: 'bring about' <-> 'cause' (CLOSEST) / 'prevent' (OPPOSITE); 'phase out' <-> 'gradually eliminate' (CLOSEST) / 'introduce' (OPPOSITE)
+     * Collocation: 'take advantage of' <-> 'make use of' (CLOSEST) / 'miss out on' (OPPOSITE); 'make an effort' <-> 'try hard' (CLOSEST) / 'slacken' (OPPOSITE)
+     * Idiom: 'turn a blind eye to' <-> 'ignore' (CLOSEST) / 'pay attention to' (OPPOSITE); 'think out of the box' <-> 'think creatively' (CLOSEST) / 'follow conventions' (OPPOSITE); 'cut corners' <-> 'act carelessly' (CLOSEST) / 'do things thoroughly' (OPPOSITE)
+     * Preposition phrase: 'dependent on' <-> 'reliant on' (CLOSEST) / 'independent of' (OPPOSITE); 'deprived of' <-> 'lacking' (CLOSEST) / 'provided with' (OPPOSITE)
+   - LUÂN PHIÊN RÀ SOÁT TẤT CẢ CÁC TỪ TRONG DANH SÁCH ĐƯỢC GỬI:
+     Hãy ưu tiên chọn các từ ở đầu danh sách (đây là các từ chưa từng được kiểm tra ở dạng này). Phải đảm bảo mọi từ trong sổ tay đều được tạo câu hỏi, tuyệt đối không chỉ chọn lặp đi lặp lại 1-2 từ cũ!
 
 Return valid JSON in this exact structure:
 {
@@ -1064,6 +1231,39 @@ Return valid JSON in this exact structure:
     const targetKey = String(item.targetTerm || '').trim().toLowerCase();
     const profile = profileMap.get(targetKey);
 
+    // Extract target word as it appears directly in the question sentence:
+    let targetInSentence = '';
+    const boldMatch = question.match(/\*\*([^*]+)\*\*/);
+    if (boldMatch && boldMatch[1]) {
+      targetInSentence = boldMatch[1].trim();
+    } else if (item.targetTerm) {
+      const termRegex = new RegExp(`\\b(${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[a-z]*)\\b`, 'i');
+      const termMatch = question.match(termRegex);
+      if (termMatch && termMatch[1]) {
+        targetInSentence = termMatch[1].trim();
+      } else {
+        targetInSentence = item.targetTerm;
+      }
+    }
+
+    let optA = String(item.options?.A || '').trim();
+    let optB = String(item.options?.B || '').trim();
+    let optC = String(item.options?.C || '').trim();
+    let optD = String(item.options?.D || '').trim();
+
+    const oldCorrectWord = String(item.options?.[item.correctAnswer] || '').trim();
+
+    // Harmonize options to match targetInSentence inflection
+    if (type === 'Synonyms/Antonyms' && targetInSentence) {
+      optA = harmonizeWordForm(optA, targetInSentence, item.targetTerm);
+      optB = harmonizeWordForm(optB, targetInSentence, item.targetTerm);
+      optC = harmonizeWordForm(optC, targetInSentence, item.targetTerm);
+      optD = harmonizeWordForm(optD, targetInSentence, item.targetTerm);
+    }
+
+    const optionsMap: Record<string, string> = { A: optA, B: optB, C: optC, D: optD };
+    const correctWord = optionsMap[item.correctAnswer] || oldCorrectWord;
+
     // Extract suggested words from JSON fields or explanation text
     const extractedFromExp = extractSuggestedWords(item.explanation || '');
     const itemSyns: string[] = Array.isArray(item.suggestedSynonyms) && item.suggestedSynonyms.length > 0
@@ -1073,7 +1273,9 @@ Return valid JSON in this exact structure:
       ? item.suggestedAntonyms.map((a: any) => String(a).trim())
       : extractedFromExp.antonyms;
 
-    const correctWord = String(item.options?.[item.correctAnswer] || '').trim();
+    // Harmonize itemSyns and itemAnts as well
+    const harmonizedItemSyns = itemSyns.map((s) => harmonizeWordForm(s, targetInSentence, item.targetTerm));
+    const harmonizedItemAnts = itemAnts.map((a) => harmonizeWordForm(a, targetInSentence, item.targetTerm));
 
     // Build unified full synonym & antonym sets
     const unifiedSynonymsSet = new Set<string>();
@@ -1081,10 +1283,18 @@ Return valid JSON in this exact structure:
 
     // 1. If we have a profile from history, add all previously known & tested words
     if (profile) {
-      profile.allProposedSynonyms.forEach((w) => { if (w.trim()) unifiedSynonymsSet.add(w.trim()); });
-      profile.testedSynonyms.forEach((w) => { if (w.trim()) unifiedSynonymsSet.add(w.trim()); });
-      profile.allProposedAntonyms.forEach((w) => { if (w.trim()) unifiedAntonymsSet.add(w.trim()); });
-      profile.testedAntonyms.forEach((w) => { if (w.trim()) unifiedAntonymsSet.add(w.trim()); });
+      profile.allProposedSynonyms.forEach((w) => {
+        if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+      });
+      profile.testedSynonyms.forEach((w) => {
+        if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+      });
+      profile.allProposedAntonyms.forEach((w) => {
+        if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+      });
+      profile.testedAntonyms.forEach((w) => {
+        if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+      });
     }
 
     // 2. Add current question's correct answer to the appropriate set
@@ -1097,11 +1307,17 @@ Return valid JSON in this exact structure:
     }
 
     // 3. Add current item's suggested words
-    itemSyns.forEach((w) => { if (w && w.trim()) unifiedSynonymsSet.add(w.trim()); });
-    itemAnts.forEach((w) => { if (w && w.trim()) unifiedAntonymsSet.add(w.trim()); });
+    harmonizedItemSyns.forEach((w) => { if (w && w.trim()) unifiedSynonymsSet.add(w.trim()); });
+    harmonizedItemAnts.forEach((w) => { if (w && w.trim()) unifiedAntonymsSet.add(w.trim()); });
 
     const finalSynonyms = Array.from(unifiedSynonymsSet).filter(Boolean);
     const finalAntonyms = Array.from(unifiedAntonymsSet).filter(Boolean);
+
+    // If correctWord was inflected (e.g. variation -> variations), update occurrences in sanitizedExplanation
+    if (correctWord && oldCorrectWord && correctWord !== oldCorrectWord) {
+      const replaceRegex = new RegExp(`(?<=['"\\s(]|^)${oldCorrectWord}(?=[)'"\\s.,;]|$)`, 'g');
+      sanitizedExplanation = sanitizedExplanation.replace(replaceRegex, correctWord);
+    }
 
     // Clean and rebuild explanation bullet points for Synonyms/Antonyms
     if (type === 'Synonyms/Antonyms' && (finalSynonyms.length > 0 || finalAntonyms.length > 0)) {
@@ -1130,10 +1346,10 @@ Return valid JSON in this exact structure:
       question,
       testedFocus: sanitizedFocus,
       options: {
-        A: String(item.options?.A || ''),
-        B: String(item.options?.B || ''),
-        C: String(item.options?.C || ''),
-        D: String(item.options?.D || '')
+        A: optA,
+        B: optB,
+        C: optC,
+        D: optD
       },
       correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
         ? item.correctAnswer

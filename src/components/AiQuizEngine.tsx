@@ -34,23 +34,67 @@ import { downloadDocxFile } from '../utils/documentExport';
  * 2. Untested items.
  * 3. Items tested in other formats (least recently tested).
  */
+function interleaveVocabByCategory(items: VocabularyItem[]): VocabularyItem[] {
+  // Group by category while preserving priority order within each category
+  const buckets = new Map<string, VocabularyItem[]>();
+  items.forEach((item) => {
+    const cat = item.type || 'Single word';
+    if (!buckets.has(cat)) buckets.set(cat, []);
+    buckets.get(cat)!.push(item);
+  });
+
+  const result: VocabularyItem[] = [];
+  const bucketList = Array.from(buckets.values());
+
+  let hasMore = true;
+  let round = 0;
+  while (hasMore) {
+    hasMore = false;
+    for (const bucket of bucketList) {
+      if (round < bucket.length) {
+        result.push(bucket[round]);
+        hasMore = true;
+      }
+    }
+    round++;
+  }
+
+  return result;
+}
+
+/**
+ * Prioritizes vocabulary items with exhaustive coverage and category diversity:
+ * 1. Brand new items never tested get HIGHEST priority (Score 0).
+ * 2. Items never tested in the currently selected question types get SECOND priority (Score 1).
+ * 3. Flippable items (tested in 1 direction: Synonym without Antonym, or vice versa) get THIRD priority (Score 2).
+ * 4. Interleaves vocabulary across all 5 categories (Single word, Phrasal verb, Collocation, Idiom, Preposition)
+ *    so AI generates questions for diverse lexical types, ensuring ALL words in the notebook are covered!
+ */
 function sortVocabByHistory(
   vocabList: VocabularyItem[],
   history: PreviousQuestionHistory[],
   selectedTypes: string[] = []
 ): VocabularyItem[] {
+  if (!vocabList || vocabList.length === 0) return [];
   if (!history || history.length === 0) {
-    return [...vocabList].sort(() => Math.random() - 0.5);
+    return interleaveVocabByCategory([...vocabList].sort(() => Math.random() - 0.5));
   }
 
+  const isSynAntSelected = selectedTypes.length === 0 || selectedTypes.includes('Synonyms/Antonyms');
+
+  const countTotalMap = new Map<string, number>();
+  const countThisTypeMap = new Map<string, number>();
   const testedSubtypesMap = new Map<string, Set<string>>();
-  const countMap = new Map<string, number>();
   const lastIndexMap = new Map<string, number>();
 
   history.forEach((h, idx) => {
     const key = h.term.toLowerCase().trim();
-    countMap.set(key, (countMap.get(key) || 0) + 1);
+    countTotalMap.set(key, (countTotalMap.get(key) || 0) + 1);
     lastIndexMap.set(key, idx);
+
+    if (h.type && selectedTypes.includes(h.type)) {
+      countThisTypeMap.set(key, (countThisTypeMap.get(key) || 0) + 1);
+    }
 
     if (!testedSubtypesMap.has(key)) {
       testedSubtypesMap.set(key, new Set());
@@ -60,38 +104,48 @@ function sortVocabByHistory(
     }
   });
 
-  const allowsSynAnt = selectedTypes.length === 0 || selectedTypes.includes('Synonyms/Antonyms');
-
-  return [...vocabList].sort((a, b) => {
+  const sorted = [...vocabList].sort((a, b) => {
     const keyA = a.term.toLowerCase().trim();
     const keyB = b.term.toLowerCase().trim();
 
-    const countA = countMap.get(keyA) || 0;
-    const countB = countMap.get(keyB) || 0;
+    const thisTypeA = countThisTypeMap.get(keyA) || 0;
+    const thisTypeB = countThisTypeMap.get(keyB) || 0;
 
-    // Check if item has flip potential (e.g. tested as Synonym but not Antonym, or vice versa)
+    const totalA = countTotalMap.get(keyA) || 0;
+    const totalB = countTotalMap.get(keyB) || 0;
+
     const subA = testedSubtypesMap.get(keyA);
     const subB = testedSubtypesMap.get(keyB);
 
-    const flippableA = allowsSynAnt && subA && (
+    const flippableA = isSynAntSelected && subA && (
       (subA.has('Synonym') && !subA.has('Antonym')) ||
       (subA.has('Antonym') && !subA.has('Synonym'))
     );
-    const flippableB = allowsSynAnt && subB && (
+    const flippableB = isSynAntSelected && subB && (
       (subB.has('Synonym') && !subB.has('Antonym')) ||
       (subB.has('Antonym') && !subB.has('Synonym'))
     );
 
-    // Flippable items (tested in 1 direction) get priority 0 so they can be flipped to the opposite
-    // Untested items get priority 1
-    // Other tested items get priority 2 + count
-    const scoreA = flippableA ? 0 : countA === 0 ? 1 : 2 + countA;
-    const scoreB = flippableB ? 0 : countB === 0 ? 1 : 2 + countB;
+    // Score hierarchy:
+    // Score 0: Never tested at all across any quiz!
+    // Score 1: Tested before in other formats, but NEVER tested in current format!
+    // Score 2: Flippable in current format (tested in 1 direction)
+    // Score 3 + count: Already tested in this format
+    const getScore = (total: number, thisType: number, flippable?: boolean) => {
+      if (total === 0) return 0; // Pure brand new word
+      if (thisType === 0) return 1; // Untested in this format
+      if (flippable) return 2; // Flippable
+      return 3 + thisType;
+    };
+
+    const scoreA = getScore(totalA, thisTypeA, flippableA);
+    const scoreB = getScore(totalB, thisTypeB, flippableB);
 
     if (scoreA !== scoreB) {
       return scoreA - scoreB;
     }
 
+    // Secondary: least recently tested (older index first)
     const lastA = lastIndexMap.get(keyA) ?? -1;
     const lastB = lastIndexMap.get(keyB) ?? -1;
     if (lastA !== lastB) {
@@ -100,6 +154,8 @@ function sortVocabByHistory(
 
     return Math.random() - 0.5;
   });
+
+  return interleaveVocabByCategory(sorted);
 }
 
 function renderFormattedInstruction(instructionText: string) {
@@ -225,6 +281,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     if (filterVocabMode === 'learning') return v.status === 'Đang học';
     return true;
   });
+
+  // Calculate vocabulary coverage statistics in current scope
+  const coverageStats = React.useMemo(() => {
+    const testedSet = new Set<string>();
+    quizHistory.forEach((h) => {
+      if (h.term && (selectedTypes.length === 0 || (h.type && selectedTypes.includes(h.type)))) {
+        testedSet.add(h.term.trim().toLowerCase());
+      }
+    });
+    const covered = targetVocabList.filter((v) => testedSet.has(v.term.trim().toLowerCase())).length;
+    return {
+      covered,
+      total: targetVocabList.length,
+      untested: Math.max(0, targetVocabList.length - covered)
+    };
+  }, [quizHistory, targetVocabList, selectedTypes]);
 
   const handleToggleType = (type: string) => {
     if (selectedTypes.includes(type)) {
@@ -369,20 +441,35 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           Luyện thi Trắc nghiệm Từ vựng AI
         </h1>
         <p className="mt-1 text-emerald-100 text-xs sm:text-sm">
-          Luyện tập các dạng câu hỏi trắc nghiệm bám sát cấu trúc đề thi THPT Quốc Gia từ kho từ vựng cá nhân.
+          Luyện tập các dạng câu hỏi trắc nghiệm bám sát cấu trúc đề thi THPT Quốc Gia.
         </p>
       </div>
 
       {/* Quiz Configuration Panel */}
       <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <h3 className="font-extrabold text-slate-900 flex items-center gap-2 text-base">
             <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
             <span>Cấu hình Bài tập Trắc nghiệm</span>
           </h3>
-          <span className="text-xs text-slate-500">
-            Nguồn: <strong>{targetVocabList.length}</strong> từ vựng
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
+              Độ phủ sổ tay: <strong>{coverageStats.covered} / {coverageStats.total}</strong> từ {coverageStats.untested > 0 ? `(còn ${coverageStats.untested} từ chưa luyện)` : '(đã luyện đủ 100%)'}
+            </span>
+            {quizHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setQuizHistory([]);
+                  saveStoredQuizHistory([]);
+                }}
+                className="text-[11px] text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                title="Xóa lịch sử để quay vòng luyện tập lại từ đầu"
+              >
+                Đặt lại vòng quay
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

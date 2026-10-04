@@ -90,7 +90,8 @@ function sortVocabByHistory(
   const lastIndexMap = new Map<string, number>();
 
   history.forEach((h, idx) => {
-    const key = h.term.toLowerCase().trim();
+    if (!h || !h.term) return;
+    const key = String(h.term).toLowerCase().trim();
     countTotalMap.set(key, (countTotalMap.get(key) || 0) + 1);
     lastIndexMap.set(key, idx);
 
@@ -107,8 +108,8 @@ function sortVocabByHistory(
   });
 
   const sorted = [...vocabList].sort((a, b) => {
-    const keyA = a.term.toLowerCase().trim();
-    const keyB = b.term.toLowerCase().trim();
+    const keyA = String(a?.term || '').toLowerCase().trim();
+    const keyB = String(b?.term || '').toLowerCase().trim();
 
     const thisTypeA = countThisTypeMap.get(keyA) || 0;
     const thisTypeB = countThisTypeMap.get(keyB) || 0;
@@ -743,7 +744,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           )}
         </button>
       </div>
-     
 
       {/* Quiz Active Area */}
       {questions.length > 0 && (

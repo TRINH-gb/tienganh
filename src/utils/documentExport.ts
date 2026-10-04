@@ -234,6 +234,17 @@ export function generateExamDocHtml(
         (q, idx) => `
       <div class="question-block">
         ${q.instruction ? `<div style="font-style: italic; color: #1f2937; font-size: 11pt; margin-bottom: 5px;"><i>${q.instruction.replace(/\b(CLOSEST|OPPOSITE)\b/g, '<b style="text-decoration: underline; color: #b91c1c;">$1</b>')}</i></div>` : ''}
+        ${q.type === 'Sentence Completion' && q.wordBoxOptions && q.wordBoxOptions.length > 0 ? `
+        <div style="border: 1px solid #4f46e5; background-color: #eef2ff; padding: 6px 12px; margin-bottom: 8px; border-radius: 4px; font-size: 11pt;">
+          <b>Hộp từ vựng gợi ý (Word Box):</b> [ ${q.wordBoxOptions.join('  |  ')} ]
+        </div>
+        <div class="question-prompt">
+          <b>Question ${idx + 1}:</b> ${q.question.replace(/\*\*([^*]+)\*\*/g, '<u><b>$1</b></u>')}
+        </div>
+        <div style="margin-left: 20px; margin-top: 6px; font-size: 11pt;">
+          <b>Đáp án tự điền (Your answer):</b> __________________________________
+        </div>
+        ` : `
         <div class="question-prompt">
           <b>Question ${idx + 1}:</b> ${q.question.replace(/\*\*([^*]+)\*\*/g, '<u><b>$1</b></u>')}
         </div>
@@ -243,6 +254,7 @@ export function generateExamDocHtml(
           <div class="option-item"><b>C.</b> ${q.options.C}</div>
           <div class="option-item"><b>D.</b> ${q.options.D}</div>
         </div>
+        `}
       </div>
     `
       )
@@ -261,7 +273,7 @@ export function generateExamDocHtml(
     </thead>
     <tbody>
       <tr>
-        ${questions.map((q) => `<td style="font-weight: bold; font-size: 13pt; color: #1e3a8a;">${q.correctAnswer}</td>`).join('')}
+        ${questions.map((q) => `<td style="font-weight: bold; font-size: ${q.type === 'Sentence Completion' ? '11pt' : '13pt'}; color: #1e3a8a;">${q.type === 'Sentence Completion' ? (q.correctWordAnswer || q.targetTerm) : q.correctAnswer}</td>`).join('')}
       </tr>
       <tr>
         ${questions.map((q) => `<td style="font-size: 10pt; color: #555;">${q.targetTerm}</td>`).join('')}
@@ -274,7 +286,7 @@ export function generateExamDocHtml(
     .map(
       (q, idx) => `
     <div style="margin-bottom: 12px; font-size: 11.5pt;">
-      <b>Câu ${idx + 1}: Đáp án ${q.correctAnswer}</b> <i>(${q.targetTerm})</i>
+      <b>Câu ${idx + 1}: Đáp án ${q.type === 'Sentence Completion' ? `"${q.correctWordAnswer || q.targetTerm}"` : q.correctAnswer}</b> <i>(${q.targetTerm})</i>
       <div class="explanation-box">
         ${q.explanation.replace(/\n/g, '<br/>')}
       </div>

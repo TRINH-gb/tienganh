@@ -958,7 +958,7 @@ export function cleanAndSeparateInstruction(
     } else if (type === 'Fill-in-the-blank') {
       instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.';
     } else if (type === 'Sentence Completion') {
-      instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.';
+      instruction = 'Choose 1 correct word from the word box and type it into the blank to complete the sentence.';
     } else {
       instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct answer to the following question.';
     }
@@ -1098,9 +1098,13 @@ DO NOT generate any question type that is not in this allowed list!
     * If 'Antonym': Instruction MUST state "OPPOSITE in meaning": "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question." The target word in the sentence MUST be enclosed in **bold** or CAPITALIZED.`);
   }
   if (allowedTypes.includes('Sentence Completion')) {
-    specList.push(`- 'Sentence Completion':
-    * Test grammatical usage, dependent preposition, or collocation in a complete sentence with a blank ("_______").
-    * Instruction MUST be: "Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions."
+    specList.push(`- 'Sentence Completion' (Dạng Tự Gõ Hoàn Thành Câu Với Hộp 3 Từ Vựng):
+    * Create an authentic sentence with a blank ("_______") where the correct word to fill in is ONE of the words in the user's vocabulary list.
+    * "wordBoxOptions": An array of EXACTLY 3 words from the user's vocabulary notebook (1 target word + 2 other distractor words from the user's vocabulary list).
+    * "correctWordAnswer": The exact target word (matching one of the 3 words in wordBoxOptions).
+    * "instruction": "Choose 1 correct word from the word box and type it into the blank to complete the sentence."
+    * "options": { "A": word1, "B": word2, "C": word3, "D": "" }
+    * "correctAnswer": The letter corresponding to the correct word ("A", "B", or "C").
     * subtype: "None".`);
   }
 
@@ -1171,14 +1175,16 @@ DO NOT generate any question type that is not in this allowed list!
       type: "Sentence Completion",
       subtype: "None",
       targetTerm: "take after",
-      testedFocus: "tiểu từ 'after' trong 'take after'",
-      instruction: "Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.",
-      question: "In terms of temperament, the young boy seems to take _______ his grandfather.",
+      wordBoxOptions: ["take after", "bring about", "cut corners"],
+      correctWordAnswer: "take after",
+      testedFocus: "cụm động từ 'take after'",
+      instruction: "Choose 1 correct word from the word box and type it into the blank to complete the sentence.",
+      question: "In terms of temperament, the young boy seems to _______ his grandfather.",
       options: {
-        A: "after",
-        B: "up",
-        C: "down",
-        D: "over"
+        A: "take after",
+        B: "bring about",
+        C: "cut corners",
+        D: ""
       },
       correctAnswer: "A",
       explanation: "Cụm động từ 'take after' có nghĩa là giống ai đó (về ngoại hình hoặc tính cách)."
@@ -1423,6 +1429,44 @@ Return valid JSON in this exact structure:
         sanitizedExplanation = `${baseExplanation}\n${bullets.join('\n')}`.trim();
       }
 
+      let wordBoxOptions: string[] | undefined = undefined;
+      let correctWordAnswer: string | undefined = undefined;
+
+      if (type === 'Sentence Completion') {
+        const targetTerm = String(item.targetTerm || '').trim();
+        correctWordAnswer = targetTerm;
+
+        // Collect all available words from user's notebook
+        const notebookTerms = vocabularyList.map((v) => v.term.trim()).filter((t) => t.length > 0);
+        const otherTerms = notebookTerms.filter((t) => t.toLowerCase() !== targetTerm.toLowerCase());
+
+        let boxWords: string[] = [];
+        if (Array.isArray(item.wordBoxOptions) && item.wordBoxOptions.length === 3) {
+          // Verify that all 3 words are strictly from the student's notebook
+          const validWords = item.wordBoxOptions
+            .map((w: any) => String(w).trim())
+            .filter((w: string) => notebookTerms.some((nt) => nt.toLowerCase() === w.toLowerCase()));
+          const hasTarget = validWords.some((w: string) => w.toLowerCase() === targetTerm.toLowerCase());
+          if (validWords.length === 3 && hasTarget) {
+            boxWords = validWords;
+          }
+        }
+
+        // Guarantee that wordBoxOptions has exactly 3 words, all from student's notebook:
+        if (boxWords.length !== 3) {
+          const pickedDistractors = [...otherTerms].sort(() => Math.random() - 0.5).slice(0, 2);
+          boxWords = [targetTerm, ...pickedDistractors].sort(() => Math.random() - 0.5);
+        }
+
+        wordBoxOptions = boxWords;
+        const matchedTarget = boxWords.find((w) => w.toLowerCase() === targetTerm.toLowerCase()) || targetTerm;
+        correctWordAnswer = matchedTarget;
+        optA = boxWords[0] || targetTerm;
+        optB = boxWords[1] || '';
+        optC = boxWords[2] || '';
+        optD = '';
+      }
+
       return {
         id: item.id || `q-${Date.now()}-${idx}`,
         type,
@@ -1442,7 +1486,9 @@ Return valid JSON in this exact structure:
           : 'A') as 'A' | 'B' | 'C' | 'D',
         explanation: sanitizedExplanation,
         suggestedSynonyms: finalSynonyms,
-        suggestedAntonyms: finalAntonyms
+        suggestedAntonyms: finalAntonyms,
+        wordBoxOptions,
+        correctWordAnswer
       };
     });
 

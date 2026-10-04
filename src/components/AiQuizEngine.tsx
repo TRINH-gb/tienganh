@@ -13,7 +13,9 @@ import {
   Volume2,
   Download,
   FileText,
-  AlertCircle
+  AlertCircle,
+  Package,
+  Edit3
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { VocabularyItem, QuizQuestion, MasteryStatus } from '../types';
@@ -234,11 +236,8 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 }) => {
   const [filterExam, setFilterExam] = useState<string>(selectedExamFilter);
   const [questionCount, setQuestionCount] = useState<number>(5);
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([
-    'Fill-in-the-blank',
-    'Synonyms/Antonyms',
-    'Sentence Completion'
-  ]);
+  // Default to empty so the 3 cards start with faint borders, and light up upon student selection
+  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [filterVocabMode, setFilterVocabMode] = useState<'all' | 'needReview' | 'learning'>('all');
   const [quizMode, setQuizMode] = useState<'instant' | 'exam'>('instant');
 
@@ -270,10 +269,21 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
-  const [answers, setAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D'>>({});
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [inputAnswers, setInputAnswers] = useState<Record<number, string>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>(() => getStoredQuizHistory());
   const [quizRound, setQuizRound] = useState<number>(1);
+
+  // Helper to determine if student's answer is correct
+  const isAnswerCorrect = (q: QuizQuestion, userAns?: string): boolean => {
+    if (!userAns || !userAns.trim()) return false;
+    if (q.type === 'Sentence Completion') {
+      const correct = (q.correctWordAnswer || q.targetTerm || q.options[q.correctAnswer] || '').trim().toLowerCase();
+      return userAns.trim().toLowerCase() === correct;
+    }
+    return userAns === q.correctAnswer;
+  };
 
   // Filter Target Vocabulary for Quiz Generation
   const targetVocabList = examScopedVocab.filter((v) => {
@@ -300,7 +310,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
   const handleToggleType = (type: string) => {
     if (selectedTypes.includes(type)) {
-      if (selectedTypes.length === 1) return;
       setSelectedTypes(selectedTypes.filter((t) => t !== type));
     } else {
       setSelectedTypes([...selectedTypes, type]);
@@ -310,6 +319,11 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
 
   const handleGenerateQuiz = async () => {
+    if (selectedTypes.length === 0) {
+      setErrorMsg('Vui lòng chọn ít nhất 1 dạng bài tập trắc nghiệm ở trên trước khi biên soạn đề.');
+      return;
+    }
+
     if (targetVocabList.length === 0) {
       setErrorMsg('Không có từ vựng nào trong danh sách được chọn. Hãy thêm từ vựng vào sổ tay trước.');
       return;
@@ -354,6 +368,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     setErrorMsg(null);
     setFallbackNotice(null);
     setAnswers({});
+    setInputAnswers({});
     setIsSubmitted(false);
     setActiveQuestionIdx(0);
 
@@ -392,7 +407,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     // If instant practice mode, immediately update vocabulary tracking
     if (quizMode === 'instant') {
       const q = questions[questionIdx];
-      const isCorrect = optionKey === q.correctAnswer;
+      const isCorrect = isAnswerCorrect(q, optionKey);
       onUpdateQuizResult(q.targetTerm, isCorrect);
       if (isCorrect) {
         confetti({
@@ -404,13 +419,41 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     }
   };
 
+  const handleConfirmTypedAnswer = (questionIdx: number) => {
+    if (isSubmitted && quizMode === 'exam') return;
+    const currentQ = questions[questionIdx];
+    const typedText = (inputAnswers[questionIdx] ?? (answers[questionIdx] || '')).trim();
+    if (!typedText) return;
+
+    const newAnswers = { ...answers, [questionIdx]: typedText };
+    setAnswers(newAnswers);
+
+    if (quizMode === 'instant') {
+      const isCorrect = isAnswerCorrect(currentQ, typedText);
+      onUpdateQuizResult(currentQ.targetTerm, isCorrect);
+      if (isCorrect) {
+        confetti({
+          particleCount: 25,
+          spread: 60,
+          origin: { y: 0.8 }
+        });
+      }
+    }
+  };
+
+  const handleFillWordFromBox = (questionIdx: number, word: string) => {
+    if (isSubmitted && quizMode === 'exam') return;
+    if (quizMode === 'instant' && answers[questionIdx] !== undefined) return;
+    setInputAnswers((prev) => ({ ...prev, [questionIdx]: word }));
+  };
+
   const handleSubmitExam = () => {
     setIsSubmitted(true);
     let correctCount = 0;
 
     questions.forEach((q, idx) => {
       const userAns = answers[idx];
-      const isCorrect = userAns === q.correctAnswer;
+      const isCorrect = isAnswerCorrect(q, userAns);
       if (isCorrect) correctCount++;
       if (userAns) {
         onUpdateQuizResult(q.targetTerm, isCorrect);
@@ -430,7 +473,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const currentQ = questions[activeQuestionIdx];
   const totalAnswered = Object.keys(answers).length;
   const correctCountTotal = questions.filter(
-    (q, idx) => answers[idx] === q.correctAnswer
+    (q, idx) => isAnswerCorrect(q, answers[idx])
   ).length;
 
   return (
@@ -600,21 +643,25 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <button
               type="button"
               onClick={() => handleToggleType('Fill-in-the-blank')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Fill-in-the-blank')
-                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
-                  : 'border-slate-200 bg-white text-slate-500'
+                  ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
+                  : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-900">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-xs font-bold ${selectedTypes.includes('Fill-in-the-blank') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
                   Điền từ vào câu
                 </span>
-                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  selectedTypes.includes('Fill-in-the-blank')
+                    ? 'text-emerald-800 bg-emerald-200/80'
+                    : 'text-slate-400 bg-slate-200/60'
+                }`}>
                   Fill-in-the-blank
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-[11px] leading-relaxed text-slate-500">
                 Điền từ/cụm từ mục tiêu vào chỗ trống phù hợp ngữ cảnh.
               </p>
             </button>
@@ -622,21 +669,25 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <button
               type="button"
               onClick={() => handleToggleType('Synonyms/Antonyms')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Synonyms/Antonyms')
-                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
-                  : 'border-slate-200 bg-white text-slate-500'
+                  ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
+                  : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-900">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-xs font-bold ${selectedTypes.includes('Synonyms/Antonyms') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
                   Đồng nghĩa / Trái nghĩa
                 </span>
-                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  selectedTypes.includes('Synonyms/Antonyms')
+                    ? 'text-emerald-800 bg-emerald-200/80'
+                    : 'text-slate-400 bg-slate-200/60'
+                }`}>
                   Synonyms / Antonyms
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">
+              <p className="text-[11px] leading-relaxed text-slate-500">
                 Tìm từ đồng nghĩa (Closest) hoặc trái nghĩa (Opposite).
               </p>
             </button>
@@ -644,22 +695,26 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <button
               type="button"
               onClick={() => handleToggleType('Sentence Completion')}
-              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Sentence Completion')
-                  ? 'border-emerald-600 bg-emerald-50/80 shadow-xs'
-                  : 'border-slate-200 bg-white text-slate-500'
+                  ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
+                  : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-bold text-slate-900">
-                  Hoàn thành câu
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-xs font-bold ${selectedTypes.includes('Sentence Completion') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
+                  Hoàn thành câu (Tự gõ)
                 </span>
-                <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded">
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
+                  selectedTypes.includes('Sentence Completion')
+                    ? 'text-emerald-800 bg-emerald-200/80'
+                    : 'text-slate-400 bg-slate-200/60'
+                }`}>
                   Sentence Completion
                 </span>
               </div>
-              <p className="text-[11px] text-slate-600">
-                Kiểm tra ngữ pháp, giới từ phụ thuộc và cấu trúc cụm từ.
+              <p className="text-[11px] leading-relaxed text-slate-500">
+                Học sinh tự gõ đáp án từ ô gợi ý gồm 3 từ trong sổ tay từ vựng.
               </p>
             </button>
           </div>
@@ -694,7 +749,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
         <button
           type="button"
-          disabled={isLoading || targetVocabList.length === 0}
+          disabled={isLoading || targetVocabList.length === 0 || selectedTypes.length === 0}
           onClick={handleGenerateQuiz}
           className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
@@ -703,10 +758,12 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>AI đang biên soạn câu hỏi & phương án nhiễu (Distractors)...</span>
             </>
+          ) : selectedTypes.length === 0 ? (
+            <span>Vui lòng chọn ít nhất 1 dạng bài tập ở trên để bắt đầu</span>
           ) : (
             <>
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Biên soạn Đề trắc nghiệm</span>
+              <span>Biên soạn Đề trắc nghiệm ({targetVocabList.length} từ khả dụng)</span>
             </>
           )}
         </button>
@@ -779,7 +836,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 if (userAns) {
                   if (quizMode === 'instant' || isSubmitted) {
                     bgStyle =
-                      userAns === q.correctAnswer
+                      isAnswerCorrect(q, userAns)
                         ? 'bg-emerald-600 text-white border-emerald-600'
                         : 'bg-rose-500 text-white border-rose-500';
                   } else {
@@ -814,7 +871,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
                   : currentQ.type === 'Fill-in-the-blank'
                   ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
-                  : 'Mark the letter A, B, C, or D on your answer sheet to indicate the option that best completes each of the following questions.')
+                  : 'Complete the sentence by typing the correct word chosen from the word box below.')
             )}
 
             {/* Sentence Box */}
@@ -825,83 +882,228 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             </div>
           </div>
 
-          {/* 4 Options (A, B, C, D) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
-              const optionText = currentQ.options[optKey];
-              const isSelected = answers[activeQuestionIdx] === optKey;
-              const isCorrectAnswer = currentQ.correctAnswer === optKey;
-              const showResult =
-                (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
-                isSubmitted;
-
-              let cardStyle =
-                'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-800';
-
-              if (showResult) {
-                if (isCorrectAnswer) {
-                  cardStyle =
-                    'border-emerald-500 bg-emerald-50/80 text-emerald-900 ring-2 ring-emerald-500/20';
-                } else if (isSelected && !isCorrectAnswer) {
-                  cardStyle =
-                    'border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-500/20';
-                }
-              } else if (isSelected) {
-                cardStyle =
-                  'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20';
-              }
-
-              return (
-                <button
-                  key={optKey}
-                  type="button"
-                  onClick={() => handleSelectOption(activeQuestionIdx, optKey)}
-                  className={`p-4 rounded-2xl border text-left transition-all flex items-start gap-3 cursor-pointer ${cardStyle}`}
-                >
-                  <span
-                    className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shrink-0 ${
-                      showResult && isCorrectAnswer
-                        ? 'bg-emerald-600 text-white'
-                        : showResult && isSelected && !isCorrectAnswer
-                        ? 'bg-rose-600 text-white'
-                        : isSelected
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-100 text-slate-700'
-                    }`}
-                  >
-                    {optKey}
-                  </span>
-                  <div className="pt-0.5">
-                    <span className="text-sm font-semibold block leading-snug">
-                      {optionText}
-                    </span>
+          {/* Options Section: Dạng Sentence Completion (Ô 3 từ + Tự gõ) vs Trắc nghiệm A,B,C,D thông thường */}
+          {currentQ.type === 'Sentence Completion' ? (
+            <div className="space-y-4">
+              {/* Word Box Container: Gồm chính xác 3 từ trong sổ tay từ vựng */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 border-2 border-dashed border-indigo-300 space-y-3">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                    <Package className="w-4 h-4 text-indigo-600 shrink-0" />
+                    <span>Ô từ vựng (chọn 1 trong 3 từ thuộc sổ tay từ vựng của bạn):</span>
                   </div>
-                </button>
-              );
-            })}
-          </div>
+                  <span className="text-[11px] text-indigo-700 font-medium">
+                    Bấm chọn hoặc tự gõ vào ô nhập liệu bên dưới
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  {(currentQ.wordBoxOptions && currentQ.wordBoxOptions.length === 3
+                    ? currentQ.wordBoxOptions
+                    : [currentQ.targetTerm]
+                  ).map((word, wIdx) => {
+                    const isSelectedInInput =
+                      (inputAnswers[activeQuestionIdx] || '').trim().toLowerCase() ===
+                      word.toLowerCase();
+                    const isSaved =
+                      (answers[activeQuestionIdx] || '').trim().toLowerCase() ===
+                      word.toLowerCase();
+                    const isTargetCorrect =
+                      (currentQ.correctWordAnswer || currentQ.targetTerm).toLowerCase() ===
+                      word.toLowerCase();
+                    const showResult =
+                      (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                      isSubmitted;
+
+                    let btnStyle =
+                      'bg-white text-slate-800 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/60 shadow-xs';
+                    if (showResult) {
+                      if (isTargetCorrect) {
+                        btnStyle = 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20';
+                      } else if (isSaved && !isTargetCorrect) {
+                        btnStyle = 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/20';
+                      }
+                    } else if (isSaved || isSelectedInInput) {
+                      btnStyle = 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20';
+                    }
+
+                    return (
+                      <button
+                        key={wIdx}
+                        type="button"
+                        disabled={showResult}
+                        onClick={() => handleFillWordFromBox(activeQuestionIdx, word)}
+                        className={`py-3 px-4 rounded-xl border text-center font-bold text-sm tracking-wide transition-all cursor-pointer ${btnStyle} ${
+                          showResult ? 'cursor-default' : ''
+                        }`}
+                      >
+                        {word}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Typing Input Box */}
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-2">
+                  <Edit3 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Học sinh tự gõ câu trả lời:</span>
+                </label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    disabled={
+                      (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                      isSubmitted
+                    }
+                    value={
+                      inputAnswers[activeQuestionIdx] ??
+                      (answers[activeQuestionIdx] || '')
+                    }
+                    onChange={(e) =>
+                      setInputAnswers((prev) => ({
+                        ...prev,
+                        [activeQuestionIdx]: e.target.value,
+                      }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleConfirmTypedAnswer(activeQuestionIdx);
+                      }
+                    }}
+                    placeholder="Gõ từ bạn chọn từ ô 3 từ ở trên..."
+                    className={`flex-1 px-4 py-3 rounded-xl border text-sm font-semibold focus:outline-none transition-all ${
+                      ((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                        isSubmitted)
+                        ? isAnswerCorrect(currentQ, answers[activeQuestionIdx])
+                          ? 'border-emerald-500 bg-emerald-50/50 text-emerald-950 ring-2 ring-emerald-500/20 font-bold'
+                          : 'border-rose-500 bg-rose-50/50 text-rose-950 ring-2 ring-rose-500/20 font-bold'
+                        : 'border-slate-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-500/20 text-slate-900 bg-slate-50/40'
+                    }`}
+                  />
+                  {!((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                    isSubmitted) && (
+                    <button
+                      type="button"
+                      onClick={() => handleConfirmTypedAnswer(activeQuestionIdx)}
+                      disabled={
+                        !(
+                          inputAnswers[activeQuestionIdx] ??
+                          answers[activeQuestionIdx] ??
+                          ''
+                        ).trim()
+                      }
+                      className="px-6 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                    >
+                      {quizMode === 'instant' ? 'Kiểm tra' : 'Lưu đáp án'}
+                    </button>
+                  )}
+                </div>
+                {!((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                  isSubmitted) && (
+                  <p className="text-[11px] text-slate-500 italic">
+                    Gợi ý: Bạn có thể bấm chọn từ ở ô gợi ý trên hoặc tự gõ phím rồi bấm "Kiểm tra" (hoặc nhấn phím Enter).
+                  </p>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* 4 Options (A, B, C, D) */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {(['A', 'B', 'C', 'D'] as const).map((optKey) => {
+                const optionText = currentQ.options[optKey];
+                const isSelected = answers[activeQuestionIdx] === optKey;
+                const isCorrectAnswer = currentQ.correctAnswer === optKey;
+                const showResult =
+                  (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
+                  isSubmitted;
+
+                let cardStyle =
+                  'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 text-slate-800';
+
+                if (showResult) {
+                  if (isCorrectAnswer) {
+                    cardStyle =
+                      'border-emerald-500 bg-emerald-50/80 text-emerald-900 ring-2 ring-emerald-500/20';
+                  } else if (isSelected && !isCorrectAnswer) {
+                    cardStyle =
+                      'border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-500/20';
+                  }
+                } else if (isSelected) {
+                  cardStyle =
+                    'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-500/20';
+                }
+
+                return (
+                  <button
+                    key={optKey}
+                    type="button"
+                    onClick={() => handleSelectOption(activeQuestionIdx, optKey)}
+                    className={`p-4 rounded-2xl border text-left transition-all flex items-start gap-3 cursor-pointer ${cardStyle}`}
+                  >
+                    <span
+                      className={`w-7 h-7 rounded-xl flex items-center justify-center font-extrabold text-xs shrink-0 ${
+                        showResult && isCorrectAnswer
+                          ? 'bg-emerald-600 text-white'
+                          : showResult && isSelected && !isCorrectAnswer
+                          ? 'bg-rose-600 text-white'
+                          : isSelected
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 text-slate-700'
+                      }`}
+                    >
+                      {optKey}
+                    </span>
+                    <div className="pt-0.5">
+                      <span className="text-sm font-semibold block leading-snug">
+                        {optionText}
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
 
           {/* Explanation Box (When answered in instant mode or submitted in exam mode) */}
           {((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
             isSubmitted) && (
             <div
               className={`p-5 rounded-2xl border text-xs sm:text-sm space-y-2 animate-in fade-in duration-300 ${
-                answers[activeQuestionIdx] === currentQ.correctAnswer
+                isAnswerCorrect(currentQ, answers[activeQuestionIdx])
                   ? 'bg-emerald-50/90 border-emerald-200 text-emerald-900'
                   : 'bg-rose-50/90 border-rose-200 text-rose-900'
               }`}
             >
               <div className="flex items-center gap-2 font-bold">
-                {answers[activeQuestionIdx] === currentQ.correctAnswer ? (
+                {isAnswerCorrect(currentQ, answers[activeQuestionIdx]) ? (
                   <>
                     <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                    <span>Chính xác! Đáp án đúng là {currentQ.correctAnswer}</span>
+                    <span>
+                      Chính xác! Đáp án đúng là{' '}
+                      <strong>
+                        {currentQ.type === 'Sentence Completion'
+                          ? currentQ.correctWordAnswer || currentQ.targetTerm
+                          : `${currentQ.correctAnswer} (${currentQ.options[currentQ.correctAnswer]})`}
+                      </strong>
+                    </span>
                   </>
                 ) : (
                   <>
                     <XCircle className="w-5 h-5 text-rose-600" />
                     <span>
-                      Chưa chính xác! Bạn chọn {answers[activeQuestionIdx] || 'Chưa chọn'}, đáp án đúng là {currentQ.correctAnswer}
+                      Chưa chính xác! Bạn đã chọn / gõ:{' '}
+                      <strong className="underline">
+                        {answers[activeQuestionIdx] || 'Chưa trả lời'}
+                      </strong>
+                      , đáp án đúng là{' '}
+                      <strong className="text-emerald-700 font-extrabold">
+                        {currentQ.type === 'Sentence Completion'
+                          ? currentQ.correctWordAnswer || currentQ.targetTerm
+                          : `${currentQ.correctAnswer} (${currentQ.options[currentQ.correctAnswer]})`}
+                      </strong>
                     </span>
                   </>
                 )}

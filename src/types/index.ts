@@ -58,6 +58,8 @@ export interface QuizQuestion {
   userAnswer?: 'A' | 'B' | 'C' | 'D';
   suggestedSynonyms?: string[];
   suggestedAntonyms?: string[];
+  wordBoxOptions?: string[]; // 3 words from vocabulary notebook for Sentence Completion
+  correctWordAnswer?: string; // Correct word string to be typed
 }
 
 export interface WordDeepDive {

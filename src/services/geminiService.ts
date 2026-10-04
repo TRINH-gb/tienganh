@@ -93,7 +93,11 @@ Your role is a learning coordinator and corpus analysis architect:
    - Original exam context sentence preserving original sentence from the text with the target word/phrase bolded or highlighted.
    - Pedagogical notes: CEFR level, collocations, or common exam traps (bẫy đề thi THPT).
 
-3. Tone: Professional, academic, supportive, bilingual English-Vietnamese.`;
+3. Tone: Professional, academic, supportive, bilingual English-Vietnamese.
+
+4. Academic Exam Vocabulary Proposal Standards:
+   - All synonym and antonym suggestions must be authentic, highly accurate to the specific sentence context, and strictly conform to CEFR B1-C1 standards for Vietnam's National High School Graduation Exam (THPT Quốc Gia).
+   - Closed-Loop Lexical Bank: Once a contextual synonym/antonym family is established for a word, questions testing that word in new quiz rounds must select answers from this verified family.`;
 
 /**
  * Extracts and parses JSON from raw Gemini output that might be wrapped in markdown code blocks.
@@ -516,6 +520,142 @@ export interface PreviousQuestionHistory {
   question?: string;
   testedFocus?: string;
   correctAnswerText?: string;
+  suggestedSynonyms?: string[];
+  suggestedAntonyms?: string[];
+}
+
+const QUIZ_HISTORY_STORAGE_KEY = 'evm_quiz_question_history';
+
+export function getStoredQuizHistory(): PreviousQuestionHistory[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(QUIZ_HISTORY_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveStoredQuizHistory(history: PreviousQuestionHistory[]): void {
+  if (typeof window === 'undefined') return;
+  try {
+    const trimmed = history.slice(-60);
+    localStorage.setItem(QUIZ_HISTORY_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch (e) {
+    console.warn('[EVM] Failed to save quiz history:', e);
+  }
+}
+
+export function extractSuggestedWords(explanation: string): { synonyms: string[]; antonyms: string[] } {
+  const synonyms: string[] = [];
+  const antonyms: string[] = [];
+  if (!explanation) return { synonyms, antonyms };
+
+  const parseList = (str: string) => {
+    return str
+      .split(/[,;\n•]/)
+      .map((w) => w.replace(/\([^)]*\)/g, '').trim().replace(/^['"`\-\s]+|['"`\-\s\.]+$/g, ''))
+      .filter((w) => w.length > 0 && !w.toLowerCase().includes('không có') && !w.toLowerCase().includes('n/a'));
+  };
+
+  const synMatch = explanation.match(/(?:từ đồng nghĩa|các từ đồng nghĩa|đồng nghĩa|closest|synonym)[^:\n]*:\s*([^\n\.]+)/i);
+  if (synMatch && synMatch[1]) {
+    synonyms.push(...parseList(synMatch[1]));
+  }
+
+  const antMatch = explanation.match(/(?:từ trái nghĩa|các từ trái nghĩa|trái nghĩa|opposite|antonym)[^:\n]*:\s*([^\n\.]+)/i);
+  if (antMatch && antMatch[1]) {
+    antonyms.push(...parseList(antMatch[1]));
+  }
+
+  return { synonyms, antonyms };
+}
+
+export interface TermLexicalProfile {
+  term: string;
+  testedSynonyms: string[];
+  testedAntonyms: string[];
+  allProposedSynonyms: string[];
+  allProposedAntonyms: string[];
+  remainingSynonyms: string[];
+  remainingAntonyms: string[];
+}
+
+export function buildTermLexicalProfiles(
+  history: PreviousQuestionHistory[]
+): Map<string, TermLexicalProfile> {
+  const profileMap = new Map<string, TermLexicalProfile>();
+
+  for (const h of history) {
+    if (!h.term) continue;
+    const termKey = h.term.trim().toLowerCase();
+    let profile = profileMap.get(termKey);
+    if (!profile) {
+      profile = {
+        term: h.term.trim(),
+        testedSynonyms: [],
+        testedAntonyms: [],
+        allProposedSynonyms: [],
+        allProposedAntonyms: [],
+        remainingSynonyms: [],
+        remainingAntonyms: []
+      };
+      profileMap.set(termKey, profile);
+    }
+
+    const answer = (h.correctAnswerText || '').trim();
+    if (h.type === 'Synonyms/Antonyms') {
+      if (h.subtype === 'Synonym' && answer && !profile.testedSynonyms.some((x) => x.toLowerCase() === answer.toLowerCase())) {
+        profile.testedSynonyms.push(answer);
+      } else if (h.subtype === 'Antonym' && answer && !profile.testedAntonyms.some((x) => x.toLowerCase() === answer.toLowerCase())) {
+        profile.testedAntonyms.push(answer);
+      }
+    }
+
+    // Merge suggestedSynonyms if provided
+    if (h.suggestedSynonyms && Array.isArray(h.suggestedSynonyms)) {
+      for (const syn of h.suggestedSynonyms) {
+        const s = syn.trim();
+        if (s && !profile.allProposedSynonyms.some((x) => x.toLowerCase() === s.toLowerCase())) {
+          profile.allProposedSynonyms.push(s);
+        }
+      }
+    }
+
+    // Merge suggestedAntonyms if provided
+    if (h.suggestedAntonyms && Array.isArray(h.suggestedAntonyms)) {
+      for (const ant of h.suggestedAntonyms) {
+        const a = ant.trim();
+        if (a && !profile.allProposedAntonyms.some((x) => x.toLowerCase() === a.toLowerCase())) {
+          profile.allProposedAntonyms.push(a);
+        }
+      }
+    }
+
+    // Ensure tested words are always in allProposed lists
+    if (h.subtype === 'Synonym' && answer) {
+      if (!profile.allProposedSynonyms.some((x) => x.toLowerCase() === answer.toLowerCase())) {
+        profile.allProposedSynonyms.unshift(answer);
+      }
+    }
+    if (h.subtype === 'Antonym' && answer) {
+      if (!profile.allProposedAntonyms.some((x) => x.toLowerCase() === answer.toLowerCase())) {
+        profile.allProposedAntonyms.unshift(answer);
+      }
+    }
+  }
+
+  // Calculate remaining un-tested candidates
+  for (const profile of profileMap.values()) {
+    profile.remainingSynonyms = profile.allProposedSynonyms.filter(
+      (s) => !profile.testedSynonyms.some((t) => t.toLowerCase() === s.toLowerCase())
+    );
+    profile.remainingAntonyms = profile.allProposedAntonyms.filter(
+      (a) => !profile.testedAntonyms.some((t) => t.toLowerCase() === a.toLowerCase())
+    );
+  }
+
+  return profileMap;
 }
 
 export function cleanAndSeparateInstruction(
@@ -614,6 +754,8 @@ export async function generateQuizWithFallback(
     context: v.context
   }));
 
+  const profileMap = buildTermLexicalProfiles(history);
+
   let historySection = '';
   if (history && history.length > 0) {
     const recentHistory = history.slice(-15).map((h, i) => {
@@ -640,24 +782,51 @@ export async function generateQuizWithFallback(
       };
     });
 
+    const termProfiles = Array.from(profileMap.values()).map((p) => ({
+      term: p.term,
+      testedSynonyms: p.testedSynonyms,
+      testedAntonyms: p.testedAntonyms,
+      establishedSynonymsBank: p.allProposedSynonyms,
+      untestedSynonymsRemaining: p.remainingSynonyms,
+      establishedAntonymsBank: p.allProposedAntonyms,
+      untestedAntonymsRemaining: p.remainingAntonyms
+    }));
+
     historySection = `
 DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
 ${JSON.stringify(recentHistory, null, 2)}
 
+NGÂN HÀNG TỪ ĐỒNG NGHĨA / TRÁI NGHĨA ĐÃ XÁC LẬP THEO TỪNG TỪ (ESTABLISHED TERM LEXICAL PROFILES):
+${JSON.stringify(termProfiles, null, 2)}
+
 QUY TẮC BẮT BUỘC KHI TẠO ĐỀ MỚI (MANDATORY RULES FOR NEW QUIZ GENERATION):
-1. QUY TẮC ĐẢO CHIỀU ĐỒNG NGHĨA <-> TRÁI NGHĨA (CRITICAL SYNONYM <-> ANTONYM FLIP RULE):
+1. NGUYÊN TẮC KHÉP KÍN & KIỂM TRA ĐÚNG CÁC TỪ ĐÃ ĐỀ XUẤT (CLOSED-LOOP LEXICAL RULE):
+   - ĐỐI VỚI CÁC TỪ ĐÃ CÓ TRONG NGÂN HÀNG ĐỀ XUẤT Ở TRÊN (như 'manipulate'):
+     * ĐÁP ÁN ĐÚNG CỦA CÂU HỎI TIẾP THEO BẮT BUỘC PHẢI CHỌN TỪ CHÍNH DANH SÁCH ĐÃ ĐỀ XUẤT TRÊN! Tuyệt đối không chọn đáp án ngoài danh sách đề xuất.
+     * NẾU RA CÂU HỎI ĐỒNG NGHĨA (CLOSEST):
+       -> BẮT BUỘC chọn đáp án đúng từ danh sách các từ đồng nghĩa CHƯA KIỂM TRA ("untestedSynonymsRemaining")!
+       -> TUYỆT ĐỐI KHÔNG lặp lại đáp án đã kiểm tra ở lượt trước (ví dụ: lượt trước đã kiểm tra 'control' thì lượt này BẮT BUỘC chọn từ khác như 'influence', 'sway',...).
+     * NẾU RA CÂU HỎI TRÁI NGHĨA (OPPOSITE - ƯU TIÊN ĐẢO CHIỀU):
+       -> BẮT BUỘC chọn đáp án đúng từ danh sách các từ trái nghĩa đã đề xuất ("establishedAntonymsBank" / "untestedAntonymsRemaining").
+     * TRONG PHẦN GIẢI THÍCH (EXPLANATION):
+       -> Mục "• Các từ đồng nghĩa chuẩn cùng ngữ cảnh:" BẮT BUỘC PHẢI LIỆT KÊ ĐỦ CẢ: từ đáp án câu này, TẤT CẢ các từ đã kiểm tra ở các lượt trước (ví dụ: 'control') và các từ đã đề xuất! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT từ đã kiểm tra!
+       -> Mục "• Các từ trái nghĩa chuẩn cùng ngữ cảnh:" BẮT BUỘC giữ nguyên đầy đủ bộ từ trái nghĩa đã đề xuất.
+
+2. QUY TẮC ĐẢO CHIỀU ĐỒNG NGHĨA <-> TRÁI NGHĨA (CRITICAL SYNONYM <-> ANTONYM FLIP RULE):
    - KHI TẠO BỘ ĐỀ MỚI, BẠN HOÀN TOÀN ĐƯỢC PHÉP VÀ ĐẶC BIỆT KHUYẾN KHÍCH CHỌN LẠI CÙNG MỘT TỪ ĐÃ KIỂM TRA Ở LƯỢT TRƯỚC ĐỂ ĐẢO CHIỀU:
      * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CHO TỪ ĐÓ:
-       -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CỦA TỪ ĐÓ (với câu ngữ cảnh mới, đáp án đúng là từ trái nghĩa)!
+       -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CỦA TỪ ĐÓ (với câu ngữ cảnh mới, đáp án đúng là từ trái nghĩa trong ngân hàng đề xuất)!
      * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CHO TỪ ĐÓ:
        -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CỦA TỪ ĐÓ!
      * NẾU CÂU TRƯỚC ĐÃ CHO ĐIỀN TỪ (FILL-IN-THE-BLANK):
        -> Ở lượt này có thể chuyển sang tìm Đồng nghĩa hoặc Trái nghĩa!
-2. ĐỐI VỚI COLLOCATION / PHRASAL VERB / IDIOM / CỤM TỪ:
+
+3. ĐỐI VỚI COLLOCATION / PHRASAL VERB / IDIOM / CỤM TỪ:
    - Nếu chọn lại cụm từ đó: BẮT BUỘC kiểm tra một thành phần khuyết khác!
      * Ví dụ: Nếu lượt trước kiểm tra điền chữ 'make' trong 'make an impact' ('_______ an impact'), lượt này BẮT BUỘC điền chữ 'impact' ('make a profound _______').
      * Ví dụ: Nếu lượt trước kiểm tra 'take' trong 'take after' ('_______ after'), lượt này BẮT BUỘC kiểm tra giới từ 'after' ('take _______').
-3. CÂN BẰNG GIỮA TỪ ĐẢO CHIỀU VÀ TỪ MỚI:
+
+4. CÂN BẰNG GIỮA TỪ ĐẢO CHIỀU VÀ TỪ MỚI:
    - Hãy kết hợp nhịp nhàng: vừa chọn lại các từ của lượt trước để đảo chiều (Đồng nghĩa <-> Trái nghĩa), vừa chọn các từ mới trong danh sách để người học được củng cố và mở rộng tối đa!
 `;
   }
@@ -760,7 +929,9 @@ DO NOT generate any question type that is not in this allowed list!
         D: "clumsy"
       },
       correctAnswer: "A",
-      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'.\n• Từ đồng nghĩa khác cùng ngữ cảnh: complex, intricate, state-of-the-art\n• Từ trái nghĩa cùng ngữ cảnh: primitive, rudimentary, simple"
+      suggestedSynonyms: ["advanced", "complex", "intricate", "state-of-the-art"],
+      suggestedAntonyms: ["primitive", "rudimentary", "simple", "basic"],
+      explanation: "Từ 'sophisticated' (tinh vi, tiên tiến) đồng nghĩa với 'advanced'.\n• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: advanced, complex, intricate, state-of-the-art\n• Các từ trái nghĩa chuẩn cùng ngữ cảnh: primitive, rudimentary, simple, basic"
     });
   }
   if (allowedTypes.includes('Sentence Completion') && exampleQuestions.length < 2) {
@@ -805,9 +976,19 @@ ${specList.join('\n')}
    - NEVER mention previous rounds, quiz history, "lượt trước", "lượt này", "vòng trước", "đề trước", "đã kiểm tra ... trước đó" in the explanation.
    - ONLY explain the grammatical rule, vocabulary meaning, or collocation directly for the learner.
 
-6. ĐỐI VỚI DẠNG ĐỒNG NGHĨA / TRÁI NGHĨA (SYNONYMS & ANTONYMS):
-   - MỞ RỘNG TỪ VỰNG TRONG LỜI GIẢI (EXPLANATION): Sau phần giải nghĩa và phân tích đáp án, hãy nêu thêm các từ đồng nghĩa và trái nghĩa KHÁC cũng hoàn toàn phù hợp với ngữ cảnh câu văn (ví dụ: "• Từ đồng nghĩa khác cùng ngữ cảnh: influence, sway; • Từ trái nghĩa khác cùng ngữ cảnh: leave alone, respect").
-   - ĐA DẠNG HÓA KHI TÁI SỬ DỤNG TỪ ĐỂ TẠO ĐỀ MỚI: Nếu chọn lại từ đã từng kiểm tra ở lượt trước, hãy sử dụng các từ đồng nghĩa hoặc trái nghĩa KHÁC phù hợp ngữ cảnh làm đáp án (không lặp lại từ đáp án cũ).
+6. TIÊU CHUẨN ĐỀ XUẤT TỪ VỰNG CHUẨN XÁC & NGUYÊN TẮC NGÂN HÀNG KHÉP KÍN (CLOSED-LOOP LEXICAL POOL):
+   - ĐỀ XUẤT CHUẨN MỰC HỌC THUẬT (CEFR B1-C1) THEO ĐÚNG NGỮ CẢNH ĐỀ THI THPT:
+     * Mỗi câu hỏi Đồng nghĩa / Trái nghĩa (Synonyms/Antonyms) BẮT BUỘC phải đề xuất:
+       - 3 - 5 từ đồng nghĩa chuẩn ngữ cảnh vào trường "suggestedSynonyms"
+       - 2 - 4 từ trái nghĩa chuẩn ngữ cảnh vào trường "suggestedAntonyms"
+     * Mọi từ đề xuất phải TUYỆT ĐỐI CHUẨN XÁC THEO ĐÚNG NGỮ CẢNH VÀ CÙNG TỪ LOẠI (Part of Speech) trong câu văn (theo từ điển Oxford / Cambridge chuẩn mực).
+   - NGUYÊN TẮC KHÉP KÍN (ĐÃ ĐỀ XUẤT TỪ NÀO THÌ CÂU HỎI TIẾP THEO KIỂM TRA TỪ ĐÓ):
+     * ĐÁP ÁN ĐÚNG CỦA CÂU HỎI BẮT BUỘC PHẢI NẰM TRONG CHÍNH DANH SÁCH ĐỀ XUẤT ĐÓ!
+     * Khi người học tạo bộ đề mới: Nếu chọn lại từ đã có ngân hàng đề xuất từ trước (xem ESTABLISHED TERM LEXICAL PROFILES), BẮT BUỘC chọn đáp án đúng từ chính danh sách đã đề xuất đó (chọn từ đồng nghĩa hoặc trái nghĩa chưa kiểm tra, tuyệt đối không ra từ lạ ngoài danh sách).
+   - TRÌNH BÀY ĐỒNG BỘ TRONG LỜI GIẢI (EXPLANATION):
+     Sau phần giải nghĩa câu và phân tích đáp án, BẮT BUỘC ghi rõ bộ từ vựng chuẩn cùng ngữ cảnh (bao hàm cả từ đáp án đúng và toàn bộ các từ đã kiểm tra ở các lượt trước, TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT từ đã kiểm tra):
+     • Các từ đồng nghĩa chuẩn cùng ngữ cảnh: [danh sách từ đồng nghĩa, ví dụ: control, influence, sway, steer, exploit]
+     • Các từ trái nghĩa chuẩn cùng ngữ cảnh: [danh sách từ trái nghĩa, ví dụ: leave alone, respect, liberate]
 
 Return valid JSON in this exact structure:
 {
@@ -880,6 +1061,66 @@ Return valid JSON in this exact structure:
       .replace(/\(?(?:đề|lượt|vòng|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
       .trim();
 
+    const targetKey = String(item.targetTerm || '').trim().toLowerCase();
+    const profile = profileMap.get(targetKey);
+
+    // Extract suggested words from JSON fields or explanation text
+    const extractedFromExp = extractSuggestedWords(item.explanation || '');
+    const itemSyns: string[] = Array.isArray(item.suggestedSynonyms) && item.suggestedSynonyms.length > 0
+      ? item.suggestedSynonyms.map((s: any) => String(s).trim())
+      : extractedFromExp.synonyms;
+    const itemAnts: string[] = Array.isArray(item.suggestedAntonyms) && item.suggestedAntonyms.length > 0
+      ? item.suggestedAntonyms.map((a: any) => String(a).trim())
+      : extractedFromExp.antonyms;
+
+    const correctWord = String(item.options?.[item.correctAnswer] || '').trim();
+
+    // Build unified full synonym & antonym sets
+    const unifiedSynonymsSet = new Set<string>();
+    const unifiedAntonymsSet = new Set<string>();
+
+    // 1. If we have a profile from history, add all previously known & tested words
+    if (profile) {
+      profile.allProposedSynonyms.forEach((w) => { if (w.trim()) unifiedSynonymsSet.add(w.trim()); });
+      profile.testedSynonyms.forEach((w) => { if (w.trim()) unifiedSynonymsSet.add(w.trim()); });
+      profile.allProposedAntonyms.forEach((w) => { if (w.trim()) unifiedAntonymsSet.add(w.trim()); });
+      profile.testedAntonyms.forEach((w) => { if (w.trim()) unifiedAntonymsSet.add(w.trim()); });
+    }
+
+    // 2. Add current question's correct answer to the appropriate set
+    if (type === 'Synonyms/Antonyms') {
+      if (resolvedSubtype === 'Synonym' && correctWord) {
+        unifiedSynonymsSet.add(correctWord);
+      } else if (resolvedSubtype === 'Antonym' && correctWord) {
+        unifiedAntonymsSet.add(correctWord);
+      }
+    }
+
+    // 3. Add current item's suggested words
+    itemSyns.forEach((w) => { if (w && w.trim()) unifiedSynonymsSet.add(w.trim()); });
+    itemAnts.forEach((w) => { if (w && w.trim()) unifiedAntonymsSet.add(w.trim()); });
+
+    const finalSynonyms = Array.from(unifiedSynonymsSet).filter(Boolean);
+    const finalAntonyms = Array.from(unifiedAntonymsSet).filter(Boolean);
+
+    // Clean and rebuild explanation bullet points for Synonyms/Antonyms
+    if (type === 'Synonyms/Antonyms' && (finalSynonyms.length > 0 || finalAntonyms.length > 0)) {
+      let baseExplanation = sanitizedExplanation
+        .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*đồng nghĩa[^:\n]*:[^\n]+/gi, '')
+        .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*trái nghĩa[^:\n]*:[^\n]+/gi, '')
+        .trim();
+
+      const bullets: string[] = [];
+      if (finalSynonyms.length > 0) {
+        bullets.push(`• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: ${finalSynonyms.join(', ')}`);
+      }
+      if (finalAntonyms.length > 0) {
+        bullets.push(`• Các từ trái nghĩa chuẩn cùng ngữ cảnh: ${finalAntonyms.join(', ')}`);
+      }
+
+      sanitizedExplanation = `${baseExplanation}\n${bullets.join('\n')}`.trim();
+    }
+
     return {
       id: item.id || `q-${Date.now()}-${idx}`,
       type,
@@ -897,7 +1138,9 @@ Return valid JSON in this exact structure:
       correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
         ? item.correctAnswer
         : 'A') as 'A' | 'B' | 'C' | 'D',
-      explanation: sanitizedExplanation
+      explanation: sanitizedExplanation,
+      suggestedSynonyms: finalSynonyms,
+      suggestedAntonyms: finalAntonyms
     };
   });
 

@@ -129,6 +129,7 @@ export function generateExamDocHtml(
       margin-left: 20px;
       font-size: 11pt;
       color: #333;
+      white-space: pre-line;
     }
     .footer-note {
       text-align: center;
@@ -275,7 +276,7 @@ export function generateExamDocHtml(
     <div style="margin-bottom: 12px; font-size: 11.5pt;">
       <b>Câu ${idx + 1}: Đáp án ${q.correctAnswer}</b> <i>(${q.targetTerm})</i>
       <div class="explanation-box">
-        ${q.explanation}
+        ${q.explanation.replace(/\n/g, '<br/>')}
       </div>
     </div>
   `

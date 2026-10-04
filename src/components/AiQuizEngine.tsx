@@ -21,7 +21,10 @@ import { speakEnglish } from '../utils/tts';
 import {
   generateQuizWithFallback,
   getStoredApiKey,
-  PreviousQuestionHistory
+  PreviousQuestionHistory,
+  getStoredQuizHistory,
+  saveStoredQuizHistory,
+  extractSuggestedWords
 } from '../services/geminiService';
 import { downloadDocxFile } from '../utils/documentExport';
 
@@ -213,7 +216,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
   const [answers, setAnswers] = useState<Record<number, 'A' | 'B' | 'C' | 'D'>>({});
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
-  const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>([]);
+  const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>(() => getStoredQuizHistory());
   const [quizRound, setQuizRound] = useState<number>(1);
 
   // Filter Target Vocabulary for Quiz Generation
@@ -249,16 +252,29 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     // Accumulate finished questions into history for subsequent round generation
     let accumulatedHistory = [...quizHistory];
     if (questions.length > 0) {
-      const currentRoundItems: PreviousQuestionHistory[] = questions.map((q) => ({
-        term: q.targetTerm,
-        type: q.type,
-        subtype: q.subtype,
-        question: q.question,
-        testedFocus: q.testedFocus || q.options[q.correctAnswer] || '',
-        correctAnswerText: q.options[q.correctAnswer] || ''
-      }));
+      const currentRoundItems: PreviousQuestionHistory[] = questions.map((q) => {
+        const extracted = extractSuggestedWords(q.explanation);
+        const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
+          ? q.suggestedSynonyms
+          : extracted.synonyms;
+        const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
+          ? q.suggestedAntonyms
+          : extracted.antonyms;
+
+        return {
+          term: q.targetTerm,
+          type: q.type,
+          subtype: q.subtype,
+          question: q.question,
+          testedFocus: q.testedFocus || q.options[q.correctAnswer] || '',
+          correctAnswerText: q.options[q.correctAnswer] || '',
+          suggestedSynonyms: syns,
+          suggestedAntonyms: ants
+        };
+      });
       accumulatedHistory = [...accumulatedHistory, ...currentRoundItems];
       setQuizHistory(accumulatedHistory);
+      saveStoredQuizHistory(accumulatedHistory);
       setQuizRound((r) => r + 1);
     }
 

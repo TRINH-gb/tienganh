@@ -56,6 +56,8 @@ export interface QuizQuestion {
   correctAnswer: 'A' | 'B' | 'C' | 'D';
   explanation: string;
   userAnswer?: 'A' | 'B' | 'C' | 'D';
+  suggestedSynonyms?: string[];
+  suggestedAntonyms?: string[];
 }
 
 export interface WordDeepDive {

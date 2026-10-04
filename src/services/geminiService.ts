@@ -5,34 +5,34 @@ export const MODEL_STORAGE_KEY = 'evm_gemini_model';
 
 export const SUPPORTED_MODELS = [
   {
-    id: 'gemini-3.8-flash',
-    name: 'Gemini 3.8 Flash',
+    id: 'gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
     tag: 'Mặc định (Khuyên dùng)',
-    description: 'Thế hệ mới nhất từ Google, phản hồi siêu nhanh, tối ưu ngữ liệu đề thi THPT.',
+    description: 'Thế hệ mới nhất, phản hồi siêu tốc, tối ưu ngữ liệu đề thi THPT.',
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
-  },
-  {
-    id: 'gemini-2.5-flash',
-    name: 'Gemini 2.5 Flash',
-    tag: 'Ổn định',
-    description: 'Mô hình tốc độ cao, xử lý văn bản và đề thi mượt mà.',
-    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
   },
   {
     id: 'gemini-1.5-flash',
     name: 'Gemini 1.5 Flash',
-    tag: 'Dự phòng',
-    description: 'Hạn ngạch ổn định cao, tương thích toàn diện.',
-    badgeClass: 'bg-amber-50 text-amber-700 border-amber-200'
+    tag: 'Ổn định cao',
+    description: 'Mô hình tốc độ cao, hạn ngạch rộng, xử lý mượt mà và bền bỉ.',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  },
+  {
+    id: 'gemini-1.5-pro',
+    name: 'Gemini 1.5 Pro',
+    tag: 'Dự phòng chuyên sâu',
+    description: 'Tư duy học thuật chuyên sâu, phân tích cấu trúc đề thi chuẩn xác.',
+    badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
   }
 ];
 
-export const DEFAULT_MODEL_ID = 'gemini-3.8-flash';
+export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 
 export const FALLBACK_CHAIN = [
-  'gemini-3.8-flash',
-  'gemini-2.5-flash',
-  'gemini-1.5-flash'
+  'gemini-2.0-flash',
+  'gemini-1.5-flash',
+  'gemini-1.5-pro'
 ];
 
 export function getStoredApiKey(): string {
@@ -60,15 +60,19 @@ export function setStoredApiKey(key: string): void {
 export function getStoredModel(): string {
   if (typeof window === 'undefined') return DEFAULT_MODEL_ID;
   const saved = localStorage.getItem(MODEL_STORAGE_KEY);
-  // Auto-migrate away from deprecated models
-  if (saved === 'gemini-2.5-flash' || saved === 'gemini-3-flash-preview' || saved === 'gemini-3-pro-preview') {
+  // Auto-migrate away from deprecated, preview, or invalid model names
+  if (
+    !saved ||
+    saved.includes('3.8') ||
+    saved.includes('3-') ||
+    saved.includes('2.5') ||
+    saved.includes('-preview') ||
+    !SUPPORTED_MODELS.some((m) => m.id === saved)
+  ) {
     localStorage.setItem(MODEL_STORAGE_KEY, DEFAULT_MODEL_ID);
     return DEFAULT_MODEL_ID;
   }
-  if (saved && SUPPORTED_MODELS.some((m) => m.id === saved)) {
-    return saved;
-  }
-  return DEFAULT_MODEL_ID;
+  return saved;
 }
 
 export function setStoredModel(modelId: string): void {
@@ -111,37 +115,104 @@ Your role is a learning coordinator and corpus analysis architect:
  * Extracts and parses JSON from raw Gemini output that might be wrapped in markdown code blocks.
  */
 function extractJsonFromText(rawText: string): any {
-  let cleaned = rawText.trim();
-  // Remove markdown code fences if present
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\r?\n?/, '').replace(/\r?\n?```$/, '').trim();
+  if (!rawText || typeof rawText !== 'string') {
+    throw new Error('Phản hồi từ AI rỗng.');
   }
-  // Try direct parse
+
+  const cleaned = rawText.trim();
+
+  // Try direct parse first
   try {
     return JSON.parse(cleaned);
-  } catch (initialErr) {
-    // Look for first '{' or '[' and last '}' or ']'
-    const firstBrace = cleaned.indexOf('{');
-    const firstBracket = cleaned.indexOf('[');
-    let startIdx = -1;
-    if (firstBrace !== -1 && firstBracket !== -1) {
-      startIdx = Math.min(firstBrace, firstBracket);
-    } else if (firstBrace !== -1) {
-      startIdx = firstBrace;
-    } else {
-      startIdx = firstBracket;
-    }
-
-    const lastBrace = cleaned.lastIndexOf('}');
-    const lastBracket = cleaned.lastIndexOf(']');
-    const endIdx = Math.max(lastBrace, lastBracket);
-
-    if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-      const slice = cleaned.slice(startIdx, endIdx + 1);
-      return JSON.parse(slice);
-    }
-    throw initialErr;
+  } catch {
+    // Continue to extract
   }
+
+  // Extract from markdown code fences if present anywhere in the text
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (fenceMatch && fenceMatch[1]) {
+    const candidate = fenceMatch[1].trim();
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      // Continue to bracket matcher
+    }
+  }
+
+  // Check for outermost object {...}
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    const candidate = cleaned.slice(firstBrace, lastBrace + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      try {
+        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixed);
+      } catch {
+        // Fall through
+      }
+    }
+  }
+
+  // Check for outermost array [...]
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    const candidate = cleaned.slice(firstBracket, lastBracket + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch {
+      try {
+        const fixed = candidate.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(fixed);
+      } catch {
+        // Fall through
+      }
+    }
+  }
+
+  throw new Error('Không thể giải mã dữ liệu JSON trả về từ AI.');
+}
+
+/**
+ * Robustly extracts the array of quiz questions from any AI JSON response structure.
+ */
+export function extractQuestionsArray(parsed: any): any[] {
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.questions)) return parsed.questions;
+    if (Array.isArray(parsed.quiz)) return parsed.quiz;
+    if (Array.isArray(parsed.data)) return parsed.data;
+    if (Array.isArray(parsed.items)) return parsed.items;
+    for (const key of Object.keys(parsed)) {
+      if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
+        return parsed[key];
+      }
+    }
+  }
+  return [];
+}
+
+/**
+ * Robustly extracts the array of vocabulary items from any AI JSON response structure.
+ */
+export function extractVocabArray(parsed: any): any[] {
+  if (Array.isArray(parsed)) return parsed;
+  if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.vocabulary)) return parsed.vocabulary;
+    if (Array.isArray(parsed.vocab)) return parsed.vocab;
+    if (Array.isArray(parsed.words)) return parsed.words;
+    if (Array.isArray(parsed.items)) return parsed.items;
+    if (Array.isArray(parsed.data)) return parsed.data;
+    for (const key of Object.keys(parsed)) {
+      if (Array.isArray(parsed[key]) && parsed[key].length > 0) {
+        return parsed[key];
+      }
+    }
+  }
+  return [];
 }
 
 function cleanModelId(model: string): string {
@@ -174,14 +245,30 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
           !id.includes('-tts') &&
           !id.includes('audio') &&
           !id.includes('embedding') &&
-          !id.includes('imagen')
+          !id.includes('imagen') &&
+          !id.includes('2.5-flash-lite') && // Exclude known 404 in Google AI Studio
+          !id.includes('3-flash') && // Exclude experimental previews that cause generateContent errors
+          !id.includes('3-pro')
       );
 
-      // Sort: flash models first, then pro, then others
+      // Stable priority sorting:
+      // 0: gemini-2.0-flash
+      // 1: gemini-1.5-flash
+      // 2: gemini-1.5-pro
+      // 3: other flash models
       return valid.sort((a, b) => {
-        const aFlash = a.includes('flash') ? 0 : 1;
-        const bFlash = b.includes('flash') ? 0 : 1;
-        if (aFlash !== bFlash) return aFlash - bFlash;
+        const getScore = (name: string) => {
+          if (name === 'gemini-2.0-flash') return 0;
+          if (name === 'gemini-1.5-flash') return 1;
+          if (name === 'gemini-1.5-pro') return 2;
+          if (name.includes('2.0-flash')) return 3;
+          if (name.includes('1.5-flash')) return 4;
+          if (name.includes('flash')) return 5;
+          return 6;
+        };
+        const scoreA = getScore(a);
+        const scoreB = getScore(b);
+        if (scoreA !== scoreB) return scoreA - scoreB;
         return a.localeCompare(b);
       });
     }
@@ -292,23 +379,23 @@ export async function executeWithFallback<T>(
   const preferredModel = cleanModelId(getStoredModel());
   const modelsToTry: string[] = [];
 
-  // Prioritize preferredModel if valid in liveModels or if liveModels is empty
-  if (preferredModel && (!liveModels.length || liveModels.includes(preferredModel))) {
+  // Prioritize user's preferred model first
+  if (preferredModel) {
     modelsToTry.push(preferredModel);
   }
 
-  // Add all live models that support generateContent
-  for (const lm of liveModels) {
-    if (!modelsToTry.includes(lm)) {
-      modelsToTry.push(lm);
-    }
-  }
-
-  // Fallback to static list if live models query returned empty
+  // Next, add the verified stable FALLBACK_CHAIN models
   for (const m of FALLBACK_CHAIN) {
     const clean = cleanModelId(m);
     if (!modelsToTry.includes(clean)) {
       modelsToTry.push(clean);
+    }
+  }
+
+  // Then add any additional live models that Google returned
+  for (const lm of liveModels) {
+    if (!modelsToTry.includes(lm)) {
+      modelsToTry.push(lm);
     }
   }
 
@@ -469,45 +556,45 @@ Ensure the response is valid JSON matching this schema:
   if (onStepProgress) onStepProgress(1, 'running', 'Đang phân tích cấu trúc & quét thị giác nhận diện từ bôi vàng...');
 
   try {
-    const rawText = await executeWithFallback(async (model, apiKey) => {
-      return await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, pdfBase64);
+    const extractionResult = await executeWithFallback(async (model, apiKey) => {
+      const rawText = await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, pdfBase64);
+      const parsed = extractJsonFromText(rawText);
+      const vocabList = extractVocabArray(parsed);
+      if (!vocabList || !Array.isArray(vocabList) || vocabList.length === 0) {
+        throw new Error(`Model ${model} không trả về danh sách từ vựng hợp lệ.`);
+      }
+
+      const formatted: VocabularyItem[] = vocabList.map((item: any, idx: number) => ({
+        id: `extracted-${Date.now()}-${idx}`,
+        term: String(item.term || '').trim(),
+        type: (item.type || 'Single word') as VocabCategory,
+        ipa: String(item.ipa || ''),
+        meaning: String(item.meaning || ''),
+        context: String(item.context || ''),
+        cefrLevel: (item.cefrLevel || 'B2') as CefrLevel,
+        examTip: String(item.examTip || ''),
+        sourceExam: examTitle,
+        status: 'Chưa thuộc',
+        interactionCount: 0,
+        quizCorrectCount: 0,
+        quizTotalCount: 0,
+        addedAt: new Date().toISOString(),
+        isHighlighted: Boolean(item.isHighlighted)
+      }));
+
+      return {
+        summary: parsed.summary || 'Đã phân tích và trích xuất thành công ngữ liệu đề thi.',
+        vocabulary: formatted
+      };
     }, onModelFallback);
 
-    if (onStepProgress) onStepProgress(1, 'completed', 'Đã phân tích xong cấu trúc ngữ liệu.');
-    if (onStepProgress) onStepProgress(2, 'running', 'Đang phân tách 5 nhóm từ vựng & IPA chuẩn hóa...');
-
-    const parsed = extractJsonFromText(rawText);
-    if (!parsed.vocabulary || !Array.isArray(parsed.vocabulary)) {
-      throw new Error('Dữ liệu phân tích trả về không đúng cấu trúc danh sách từ vựng.');
+    if (onStepProgress) {
+      onStepProgress(1, 'completed', 'Đã phân tích xong cấu trúc ngữ liệu.');
+      onStepProgress(2, 'completed', 'Đã phân loại thành công các nhóm từ vựng.');
+      onStepProgress(3, 'completed', 'Quy trình hoàn tất!');
     }
 
-    if (onStepProgress) onStepProgress(2, 'completed', 'Đã phân loại thành công các nhóm từ vựng.');
-    if (onStepProgress) onStepProgress(3, 'running', 'Đang tổng hợp mẹo thi THPT & hoàn tất sổ từ...');
-
-    const formatted: VocabularyItem[] = parsed.vocabulary.map((item: any, idx: number) => ({
-      id: `extracted-${Date.now()}-${idx}`,
-      term: String(item.term || '').trim(),
-      type: (item.type || 'Single word') as VocabCategory,
-      ipa: String(item.ipa || ''),
-      meaning: String(item.meaning || ''),
-      context: String(item.context || ''),
-      cefrLevel: (item.cefrLevel || 'B2') as CefrLevel,
-      examTip: String(item.examTip || ''),
-      sourceExam: examTitle,
-      status: 'Chưa thuộc',
-      interactionCount: 0,
-      quizCorrectCount: 0,
-      quizTotalCount: 0,
-      addedAt: new Date().toISOString(),
-      isHighlighted: Boolean(item.isHighlighted)
-    }));
-
-    if (onStepProgress) onStepProgress(3, 'completed', 'Quy trình hoàn tất!');
-
-    return {
-      summary: parsed.summary || 'Đã phân tích và trích xuất thành công ngữ liệu đề thi.',
-      vocabulary: formatted
-    };
+    return extractionResult;
   } catch (err: any) {
     // If extraction failed, mark active steps as failed
     if (onStepProgress) {
@@ -1162,205 +1249,207 @@ Return valid JSON in this exact structure:
   "questions": ${JSON.stringify(exampleQuestions, null, 2)}
 }`;
 
-  const rawText = await executeWithFallback(async (model, apiKey) => {
-    return await callGeminiDirect(model, apiKey, prompt);
-  }, onModelFallback);
-
-  const parsed = extractJsonFromText(rawText);
-  if (!parsed.questions || !Array.isArray(parsed.questions) || parsed.questions.length === 0) {
-    throw new Error('Dữ liệu câu hỏi trắc nghiệm không hợp lệ.');
-  }
-
-  const formatted: QuizQuestion[] = parsed.questions.map((item: any, idx: number) => {
-    let type = (item.type || allowedTypes[0]) as QuizQuestion['type'];
-
-    // Strict Code-level enforcement: If Gemini deviated from allowedTypes, force it!
-    if (!allowedTypes.includes(type)) {
-      type = allowedTypes[0] as QuizQuestion['type'];
+  const formattedQuestions = await executeWithFallback(async (model, apiKey) => {
+    const rawText = await callGeminiDirect(model, apiKey, prompt);
+    const parsed = extractJsonFromText(rawText);
+    const questionsRaw = extractQuestionsArray(parsed);
+    if (!questionsRaw || !Array.isArray(questionsRaw) || questionsRaw.length === 0) {
+      throw new Error(`Model ${model} không trả về danh sách câu hỏi hợp lệ.`);
     }
 
-    let rawQuestion = String(item.question || '').trim();
+    const formatted: QuizQuestion[] = questionsRaw.map((item: any, idx: number) => {
+      let type = (item.type || allowedTypes[0]) as QuizQuestion['type'];
 
-    // If type is Fill-in-the-blank or Sentence Completion, ensure question has "_______"
-    if (type === 'Fill-in-the-blank' || type === 'Sentence Completion') {
-      if (!rawQuestion.includes('_______') && !rawQuestion.includes('______') && !rawQuestion.includes('____')) {
-        if (/\*\*[^*]+\*\*/.test(rawQuestion)) {
-          rawQuestion = rawQuestion.replace(/\*\*[^*]+\*\*/, '_______');
-        } else if (item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
-          const re = new RegExp(item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-          rawQuestion = rawQuestion.replace(re, '_______');
-        } else {
-          const capsMatch = rawQuestion.match(/\b[A-Z]{3,}\b/);
-          if (capsMatch) {
-            rawQuestion = rawQuestion.replace(capsMatch[0], '_______');
+      // Strict Code-level enforcement: If Gemini deviated from allowedTypes, force it!
+      if (!allowedTypes.includes(type)) {
+        type = allowedTypes[0] as QuizQuestion['type'];
+      }
+
+      let rawQuestion = String(item.question || '').trim();
+
+      // If type is Fill-in-the-blank or Sentence Completion, ensure question has "_______"
+      if (type === 'Fill-in-the-blank' || type === 'Sentence Completion') {
+        if (!rawQuestion.includes('_______') && !rawQuestion.includes('______') && !rawQuestion.includes('____')) {
+          if (/\*\*[^*]+\*\*/.test(rawQuestion)) {
+            rawQuestion = rawQuestion.replace(/\*\*[^*]+\*\*/, '_______');
+          } else if (item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
+            const re = new RegExp(item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+            rawQuestion = rawQuestion.replace(re, '_______');
+          } else {
+            const capsMatch = rawQuestion.match(/\b[A-Z]{3,}\b/);
+            if (capsMatch) {
+              rawQuestion = rawQuestion.replace(capsMatch[0], '_______');
+            }
           }
         }
       }
-    }
 
-    // If type is Synonyms/Antonyms, ensure target word is formatted and not a blank
-    if (type === 'Synonyms/Antonyms') {
-      if (rawQuestion.includes('_______') && item.targetTerm) {
-        rawQuestion = rawQuestion.replace('_______', `**${item.targetTerm}**`);
-      } else if (!rawQuestion.includes('**') && item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
-        const re = new RegExp(`\\b${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-        rawQuestion = rawQuestion.replace(re, `**${item.targetTerm}**`);
+      // If type is Synonyms/Antonyms, ensure target word is formatted and not a blank
+      if (type === 'Synonyms/Antonyms') {
+        if (rawQuestion.includes('_______') && item.targetTerm) {
+          rawQuestion = rawQuestion.replace('_______', `**${item.targetTerm}**`);
+        } else if (!rawQuestion.includes('**') && item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
+          const re = new RegExp(`\\b${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          rawQuestion = rawQuestion.replace(re, `**${item.targetTerm}**`);
+        }
       }
-    }
 
-    const { instruction, question, resolvedSubtype } = cleanAndSeparateInstruction(
-      item.instruction,
-      rawQuestion,
-      type,
-      item.subtype,
-      item.explanation
-    );
+      const { instruction, question, resolvedSubtype } = cleanAndSeparateInstruction(
+        item.instruction,
+        rawQuestion,
+        type,
+        item.subtype,
+        item.explanation
+      );
 
-    let sanitizedExplanation = String(item.explanation || '').trim();
-    // Strip any accidental meta-commentary regarding previous rounds or question history
-    sanitizedExplanation = sanitizedExplanation
-      .replace(/(?:Lượt|Vòng|Đề|Câu)\s+(?:trước|này|sau|cũ)\s+(?:đã\s+)?(?:kiểm tra|ra|hỏi|thi)[^.]*[\.]?/gi, '')
-      .replace(/\(?(?:lượt|vòng|đề|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
-      .trim();
-
-    let sanitizedFocus = String(item.testedFocus || '').trim();
-    sanitizedFocus = sanitizedFocus
-      .replace(/\(?(?:đề|lượt|vòng|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
-      .trim();
-
-    const targetKey = String(item.targetTerm || '').trim().toLowerCase();
-    const profile = profileMap.get(targetKey);
-
-    // Extract target word as it appears directly in the question sentence:
-    let targetInSentence = '';
-    const boldMatch = question.match(/\*\*([^*]+)\*\*/);
-    if (boldMatch && boldMatch[1]) {
-      targetInSentence = boldMatch[1].trim();
-    } else if (item.targetTerm) {
-      const termRegex = new RegExp(`\\b(${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[a-z]*)\\b`, 'i');
-      const termMatch = question.match(termRegex);
-      if (termMatch && termMatch[1]) {
-        targetInSentence = termMatch[1].trim();
-      } else {
-        targetInSentence = item.targetTerm;
-      }
-    }
-
-    let optA = String(item.options?.A || '').trim();
-    let optB = String(item.options?.B || '').trim();
-    let optC = String(item.options?.C || '').trim();
-    let optD = String(item.options?.D || '').trim();
-
-    const oldCorrectWord = String(item.options?.[item.correctAnswer] || '').trim();
-
-    // Harmonize options to match targetInSentence inflection
-    if (type === 'Synonyms/Antonyms' && targetInSentence) {
-      optA = harmonizeWordForm(optA, targetInSentence, item.targetTerm);
-      optB = harmonizeWordForm(optB, targetInSentence, item.targetTerm);
-      optC = harmonizeWordForm(optC, targetInSentence, item.targetTerm);
-      optD = harmonizeWordForm(optD, targetInSentence, item.targetTerm);
-    }
-
-    const optionsMap: Record<string, string> = { A: optA, B: optB, C: optC, D: optD };
-    const correctWord = optionsMap[item.correctAnswer] || oldCorrectWord;
-
-    // Extract suggested words from JSON fields or explanation text
-    const extractedFromExp = extractSuggestedWords(item.explanation || '');
-    const itemSyns: string[] = Array.isArray(item.suggestedSynonyms) && item.suggestedSynonyms.length > 0
-      ? item.suggestedSynonyms.map((s: any) => String(s).trim())
-      : extractedFromExp.synonyms;
-    const itemAnts: string[] = Array.isArray(item.suggestedAntonyms) && item.suggestedAntonyms.length > 0
-      ? item.suggestedAntonyms.map((a: any) => String(a).trim())
-      : extractedFromExp.antonyms;
-
-    // Harmonize itemSyns and itemAnts as well
-    const harmonizedItemSyns = itemSyns.map((s) => harmonizeWordForm(s, targetInSentence, item.targetTerm));
-    const harmonizedItemAnts = itemAnts.map((a) => harmonizeWordForm(a, targetInSentence, item.targetTerm));
-
-    // Build unified full synonym & antonym sets
-    const unifiedSynonymsSet = new Set<string>();
-    const unifiedAntonymsSet = new Set<string>();
-
-    // 1. If we have a profile from history, add all previously known & tested words
-    if (profile) {
-      profile.allProposedSynonyms.forEach((w) => {
-        if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
-      });
-      profile.testedSynonyms.forEach((w) => {
-        if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
-      });
-      profile.allProposedAntonyms.forEach((w) => {
-        if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
-      });
-      profile.testedAntonyms.forEach((w) => {
-        if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
-      });
-    }
-
-    // 2. Add current question's correct answer to the appropriate set
-    if (type === 'Synonyms/Antonyms') {
-      if (resolvedSubtype === 'Synonym' && correctWord) {
-        unifiedSynonymsSet.add(correctWord);
-      } else if (resolvedSubtype === 'Antonym' && correctWord) {
-        unifiedAntonymsSet.add(correctWord);
-      }
-    }
-
-    // 3. Add current item's suggested words
-    harmonizedItemSyns.forEach((w) => { if (w && w.trim()) unifiedSynonymsSet.add(w.trim()); });
-    harmonizedItemAnts.forEach((w) => { if (w && w.trim()) unifiedAntonymsSet.add(w.trim()); });
-
-    const finalSynonyms = Array.from(unifiedSynonymsSet).filter(Boolean);
-    const finalAntonyms = Array.from(unifiedAntonymsSet).filter(Boolean);
-
-    // If correctWord was inflected (e.g. variation -> variations), update occurrences in sanitizedExplanation
-    if (correctWord && oldCorrectWord && correctWord !== oldCorrectWord) {
-      const replaceRegex = new RegExp(`(?<=['"\\s(]|^)${oldCorrectWord}(?=[)'"\\s.,;]|$)`, 'g');
-      sanitizedExplanation = sanitizedExplanation.replace(replaceRegex, correctWord);
-    }
-
-    // Clean and rebuild explanation bullet points for Synonyms/Antonyms
-    if (type === 'Synonyms/Antonyms' && (finalSynonyms.length > 0 || finalAntonyms.length > 0)) {
-      let baseExplanation = sanitizedExplanation
-        .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*đồng nghĩa[^:\n]*:[^\n]+/gi, '')
-        .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*trái nghĩa[^:\n]*:[^\n]+/gi, '')
+      let sanitizedExplanation = String(item.explanation || '').trim();
+      // Strip any accidental meta-commentary regarding previous rounds or question history
+      sanitizedExplanation = sanitizedExplanation
+        .replace(/(?:Lượt|Vòng|Đề|Câu)\s+(?:trước|này|sau|cũ)\s+(?:đã\s+)?(?:kiểm tra|ra|hỏi|thi)[^.]*[\.]?/gi, '')
+        .replace(/\(?(?:lượt|vòng|đề|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
         .trim();
 
-      const bullets: string[] = [];
-      if (finalSynonyms.length > 0) {
-        bullets.push(`• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: ${finalSynonyms.join(', ')}`);
+      let sanitizedFocus = String(item.testedFocus || '').trim();
+      sanitizedFocus = sanitizedFocus
+        .replace(/\(?(?:đề|lượt|vòng|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
+        .trim();
+
+      const targetKey = String(item.targetTerm || '').trim().toLowerCase();
+      const profile = profileMap.get(targetKey);
+
+      // Extract target word as it appears directly in the question sentence:
+      let targetInSentence = '';
+      const boldMatch = question.match(/\*\*([^*]+)\*\*/);
+      if (boldMatch && boldMatch[1]) {
+        targetInSentence = boldMatch[1].trim();
+      } else if (item.targetTerm) {
+        const termRegex = new RegExp(`\\b(${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[a-z]*)\\b`, 'i');
+        const termMatch = question.match(termRegex);
+        if (termMatch && termMatch[1]) {
+          targetInSentence = termMatch[1].trim();
+        } else {
+          targetInSentence = item.targetTerm;
+        }
       }
-      if (finalAntonyms.length > 0) {
-        bullets.push(`• Các từ trái nghĩa chuẩn cùng ngữ cảnh: ${finalAntonyms.join(', ')}`);
+
+      let optA = String(item.options?.A || '').trim();
+      let optB = String(item.options?.B || '').trim();
+      let optC = String(item.options?.C || '').trim();
+      let optD = String(item.options?.D || '').trim();
+
+      const oldCorrectWord = String(item.options?.[item.correctAnswer] || '').trim();
+
+      // Harmonize options to match targetInSentence inflection
+      if (type === 'Synonyms/Antonyms' && targetInSentence) {
+        optA = harmonizeWordForm(optA, targetInSentence, item.targetTerm);
+        optB = harmonizeWordForm(optB, targetInSentence, item.targetTerm);
+        optC = harmonizeWordForm(optC, targetInSentence, item.targetTerm);
+        optD = harmonizeWordForm(optD, targetInSentence, item.targetTerm);
       }
 
-      sanitizedExplanation = `${baseExplanation}\n${bullets.join('\n')}`.trim();
-    }
+      const optionsMap: Record<string, string> = { A: optA, B: optB, C: optC, D: optD };
+      const correctWord = optionsMap[item.correctAnswer] || oldCorrectWord;
 
-    return {
-      id: item.id || `q-${Date.now()}-${idx}`,
-      type,
-      subtype: resolvedSubtype,
-      targetTerm: String(item.targetTerm || '').trim(),
-      instruction,
-      question,
-      testedFocus: sanitizedFocus,
-      options: {
-        A: optA,
-        B: optB,
-        C: optC,
-        D: optD
-      },
-      correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
-        ? item.correctAnswer
-        : 'A') as 'A' | 'B' | 'C' | 'D',
-      explanation: sanitizedExplanation,
-      suggestedSynonyms: finalSynonyms,
-      suggestedAntonyms: finalAntonyms
-    };
-  });
+      // Extract suggested words from JSON fields or explanation text
+      const extractedFromExp = extractSuggestedWords(item.explanation || '');
+      const itemSyns: string[] = Array.isArray(item.suggestedSynonyms) && item.suggestedSynonyms.length > 0
+        ? item.suggestedSynonyms.map((s: any) => String(s).trim())
+        : extractedFromExp.synonyms;
+      const itemAnts: string[] = Array.isArray(item.suggestedAntonyms) && item.suggestedAntonyms.length > 0
+        ? item.suggestedAntonyms.map((a: any) => String(a).trim())
+        : extractedFromExp.antonyms;
 
-  return formatted;
+      // Harmonize itemSyns and itemAnts as well
+      const harmonizedItemSyns = itemSyns.map((s) => harmonizeWordForm(s, targetInSentence, item.targetTerm));
+      const harmonizedItemAnts = itemAnts.map((a) => harmonizeWordForm(a, targetInSentence, item.targetTerm));
+
+      // Build unified full synonym & antonym sets
+      const unifiedSynonymsSet = new Set<string>();
+      const unifiedAntonymsSet = new Set<string>();
+
+      // 1. If we have a profile from history, add all previously known & tested words
+      if (profile) {
+        profile.allProposedSynonyms.forEach((w) => {
+          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+        });
+        profile.testedSynonyms.forEach((w) => {
+          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+        });
+        profile.allProposedAntonyms.forEach((w) => {
+          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+        });
+        profile.testedAntonyms.forEach((w) => {
+          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+        });
+      }
+
+      // 2. Add current question's correct answer to the appropriate set
+      if (type === 'Synonyms/Antonyms') {
+        if (resolvedSubtype === 'Synonym' && correctWord) {
+          unifiedSynonymsSet.add(correctWord);
+        } else if (resolvedSubtype === 'Antonym' && correctWord) {
+          unifiedAntonymsSet.add(correctWord);
+        }
+      }
+
+      // 3. Add current item's suggested words
+      harmonizedItemSyns.forEach((w) => { if (w && w.trim()) unifiedSynonymsSet.add(w.trim()); });
+      harmonizedItemAnts.forEach((w) => { if (w && w.trim()) unifiedAntonymsSet.add(w.trim()); });
+
+      const finalSynonyms = Array.from(unifiedSynonymsSet).filter(Boolean);
+      const finalAntonyms = Array.from(unifiedAntonymsSet).filter(Boolean);
+
+      // If correctWord was inflected (e.g. variation -> variations), update occurrences in sanitizedExplanation
+      if (correctWord && oldCorrectWord && correctWord !== oldCorrectWord) {
+        const replaceRegex = new RegExp(`(?<=['"\\s(]|^)${oldCorrectWord}(?=[)'"\\s.,;]|$)`, 'g');
+        sanitizedExplanation = sanitizedExplanation.replace(replaceRegex, correctWord);
+      }
+
+      // Clean and rebuild explanation bullet points for Synonyms/Antonyms
+      if (type === 'Synonyms/Antonyms' && (finalSynonyms.length > 0 || finalAntonyms.length > 0)) {
+        let baseExplanation = sanitizedExplanation
+          .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*đồng nghĩa[^:\n]*:[^\n]+/gi, '')
+          .replace(/(?:^|\n)[•\-\*]?\s*(?:từ|các từ)?\s*trái nghĩa[^:\n]*:[^\n]+/gi, '')
+          .trim();
+
+        const bullets: string[] = [];
+        if (finalSynonyms.length > 0) {
+          bullets.push(`• Các từ đồng nghĩa chuẩn cùng ngữ cảnh: ${finalSynonyms.join(', ')}`);
+        }
+        if (finalAntonyms.length > 0) {
+          bullets.push(`• Các từ trái nghĩa chuẩn cùng ngữ cảnh: ${finalAntonyms.join(', ')}`);
+        }
+
+        sanitizedExplanation = `${baseExplanation}\n${bullets.join('\n')}`.trim();
+      }
+
+      return {
+        id: item.id || `q-${Date.now()}-${idx}`,
+        type,
+        subtype: resolvedSubtype,
+        targetTerm: String(item.targetTerm || '').trim(),
+        instruction,
+        question,
+        testedFocus: sanitizedFocus,
+        options: {
+          A: optA,
+          B: optB,
+          C: optC,
+          D: optD
+        },
+        correctAnswer: (['A', 'B', 'C', 'D'].includes(item.correctAnswer)
+          ? item.correctAnswer
+          : 'A') as 'A' | 'B' | 'C' | 'D',
+        explanation: sanitizedExplanation,
+        suggestedSynonyms: finalSynonyms,
+        suggestedAntonyms: finalAntonyms
+      };
+    });
+
+    return formatted;
+  }, onModelFallback);
+
+  return formattedQuestions;
 }
 
 /**
@@ -1397,10 +1486,14 @@ Return valid JSON in this exact structure:
   ]
 }`;
 
-  const rawText = await executeWithFallback(async (model, apiKey) => {
-    return await callGeminiDirect(model, apiKey, prompt);
+  const parsed = await executeWithFallback(async (model, apiKey) => {
+    const rawText = await callGeminiDirect(model, apiKey, prompt);
+    const result = extractJsonFromText(rawText);
+    if (!result || typeof result !== 'object') {
+      throw new Error(`Model ${model} không trả về dữ liệu mở rộng từ vựng hợp lệ.`);
+    }
+    return result as WordDeepDive;
   }, onModelFallback);
 
-  const parsed = extractJsonFromText(rawText);
-  return parsed as WordDeepDive;
+  return parsed;
 }

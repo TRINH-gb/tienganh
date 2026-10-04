@@ -59,7 +59,8 @@ export interface QuizQuestion {
   suggestedSynonyms?: string[];
   suggestedAntonyms?: string[];
   wordBoxOptions?: string[]; // 3 words from vocabulary notebook for Sentence Completion
-  correctWordAnswer?: string; // Correct word string to be typed
+  correctWordAnswer?: string; // Correct word string to be typed (with correct inflection if needed)
+  acceptableAnswers?: string[]; // Optional alternative accepted inflections
 }
 
 export interface WordDeepDive {

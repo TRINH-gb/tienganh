@@ -600,16 +600,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           })}
         </div>
 
-        {/* Fallback Notice Banner */}
-        {fallbackNotice && (
-          <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium flex items-start gap-2 animate-in fade-in">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-bold">Kích hoạt Fallback Model Dự phòng:</p>
-              <p className="mt-0.5">{fallbackNotice}</p>
-            </div>
-          </div>
-        )}
+
 
         {/* Red Error Banner with Verbatim API Error Message (Rule 3) */}
         {errorMsg && (

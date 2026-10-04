@@ -246,9 +246,12 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
           !id.includes('audio') &&
           !id.includes('embedding') &&
           !id.includes('imagen') &&
+          !id.includes('image') &&
+          !id.includes('preview') &&
+          !id.includes('experimental') &&
           !id.includes('2.5-flash-lite') && // Exclude known 404 in Google AI Studio
-          !id.includes('3-flash') && // Exclude experimental previews that cause generateContent errors
-          !id.includes('3-pro')
+          !id.includes('3-') &&
+          !id.includes('3.')
       );
 
       // Stable priority sorting:
@@ -958,7 +961,7 @@ export function cleanAndSeparateInstruction(
     } else if (type === 'Fill-in-the-blank') {
       instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.';
     } else if (type === 'Sentence Completion') {
-      instruction = 'Choose 1 correct word from the word box and type it into the blank to complete the sentence.';
+      instruction = 'Complete the sentence by typing the correct form of one of the words provided in the box (change the form if necessary).';
     } else {
       instruction = 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct answer to the following question.';
     }
@@ -1098,13 +1101,15 @@ DO NOT generate any question type that is not in this allowed list!
     * If 'Antonym': Instruction MUST state "OPPOSITE in meaning": "Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) OPPOSITE in meaning to the underlined word in the following question." The target word in the sentence MUST be enclosed in **bold** or CAPITALIZED.`);
   }
   if (allowedTypes.includes('Sentence Completion')) {
-    specList.push(`- 'Sentence Completion' (Dạng Tự Gõ Hoàn Thành Câu Với Hộp 3 Từ Vựng):
-    * Create an authentic sentence with a blank ("_______") where the correct word to fill in is ONE of the words in the user's vocabulary list.
-    * "wordBoxOptions": An array of EXACTLY 3 words from the user's vocabulary notebook (1 target word + 2 other distractor words from the user's vocabulary list).
-    * "correctWordAnswer": The exact target word (matching one of the 3 words in wordBoxOptions).
-    * "instruction": "Choose 1 correct word from the word box and type it into the blank to complete the sentence."
+    specList.push(`- 'Sentence Completion' (Dạng Tự Gõ Hoàn Thành Câu Với Hộp 3 Từ Vựng & Chia Đúng Form Nếu Có):
+    * Create an authentic context sentence with a blank ("_______") where the correct word to fill in is ONE of the words in the user's vocabulary list.
+    * "wordBoxOptions": An array of EXACTLY 3 words from the user's vocabulary notebook in their base/notebook form (1 target word + 2 other distractor words from the user's vocabulary list).
+    * "correctWordAnswer": THE EXACT WORD IN ITS PROPER GRAMMATICAL FORM (inflection) required to complete the blank in the sentence (e.g. past tense 'manipulated' / 'took after', gerund 'manipulating' / 'taking after', plural noun 'fluctuations', or base form if grammatically required). Capitalization does not matter, but grammatical form MUST be accurate!
+    * "acceptableAnswers": [array of alternative acceptable strings, e.g. ["manipulated"]].
+    * "instruction": "Complete the sentence by typing the correct form of one of the words provided in the box (change the form if necessary)."
     * "options": { "A": word1, "B": word2, "C": word3, "D": "" }
-    * "correctAnswer": The letter corresponding to the correct word ("A", "B", or "C").
+    * "correctAnswer": The letter corresponding to the chosen word from the box ("A", "B", or "C").
+    * "explanation": Giải thích nghĩa của từ và nêu rõ lí do ngữ pháp cần chia dạng từ đó trong câu.
     * subtype: "None".`);
   }
 
@@ -1174,20 +1179,21 @@ DO NOT generate any question type that is not in this allowed list!
       id: "q_sc",
       type: "Sentence Completion",
       subtype: "None",
-      targetTerm: "take after",
-      wordBoxOptions: ["take after", "bring about", "cut corners"],
-      correctWordAnswer: "take after",
-      testedFocus: "cụm động từ 'take after'",
-      instruction: "Choose 1 correct word from the word box and type it into the blank to complete the sentence.",
-      question: "In terms of temperament, the young boy seems to _______ his grandfather.",
+      targetTerm: "manipulate",
+      wordBoxOptions: ["manipulate", "tackle", "fluctuate"],
+      correctWordAnswer: "manipulated",
+      acceptableAnswers: ["manipulated"],
+      testedFocus: "dạng quá khứ 'manipulated'",
+      instruction: "Complete the sentence by typing the correct form of one of the words provided in the box (change the form if necessary).",
+      question: "The software algorithm secretly _______ user preferences during the recent election campaign.",
       options: {
-        A: "take after",
-        B: "bring about",
-        C: "cut corners",
+        A: "manipulate",
+        B: "tackle",
+        C: "fluctuate",
         D: ""
       },
       correctAnswer: "A",
-      explanation: "Cụm động từ 'take after' có nghĩa là giống ai đó (về ngoại hình hoặc tính cách)."
+      explanation: "Từ cần điền là 'manipulate' (thao túng), nhưng theo ngữ cảnh câu diễn ra trong quá khứ ('during the recent election campaign'), học sinh phải chia dạng quá khứ đơn là 'manipulated'."
     });
   }
 
@@ -1459,8 +1465,21 @@ Return valid JSON in this exact structure:
         }
 
         wordBoxOptions = boxWords;
-        const matchedTarget = boxWords.find((w) => w.toLowerCase() === targetTerm.toLowerCase()) || targetTerm;
-        correctWordAnswer = matchedTarget;
+        const matchedNotebookTerm = boxWords.find((w) => w.toLowerCase() === targetTerm.toLowerCase()) || targetTerm;
+        const rawCorrectWord = String(item.correctWordAnswer || '').trim();
+        correctWordAnswer = rawCorrectWord || matchedNotebookTerm;
+
+        const acceptableAnswers: string[] = [];
+        if (Array.isArray(item.acceptableAnswers)) {
+          item.acceptableAnswers.forEach((a: any) => {
+            const s = String(a).trim();
+            if (s && !acceptableAnswers.includes(s)) acceptableAnswers.push(s);
+          });
+        }
+        if (correctWordAnswer && !acceptableAnswers.includes(correctWordAnswer)) {
+          acceptableAnswers.push(correctWordAnswer);
+        }
+
         optA = boxWords[0] || targetTerm;
         optB = boxWords[1] || '';
         optC = boxWords[2] || '';
@@ -1488,7 +1507,8 @@ Return valid JSON in this exact structure:
         suggestedSynonyms: finalSynonyms,
         suggestedAntonyms: finalAntonyms,
         wordBoxOptions,
-        correctWordAnswer
+        correctWordAnswer,
+        acceptableAnswers
       };
     });
 

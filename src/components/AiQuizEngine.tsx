@@ -275,12 +275,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>(() => getStoredQuizHistory());
   const [quizRound, setQuizRound] = useState<number>(1);
 
-  // Helper to determine if student's answer is correct
+  // Helper to determine if student's answer is correct (case-insensitive & inflected form check)
   const isAnswerCorrect = (q: QuizQuestion, userAns?: string): boolean => {
     if (!userAns || !userAns.trim()) return false;
     if (q.type === 'Sentence Completion') {
-      const correct = (q.correctWordAnswer || q.targetTerm || q.options[q.correctAnswer] || '').trim().toLowerCase();
-      return userAns.trim().toLowerCase() === correct;
+      const cleanUser = userAns.trim().replace(/[.,;!?]+$/, '').toLowerCase();
+      const targetAnswer = (q.correctWordAnswer || q.targetTerm || q.options[q.correctAnswer] || '').trim().replace(/[.,;!?]+$/, '').toLowerCase();
+      if (cleanUser === targetAnswer) return true;
+
+      if (q.acceptableAnswers && Array.isArray(q.acceptableAnswers)) {
+        return q.acceptableAnswers.some(
+          (alt) => alt.trim().replace(/[.,;!?]+$/, '').toLowerCase() === cleanUser
+        );
+      }
+      return false;
     }
     return userAns === q.correctAnswer;
   };
@@ -316,16 +324,14 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     }
   };
 
-  const [fallbackNotice, setFallbackNotice] = useState<string | null>(null);
-
   const handleGenerateQuiz = async () => {
     if (selectedTypes.length === 0) {
-      setErrorMsg('Vui lòng chọn ít nhất 1 dạng bài tập trắc nghiệm ở trên trước khi biên soạn đề.');
+      setErrorMsg('Vui lòng chọn ít nhất 1 dạng bài tập ở trên.');
       return;
     }
 
     if (targetVocabList.length === 0) {
-      setErrorMsg('Không có từ vựng nào trong danh sách được chọn. Hãy thêm từ vựng vào sổ tay trước.');
+      setErrorMsg('Chưa có từ vựng nào trong danh sách. Hãy thêm từ vựng vào sổ tay trước.');
       return;
     }
 
@@ -366,7 +372,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
     setIsLoading(true);
     setErrorMsg(null);
-    setFallbackNotice(null);
     setAnswers({});
     setInputAnswers({});
     setIsSubmitted(false);
@@ -381,9 +386,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
         questionCount,
         selectedTypes,
         (failedModel, nextModel, error) => {
-          setFallbackNotice(
-            `Model "${failedModel}" gặp sự cố (${error.slice(0, 80)}...). Tự động chuyển sang model dự phòng "${nextModel}".`
-          );
+          console.warn(`[EVM Gemini] Model ${failedModel} failed (${error.slice(0, 80)}...). Fallback to ${nextModel}.`);
         },
         accumulatedHistory
       );
@@ -441,12 +444,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     }
   };
 
-  const handleFillWordFromBox = (questionIdx: number, word: string) => {
-    if (isSubmitted && quizMode === 'exam') return;
-    if (quizMode === 'instant' && answers[questionIdx] !== undefined) return;
-    setInputAnswers((prev) => ({ ...prev, [questionIdx]: word }));
-  };
-
   const handleSubmitExam = () => {
     setIsSubmitted(true);
     let correctCount = 0;
@@ -477,27 +474,17 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   ).length;
 
   return (
-    <div className="space-y-8 max-w-4xl mx-auto">
-      {/* Banner */}
-      <div className="bg-gradient-to-r from-emerald-800 via-teal-800 to-indigo-900 rounded-2xl p-5 sm:p-6 text-white shadow-md">
-        <h1 className="text-xl sm:text-2xl font-black tracking-tight">
-          Luyện thi Trắc nghiệm Từ vựng AI
-        </h1>
-        <p className="mt-1 text-emerald-100 text-xs sm:text-sm">
-          Luyện tập các dạng câu hỏi trắc nghiệm bám sát cấu trúc đề thi THPT Quốc Gia.
-        </p>
-      </div>
-
+    <div className="space-y-6 max-w-4xl mx-auto">
       {/* Quiz Configuration Panel */}
-      <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3.5">
           <h3 className="font-extrabold text-slate-900 flex items-center gap-2 text-base">
             <SlidersHorizontal className="w-5 h-5 text-emerald-600" />
-            <span>Cấu hình Bài tập Trắc nghiệm</span>
+            <span>Cấu hình đề thi</span>
           </h3>
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-semibold border border-emerald-200">
-              Độ phủ sổ tay: <strong>{coverageStats.covered} / {coverageStats.total}</strong> từ {coverageStats.untested > 0 ? `(còn ${coverageStats.untested} từ chưa luyện)` : '(đã luyện đủ 100%)'}
+              Độ phủ: <strong>{coverageStats.covered}/{coverageStats.total}</strong> từ
             </span>
             {quizHistory.length > 0 && (
               <button
@@ -506,20 +493,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   setQuizHistory([]);
                   saveStoredQuizHistory([]);
                 }}
-                className="text-[11px] text-slate-400 hover:text-rose-600 underline cursor-pointer"
-                title="Xóa lịch sử để quay vòng luyện tập lại từ đầu"
+                className="text-xs text-slate-400 hover:text-rose-600 underline cursor-pointer"
+                title="Xóa lịch sử để làm lại từ đầu"
               >
-                Đặt lại vòng quay
+                Đặt lại
               </button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
           {/* Target Exam Filter */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Đề thi mục tiêu:
+              Đề thi:
             </label>
             <select
               value={filterExam}
@@ -546,7 +533,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           {/* Target Vocab Source */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Bộ lọc trạng thái:
+              Trạng thái:
             </label>
             <select
               value={filterVocabMode}
@@ -566,7 +553,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           {/* Number of Questions */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Số lượng câu hỏi:
+              Số câu:
             </label>
             <div className="flex items-center gap-1.5">
               {[3, 5, 8, 10].map((num) => (
@@ -589,7 +576,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           {/* Practice vs Exam Mode */}
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Chế độ luyện tập:
+              Chế độ:
             </label>
             <div className="flex items-center gap-1.5">
               <button
@@ -619,8 +606,8 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
         </div>
 
         {filterExam !== 'ALL' && (
-          <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl font-medium flex items-center justify-between animate-in fade-in">
-            <span>🎯 Phạm vi đề thi: <strong>{filterExam}</strong> ({targetVocabList.length} từ khả dụng)</span>
+          <div className="text-xs text-emerald-800 bg-emerald-50 border border-emerald-200 px-3.5 py-2 rounded-xl font-medium flex items-center justify-between">
+            <span>Phạm vi: <strong>{filterExam}</strong> ({targetVocabList.length} từ khả dụng)</span>
             <button
               type="button"
               onClick={() => {
@@ -637,21 +624,21 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
         {/* 3 Standard Formats */}
         <div>
           <label className="block text-xs font-semibold text-slate-700 mb-2">
-            Dạng bài tập trắc nghiệm:
+            Dạng bài:
           </label>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
               type="button"
               onClick={() => handleToggleType('Fill-in-the-blank')}
-              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Fill-in-the-blank')
                   ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
                   : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1">
                 <span className={`text-xs font-bold ${selectedTypes.includes('Fill-in-the-blank') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
-                  Điền từ vào câu
+                  Điền từ
                 </span>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
                   selectedTypes.includes('Fill-in-the-blank')
@@ -662,20 +649,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-500">
-                Điền từ/cụm từ mục tiêu vào chỗ trống phù hợp ngữ cảnh.
+                Điền từ phù hợp ngữ cảnh câu.
               </p>
             </button>
 
             <button
               type="button"
               onClick={() => handleToggleType('Synonyms/Antonyms')}
-              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Synonyms/Antonyms')
                   ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
                   : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1">
                 <span className={`text-xs font-bold ${selectedTypes.includes('Synonyms/Antonyms') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
                   Đồng nghĩa / Trái nghĩa
                 </span>
@@ -688,22 +675,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-500">
-                Tìm từ đồng nghĩa (Closest) hoặc trái nghĩa (Opposite).
+                Tìm từ đồng nghĩa hoặc trái nghĩa.
               </p>
             </button>
 
             <button
               type="button"
               onClick={() => handleToggleType('Sentence Completion')}
-              className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer ${
+              className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
                 selectedTypes.includes('Sentence Completion')
                   ? 'border-2 border-emerald-600 bg-emerald-50 text-slate-900 shadow-md ring-2 ring-emerald-500/20 scale-[1.01]'
                   : 'border border-slate-200/80 bg-slate-50/50 text-slate-500 opacity-70 hover:opacity-100 hover:border-slate-300'
               }`}
             >
-              <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center justify-between mb-1">
                 <span className={`text-xs font-bold ${selectedTypes.includes('Sentence Completion') ? 'text-emerald-950 font-extrabold' : 'text-slate-700'}`}>
-                  Hoàn thành câu (Tự gõ)
+                  Hoàn thành câu
                 </span>
                 <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold ${
                   selectedTypes.includes('Sentence Completion')
@@ -714,36 +701,24 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 </span>
               </div>
               <p className="text-[11px] leading-relaxed text-slate-500">
-                Học sinh tự gõ đáp án từ ô gợi ý gồm 3 từ trong sổ tay từ vựng.
+                Nhìn 3 từ gợi ý, tự gõ đáp án & chia đúng form nếu cần.
               </p>
             </button>
           </div>
         </div>
 
-        {fallbackNotice && (
-          <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs font-medium flex items-center gap-2">
-            <span className="font-bold">⚠️ Dự phòng:</span>
-            <span>{fallbackNotice}</span>
-          </div>
-        )}
-
         {errorMsg && (
-          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-medium space-y-1.5">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-rose-800">Lỗi từ Gemini API:</span>
-              {onOpenApiKeyModal && (
-                <button
-                  type="button"
-                  onClick={onOpenApiKeyModal}
-                  className="px-2 py-0.5 bg-white border border-rose-300 rounded text-rose-700 text-[11px] font-bold cursor-pointer"
-                >
-                  Đổi Key / Model
-                </button>
-              )}
-            </div>
-            <p className="font-mono text-rose-800 bg-white/70 p-2 rounded border border-rose-200 break-all">
-              {errorMsg}
-            </p>
+          <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-medium flex items-center justify-between gap-2">
+            <span>{errorMsg}</span>
+            {onOpenApiKeyModal && (
+              <button
+                type="button"
+                onClick={onOpenApiKeyModal}
+                className="px-2.5 py-1 bg-white border border-rose-300 rounded text-rose-700 text-xs font-bold cursor-pointer shrink-0"
+              >
+                Đổi Key
+              </button>
+            )}
           </div>
         )}
 
@@ -751,22 +726,23 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           type="button"
           disabled={isLoading || targetVocabList.length === 0 || selectedTypes.length === 0}
           onClick={handleGenerateQuiz}
-          className="w-full py-3.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
+          className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-indigo-600 hover:from-emerald-700 hover:to-indigo-700 text-white font-bold text-sm shadow-md shadow-emerald-200 disabled:opacity-50 flex items-center justify-center gap-2 transition-all cursor-pointer"
         >
           {isLoading ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span>AI đang biên soạn câu hỏi & phương án nhiễu (Distractors)...</span>
+              <span>AI đang tạo câu hỏi...</span>
             </>
           ) : selectedTypes.length === 0 ? (
-            <span>Vui lòng chọn ít nhất 1 dạng bài tập ở trên để bắt đầu</span>
+            <span>Vui lòng chọn ít nhất 1 dạng bài ở trên để bắt đầu</span>
           ) : (
             <>
               <Sparkles className="w-4 h-4 text-amber-300" />
-              <span>Biên soạn Đề trắc nghiệm ({targetVocabList.length} từ khả dụng)</span>
+              <span>Tạo đề trắc nghiệm</span>
             </>
           )}
         </button>
+      </div>
       </div>
 
       {/* Quiz Active Area */}
@@ -871,7 +847,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     : 'Mark the letter A, B, C, or D on your answer sheet to indicate the word(s) CLOSEST in meaning to the underlined word in the following question.'
                   : currentQ.type === 'Fill-in-the-blank'
                   ? 'Mark the letter A, B, C, or D on your answer sheet to indicate the correct word or phrase to complete the following sentence.'
-                  : 'Complete the sentence by typing the correct word chosen from the word box below.')
+                  : 'Complete the sentence by typing the correct form of one of the words provided in the box (change the form if necessary).')
             )}
 
             {/* Sentence Box */}
@@ -885,15 +861,15 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           {/* Options Section: Dạng Sentence Completion (Ô 3 từ + Tự gõ) vs Trắc nghiệm A,B,C,D thông thường */}
           {currentQ.type === 'Sentence Completion' ? (
             <div className="space-y-4">
-              {/* Word Box Container: Gồm chính xác 3 từ trong sổ tay từ vựng */}
+              {/* Word Box Container: Gồm chính xác 3 từ trong sổ tay từ vựng để học sinh nhìn và tự gõ */}
               <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 border-2 border-dashed border-indigo-300 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
                     <Package className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>Ô từ vựng (chọn 1 trong 3 từ thuộc sổ tay từ vựng của bạn):</span>
+                    <span>3 từ gợi ý trong sổ tay:</span>
                   </div>
-                  <span className="text-[11px] text-indigo-700 font-medium">
-                    Bấm chọn hoặc tự gõ vào ô nhập liệu bên dưới
+                  <span className="text-[11px] text-indigo-700 font-medium italic">
+                    Nhìn 3 từ gợi ý và tự gõ bằng bàn phím (chia đúng form từ nếu ngữ cảnh yêu cầu)
                   </span>
                 </div>
 
@@ -901,54 +877,22 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   {(currentQ.wordBoxOptions && currentQ.wordBoxOptions.length === 3
                     ? currentQ.wordBoxOptions
                     : [currentQ.targetTerm]
-                  ).map((word, wIdx) => {
-                    const isSelectedInInput =
-                      (inputAnswers[activeQuestionIdx] || '').trim().toLowerCase() ===
-                      word.toLowerCase();
-                    const isSaved =
-                      (answers[activeQuestionIdx] || '').trim().toLowerCase() ===
-                      word.toLowerCase();
-                    const isTargetCorrect =
-                      (currentQ.correctWordAnswer || currentQ.targetTerm).toLowerCase() ===
-                      word.toLowerCase();
-                    const showResult =
-                      (quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
-                      isSubmitted;
-
-                    let btnStyle =
-                      'bg-white text-slate-800 border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/60 shadow-xs';
-                    if (showResult) {
-                      if (isTargetCorrect) {
-                        btnStyle = 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-500/20';
-                      } else if (isSaved && !isTargetCorrect) {
-                        btnStyle = 'bg-rose-600 text-white border-rose-600 ring-2 ring-rose-500/20';
-                      }
-                    } else if (isSaved || isSelectedInInput) {
-                      btnStyle = 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-500/20';
-                    }
-
-                    return (
-                      <button
-                        key={wIdx}
-                        type="button"
-                        disabled={showResult}
-                        onClick={() => handleFillWordFromBox(activeQuestionIdx, word)}
-                        className={`py-3 px-4 rounded-xl border text-center font-bold text-sm tracking-wide transition-all cursor-pointer ${btnStyle} ${
-                          showResult ? 'cursor-default' : ''
-                        }`}
-                      >
-                        {word}
-                      </button>
-                    );
-                  })}
+                  ).map((word, wIdx) => (
+                    <div
+                      key={wIdx}
+                      className="py-3 px-4 rounded-xl bg-white border border-indigo-200 text-center font-bold text-sm text-slate-800 shadow-2xs tracking-wide select-none"
+                    >
+                      {word}
+                    </div>
+                  ))}
                 </div>
               </div>
 
               {/* Typing Input Box */}
-              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+              <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2.5">
                 <label className="block text-xs font-bold text-slate-700 flex items-center gap-2">
                   <Edit3 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Học sinh tự gõ câu trả lời:</span>
+                  <span>Gõ câu trả lời (chia đúng form từ nếu ngữ cảnh yêu cầu):</span>
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -973,7 +917,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                         handleConfirmTypedAnswer(activeQuestionIdx);
                       }
                     }}
-                    placeholder="Gõ từ bạn chọn từ ô 3 từ ở trên..."
+                    placeholder="Gõ từ vào đây bằng bàn phím (không phân biệt hoa thường)..."
                     className={`flex-1 px-4 py-3 rounded-xl border text-sm font-semibold focus:outline-none transition-all ${
                       ((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
                         isSubmitted)
@@ -1001,12 +945,6 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                     </button>
                   )}
                 </div>
-                {!((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
-                  isSubmitted) && (
-                  <p className="text-[11px] text-slate-500 italic">
-                    Gợi ý: Bạn có thể bấm chọn từ ở ô gợi ý trên hoặc tự gõ phím rồi bấm "Kiểm tra" (hoặc nhấn phím Enter).
-                  </p>
-                )}
               </div>
             </div>
           ) : (

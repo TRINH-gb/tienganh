@@ -1055,6 +1055,9 @@ export async function generateQuizWithFallback(
     ? questionTypes
     : ['Fill-in-the-blank', 'Synonyms/Antonyms', 'Sentence Completion'];
 
+  const numQuestions = Math.min(Number(count) || 5, vocabularyList.length || 5);
+  const targetTermsList = vocabularyList.slice(0, numQuestions).map((v) => v.term);
+
   const vocabSummary = vocabularyList.slice(0, 30).map((v) => ({
     term: v.term,
     type: v.type,
@@ -1277,6 +1280,12 @@ USER'S TARGET VOCABULARY LIST (Prioritized order):
 ${JSON.stringify(vocabSummary, null, 2)}
 ${historySection}
 ${typeConstraintNotice}
+CRITICAL MANDATORY CONSTRAINT - 100% DISTINCT TARGET TERMS PER QUESTION (MỖI CÂU 1 TỪ KHÁC NHAU, TUYỆT ĐỐI KHÔNG TRÙNG LẶP TỪ):
+- You MUST generate exactly ${numQuestions} questions.
+- EACH QUESTION MUST TEST A COMPLETELY DIFFERENT VOCABULARY ITEM:
+${targetTermsList.map((t, idx) => `  * Question ${idx + 1}: MUST test target word/phrase: "${t}"`).join('\n')}
+- STRICTLY FORBIDDEN: DO NOT repeat or test the same target term more than once in this quiz!
+- STRICTLY FORBIDDEN: DO NOT repeat the same context sentence! Every question MUST have an authentic, completely distinct context sentence!
 SPECIFICATIONS:
 1. Target Question Types to generate:
 ${specList.join('\n')}
@@ -1589,7 +1598,21 @@ Return valid JSON in this exact structure:
       };
     });
 
-    return formatted;
+    // Deduplicate questions by targetTerm and sentence to guarantee distinct questions
+    const seenTerms = new Set<string>();
+    const seenSentences = new Set<string>();
+    const deduplicated: QuizQuestion[] = [];
+    for (const q of formatted) {
+      const tKey = q.targetTerm.trim().toLowerCase();
+      const sKey = q.question.trim().toLowerCase();
+      if (tKey && seenTerms.has(tKey)) continue;
+      if (sKey && seenSentences.has(sKey)) continue;
+      if (tKey) seenTerms.add(tKey);
+      if (sKey) seenSentences.add(sKey);
+      deduplicated.push(q);
+    }
+
+    return deduplicated.length > 0 ? deduplicated : formatted;
   }, onModelFallback);
 
   return formattedQuestions;

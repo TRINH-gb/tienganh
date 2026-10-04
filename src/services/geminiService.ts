@@ -1512,6 +1512,7 @@ Return valid JSON in this exact structure:
 
       let wordBoxOptions: string[] | undefined = undefined;
       let correctWordAnswer: string | undefined = undefined;
+      let acceptableAnswers: string[] | undefined = undefined;
 
       if (type === 'Sentence Completion') {
         const targetTerm = String(item.targetTerm || '').trim();
@@ -1544,16 +1545,17 @@ Return valid JSON in this exact structure:
         const rawCorrectWord = String(item.correctWordAnswer || '').trim();
         correctWordAnswer = rawCorrectWord || matchedNotebookTerm;
 
-        const acceptableAnswers: string[] = [];
+        const answersList: string[] = [];
         if (Array.isArray(item.acceptableAnswers)) {
           item.acceptableAnswers.forEach((a: any) => {
             const s = String(a).trim();
-            if (s && !acceptableAnswers.includes(s)) acceptableAnswers.push(s);
+            if (s && !answersList.includes(s)) answersList.push(s);
           });
         }
-        if (correctWordAnswer && !acceptableAnswers.includes(correctWordAnswer)) {
-          acceptableAnswers.push(correctWordAnswer);
+        if (correctWordAnswer && !answersList.includes(correctWordAnswer)) {
+          answersList.push(correctWordAnswer);
         }
+        acceptableAnswers = answersList;
 
         optA = boxWords[0] || targetTerm;
         optB = boxWords[1] || '';

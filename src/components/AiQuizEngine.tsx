@@ -743,7 +743,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           )}
         </button>
       </div>
-      </div>
+     
 
       {/* Quiz Active Area */}
       {questions.length > 0 && (

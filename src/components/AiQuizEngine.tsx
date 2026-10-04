@@ -861,16 +861,11 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           {/* Options Section: Dạng Sentence Completion (Ô 3 từ + Tự gõ) vs Trắc nghiệm A,B,C,D thông thường */}
           {currentQ.type === 'Sentence Completion' ? (
             <div className="space-y-4">
-              {/* Word Box Container: Gồm chính xác 3 từ trong sổ tay từ vựng để học sinh nhìn và tự gõ */}
+              {/* Word Box Container */}
               <div className="p-4 sm:p-5 rounded-2xl bg-indigo-50/70 border-2 border-dashed border-indigo-300 space-y-3">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
-                    <Package className="w-4 h-4 text-indigo-600 shrink-0" />
-                    <span>3 từ gợi ý trong sổ tay:</span>
-                  </div>
-                  <span className="text-[11px] text-indigo-700 font-medium italic">
-                    Nhìn 3 từ gợi ý và tự gõ bằng bàn phím (chia đúng form từ nếu ngữ cảnh yêu cầu)
-                  </span>
+                <div className="flex items-center gap-2 text-xs font-bold text-indigo-950">
+                  <Package className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>3 từ gợi ý:</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -892,7 +887,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
               <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2.5">
                 <label className="block text-xs font-bold text-slate-700 flex items-center gap-2">
                   <Edit3 className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Gõ câu trả lời (chia đúng form từ nếu ngữ cảnh yêu cầu):</span>
+                  <span>Nhập đáp án (chia dạng từ nếu cần):</span>
                 </label>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
@@ -917,7 +912,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                         handleConfirmTypedAnswer(activeQuestionIdx);
                       }
                     }}
-                    placeholder="Gõ từ vào đây bằng bàn phím (không phân biệt hoa thường)..."
+                    placeholder="Nhập từ cần điền..."
                     className={`flex-1 px-4 py-3 rounded-xl border text-sm font-semibold focus:outline-none transition-all ${
                       ((quizMode === 'instant' && answers[activeQuestionIdx] !== undefined) ||
                         isSubmitted)

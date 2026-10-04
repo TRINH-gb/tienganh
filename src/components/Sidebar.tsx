@@ -130,23 +130,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
               title="Online"
             />
           </div>
-          <div className="min-w-0 flex-1 text-left">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs font-black text-slate-900 truncate">
-                Developed by Ms.Trinh
-              </span>
-              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-indigo-100 text-indigo-800 shrink-0">
-                Author & Teacher
-              </span>
-            </div>
-            <p className="text-[10.5px] text-slate-600 font-semibold truncate mt-0.5" title="THPT Võ Thị Sáu Bà Rịa - Vũng Tàu">
-              🏫 THPT Võ Thị Sáu Bà Rịa - Vũng Tàu
+          <div className="min-w-0 flex-1 text-left space-y-0.5">
+            <p className="text-xs font-black text-slate-900 leading-snug">
+              Developed by Ms.Trinh
+            </p>
+            <p className="text-[11px] font-semibold text-slate-600 leading-snug">
+              THPT Võ Thị Sáu Bà Rịa Vũng Tàu
             </p>
             <a
               href="tel:0397726024"
-              className="text-[10.5px] text-indigo-700 hover:text-indigo-900 font-mono font-bold flex items-center gap-1 mt-0.5 hover:underline"
+              className="text-[11px] text-indigo-700 hover:text-indigo-900 font-mono font-bold flex items-center gap-1 hover:underline pt-0.5"
             >
-              📞 0397726024
+              📞 039.772.6024
             </a>
           </div>
         </div>
@@ -381,7 +376,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="min-w-0">
           <p className="font-bold text-slate-700 leading-tight truncate">MASTER THPTQG TIENG ANH</p>
           <p className="text-[10px] text-indigo-700 font-semibold truncate mt-0.5">
-            Developed by Ms.Trinh 0397726024 • THPT Võ Thị Sáu (BR-VT)
+            Developed by Ms.Trinh • THPT Võ Thị Sáu Bà Rịa Vũng Tàu • 039.772.6024
           </p>
         </div>
       </div>

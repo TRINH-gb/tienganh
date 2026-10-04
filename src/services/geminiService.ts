@@ -19,10 +19,10 @@ export const SUPPORTED_MODELS = [
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
   },
   {
-    id: 'gemini-1.5-pro',
-    name: 'Gemini 1.5 Pro',
-    tag: 'Dự phòng chuyên sâu',
-    description: 'Tư duy học thuật chuyên sâu, phân tích cấu trúc đề thi chuẩn xác.',
+    id: 'gemini-1.5-flash-8b',
+    name: 'Gemini 1.5 Flash-8B',
+    tag: 'Dự phòng siêu nhẹ',
+    description: 'Mô hình gọn nhẹ, phản hồi cực nhanh khi mạng chập chờn.',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
   }
 ];
@@ -32,7 +32,7 @@ export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
 export const FALLBACK_CHAIN = [
   'gemini-2.0-flash',
   'gemini-1.5-flash',
-  'gemini-1.5-pro'
+  'gemini-1.5-flash-8b'
 ];
 
 export function getStoredApiKey(): string {
@@ -66,6 +66,7 @@ export function getStoredModel(): string {
     saved.includes('3.8') ||
     saved.includes('3-') ||
     saved.includes('2.5') ||
+    saved.includes('1.5-pro') ||
     saved.includes('-preview') ||
     !SUPPORTED_MODELS.some((m) => m.id === saved)
   ) {
@@ -301,6 +302,7 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
           !id.includes('preview') &&
           !id.includes('experimental') &&
           !id.includes('2.5-flash-lite') && // Exclude known 404 in Google AI Studio
+          !id.includes('1.5-pro') && // Exclude 1.5-pro because Google returns 404 on v1beta
           !id.includes('3-') &&
           !id.includes('3.')
       );
@@ -308,13 +310,13 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
       // Stable priority sorting:
       // 0: gemini-2.0-flash
       // 1: gemini-1.5-flash
-      // 2: gemini-1.5-pro
+      // 2: gemini-1.5-flash-8b
       // 3: other flash models
       return valid.sort((a, b) => {
         const getScore = (name: string) => {
           if (name === 'gemini-2.0-flash') return 0;
           if (name === 'gemini-1.5-flash') return 1;
-          if (name === 'gemini-1.5-pro') return 2;
+          if (name === 'gemini-1.5-flash-8b') return 2;
           if (name.includes('2.0-flash')) return 3;
           if (name.includes('1.5-flash')) return 4;
           if (name.includes('flash')) return 5;
@@ -431,19 +433,31 @@ export async function executeWithFallback<T>(
   // 1. Fetch live models directly from Google AI Studio for this specific key
   const liveModels = await getLiveModelsFromGoogle(apiKey);
 
-  const preferredModel = cleanModelId(getStoredModel());
+  const rawPreferred = cleanModelId(getStoredModel());
+  const preferredModel = rawPreferred.includes('1.5-pro') ? DEFAULT_MODEL_ID : rawPreferred;
   const modelsToTry: string[] = [];
 
-  // Prioritize user's preferred model first
-  if (preferredModel) {
-    modelsToTry.push(preferredModel);
-  }
-
-  // Next, add the verified stable FALLBACK_CHAIN models
-  for (const m of FALLBACK_CHAIN) {
-    const clean = cleanModelId(m);
-    if (!modelsToTry.includes(clean)) {
-      modelsToTry.push(clean);
+  if (liveModels && liveModels.length > 0) {
+    // If the user's preferred model is confirmed alive by Google AI Studio, put it first
+    if (preferredModel && liveModels.includes(preferredModel)) {
+      modelsToTry.push(preferredModel);
+    }
+    // Then add all remaining live models that Google returned
+    for (const m of liveModels) {
+      if (!modelsToTry.includes(m)) {
+        modelsToTry.push(m);
+      }
+    }
+  } else {
+    // Fallback if live models query failed
+    if (preferredModel) {
+      modelsToTry.push(preferredModel);
+    }
+    for (const m of FALLBACK_CHAIN) {
+      const clean = cleanModelId(m);
+      if (!modelsToTry.includes(clean)) {
+        modelsToTry.push(clean);
+      }
     }
   }
 

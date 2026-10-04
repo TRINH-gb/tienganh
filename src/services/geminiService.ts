@@ -342,19 +342,20 @@ async function callGeminiDirect(
   apiKey: string,
   prompt: string,
   systemInstruction: string = SYSTEM_INSTRUCTION_EVM,
-  pdfBase64?: string
+  fileBase64?: string,
+  fileMimeType?: string
 ): Promise<string> {
   const cleanModel = cleanModelId(model);
   const key = apiKey.trim();
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
 
   const parts: any[] = [];
-  if (pdfBase64 && typeof pdfBase64 === 'string' && pdfBase64.trim()) {
+  if (fileBase64 && typeof fileBase64 === 'string' && fileBase64.trim()) {
     // Official Google Gemini REST API schema: inlineData with mimeType and base64 data
     parts.push({
       inlineData: {
-        mimeType: 'application/pdf',
-        data: pdfBase64.trim()
+        mimeType: fileMimeType || 'application/pdf',
+        data: fileBase64.trim()
       }
     });
   }
@@ -572,32 +573,38 @@ export async function extractVocabularyWithFallback(
   categories: VocabCategory[],
   onStepProgress?: (step: 1 | 2 | 3, status: 'running' | 'completed' | 'failed', message?: string) => void,
   onModelFallback?: (failedModel: string, nextModel: string, error: string) => void,
-  pdfBase64?: string,
-  prioritizeYellowHighlights: boolean = true
+  fileBase64?: string,
+  prioritizeHighlights: boolean = true,
+  fileMimeType: string = 'application/pdf'
 ): Promise<ExtractionResult> {
   const categoryConstraint =
     categories && categories.length > 0
       ? `Focus particularly on these categories: ${categories.join(', ')}.`
       : `Categorize all items into the 5 standard categories: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.`;
 
-  const highlightSection = (prioritizeYellowHighlights || pdfBase64)
-    ? `
-CRITICAL TARGET INSTRUCTION - MANDATORY FOCUS ON YELLOW HIGHLIGHTED TERMS:
-The uploaded exam document contains specific target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED IN YELLOW (màu vàng / yellow highlighter / yellow background shading / marker / annotations) by the teacher.
+  const isImage = Boolean(fileMimeType && fileMimeType.startsWith('image/'));
 
-YOUR HIGHEST PRIORITY IS TO EXTRACT 100% OF THESE YELLOW-HIGHLIGHTED ITEMS:
-1. VISUAL SCANNING: Scrutinize every page and line of the PDF to identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that have a YELLOW background or yellow highlight mark, OR are tagged with [BÔI VÀNG: ...] or ==...== in the text.
-2. EXHAUSTIVE EXTRACTION MANDATE: You MUST extract 100% of these yellow-highlighted items without skipping or omitting any. If there are 12 yellow-highlighted terms in the PDF, you must extract all 12.
+  const highlightSection = (prioritizeHighlights || fileBase64)
+    ? `
+CRITICAL TARGET INSTRUCTION - MANDATORY FOCUS ON HIGHLIGHTED & MARKED TERMS:
+The uploaded ${isImage ? 'IMAGE (PHOTO OF PAPER EXAM / ẢNH CHỤP ĐỀ THI GIẤY)' : 'exam document'} contains target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED BY HIGHLIGHTER PEN / BÚT DẠ QUANG (any neon color: yellow/vàng, green/xanh lá, pink/hồng, orange/cam, blue/xanh dương...), or underlined/circled with pen on paper or PDF annotations.
+
+YOUR HIGHEST PRIORITY IS TO EXTRACT 100% OF THESE HIGHLIGHTED ITEMS:
+1. VISUAL OCR & COLOR SCANNING: Scrutinize the entire ${isImage ? 'image photo of the paper exam' : 'PDF document'} carefully line by line. Visually identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that:
+   - Are highlighted with ANY highlighter pen (bút dạ quang / bút highlight màu vàng, xanh lá, cam, hồng, xanh dương...).
+   - Have a color-shaded background, underline, or marker annotation.
+   - Or are tagged with [BÔI VÀNG: ...] or ==...== in the text.
+2. EXHAUSTIVE EXTRACTION MANDATE: You MUST extract 100% of these highlighted items without skipping or omitting any. If there are highlighted terms on the paper exam, you must extract all of them.
 3. For each extracted item:
-   - "term": Canonical/dictionary base form of the word or phrase (e.g. "make a decision", "break down", "look forward to", "in terms of").
+   - "term": Canonical/dictionary base form of the word or phrase (e.g. "make a decision", "break down", "look forward to", "in terms of", "sustainable").
    - "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
    - "ipa": Standard Cambridge/Oxford phonetic transcription (e.g. "/meɪk ə dɪˈsɪʒ.ən/").
    - "meaning": Accurate Vietnamese translation fitting the exact context of the exam sentence.
    - "context": EXACT sentence from the exam where the word appears, with the target term enclosed in **bold**.
    - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
    - "examTip": Pedagogical note explaining common exam traps, prepositions, or distractors tested in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT).
-   - "isHighlighted": true (set to true for all items that were highlighted in yellow).
-4. In addition to all yellow-highlighted items, you may also include any other high-yield B1-C1 vocabulary items from the exam, but yellow-highlighted terms are MANDATORY.`
+   - "isHighlighted": true (set to true for all items that were highlighted with pen/marker).
+4. In addition to all highlighted items, you may also include any other high-yield B1-C1 vocabulary items from the exam, but highlighted terms are MANDATORY.`
     : '';
 
   const prompt = `Act as the AI English Exam Vocabulary Architect (EVM) specializing in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT môn Tiếng Anh).
@@ -609,13 +616,16 @@ ${categoryConstraint}
 
 EXAM TITLE / SOURCE: ${examTitle || 'Đề thi trích dẫn'}
 
-${pdfBase64 ? 'NOTE: The complete authentic exam PDF document is attached as inline document data. Please inspect it visually page by page to detect all yellow-highlighted terms and read all text.' : ''}
+${fileBase64 ? (isImage
+  ? 'NOTE: The photo of the paper exam is attached as inline image data. Please visually inspect the entire photo, detect all words highlighted with highlighter pens (bút dạ quang/bút highlight mọi màu sắc: vàng, xanh lá, cam, hồng, xanh dương...), read the surrounding context sentences, and extract all highlighted words.'
+  : 'NOTE: The complete authentic exam PDF document is attached as inline document data. Please inspect it visually page by page to detect all highlighted terms and read all text.')
+  : ''}
 ${examText ? `EXAM TEXT CONTEXT:\n"""\n${examText.slice(0, 20000)}\n"""` : ''}
 
 REQUIRED JSON OUTPUT FORMAT:
 Ensure the response is valid JSON matching this schema:
 {
-  "summary": "Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi vàng đã nhận diện thành công từ PDF, các cấu trúc phân hóa cao và độ khó tổng thể.",
+  "summary": "Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ ảnh chụp/tệp đề thi, các cấu trúc phân hóa cao và độ khó tổng thể.",
   "vocabulary": [
     {
       "type": "Collocation",
@@ -628,13 +638,23 @@ Ensure the response is valid JSON matching this schema:
       "isHighlighted": true
     }
   ]
-}`;
+}
 
-  if (onStepProgress) onStepProgress(1, 'running', 'Đang phân tích cấu trúc & quét thị giác nhận diện từ bôi vàng...');
+Respond ONLY with valid JSON. No conversational preamble.`;
+
+  if (onStepProgress) {
+    onStepProgress(
+      1,
+      'running',
+      isImage
+        ? 'Đang quét thị giác ảnh chụp đề giấy & nhận diện vệt bút highlight...'
+        : 'Đang phân tích cấu trúc & quét thị giác nhận diện từ bôi vàng/highlight...'
+    );
+  }
 
   try {
     const extractionResult = await executeWithFallback(async (model, apiKey) => {
-      const rawText = await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, pdfBase64);
+      const rawText = await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, fileBase64, fileMimeType);
       const parsed = extractJsonFromText(rawText);
       const vocabList = extractVocabArray(parsed);
       if (!vocabList || !Array.isArray(vocabList) || vocabList.length === 0) {

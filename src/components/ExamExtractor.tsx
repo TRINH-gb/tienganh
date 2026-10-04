@@ -15,7 +15,9 @@ import {
   CheckCircle2,
   RefreshCw,
   Cpu,
-  Trash2
+  Trash2,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory } from '../types';
 import { speakEnglish } from '../utils/tts';
@@ -53,6 +55,9 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   onOpenApiKeyModal
 }) => {
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: number } | null>(null);
+  const [uploadedFileType, setUploadedFileType] = useState<'pdf' | 'image' | 'text' | null>(null);
+  const [uploadedFileMime, setUploadedFileMime] = useState<string>('application/pdf');
+  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
   const [examTitle, setExamTitle] = useState<string>('');
   const [examText, setExamText] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
@@ -129,7 +134,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
   const handleRunAiExtraction = async () => {
     if (!isFileUploaded) {
-      setErrorMsg('Vui lòng tải tệp đề thi PDF cần phân tích.');
+      setErrorMsg('Vui lòng tải tệp đề thi PDF hoặc ảnh chụp đề giấy cần phân tích.');
       return;
     }
 
@@ -148,10 +153,14 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     setSteps([
       {
         step: 1,
-        title: 'Bước 1: Phân tích Ngữ liệu',
-        desc: 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
+        title: 'Bước 1: Phân tích Ngữ liệu & Thị giác',
+        desc: uploadedFileType === 'image'
+          ? 'Quét thị giác ảnh đề giấy & nhận diện vệt bút dạ quang / highlight'
+          : 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
         status: 'running',
-        message: 'Đang khởi chạy phân tích cấu trúc...'
+        message: uploadedFileType === 'image'
+          ? 'Gemini Vision đang quét thị giác ảnh đề giấy để nhận diện các từ bôi highlight...'
+          : 'Đang khởi chạy phân tích cấu trúc...'
       },
       {
         step: 2,
@@ -169,7 +178,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
     try {
       const result = await extractVocabularyWithFallback(
-        examText || 'Nội dung đề thi từ tệp PDF',
+        examText || (uploadedFileType === 'image' ? 'Ảnh chụp đề thi giấy' : 'Nội dung đề thi từ tệp PDF'),
         examTitle || uploadedFile?.name || 'Đề thi trích dẫn',
         selectedCategories,
         // Step progress callback
@@ -184,7 +193,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           );
         },
         uploadedPdfBase64 || undefined,
-        prioritizeHighlights
+        prioritizeHighlights,
+        uploadedFileMime
       );
 
       // On complete success
@@ -284,9 +294,52 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     setPdfStatusMsg(null);
     setErrorMsg(null);
 
-    // If PDF file
+    // 1. If Image file (photo of paper exam)
+    if (file.type.startsWith('image/') || file.name.match(/\.(jpe?g|png|webp|heic|bmp|tiff)$/i)) {
+      setIsReadingPdf(true);
+      setUploadedFileType('image');
+      const mime = file.type || 'image/jpeg';
+      setUploadedFileMime(mime);
+      setPdfStatusMsg({
+        type: 'info',
+        text: `Đang tải và xử lý ảnh chụp đề thi "${file.name}"...`
+      });
+
+      try {
+        const b64 = await readFileAsBase64(file);
+        setUploadedPdfBase64(b64);
+        if (imagePreviewUrl) {
+          URL.revokeObjectURL(imagePreviewUrl);
+        }
+        const preview = URL.createObjectURL(file);
+        setImagePreviewUrl(preview);
+        setExamText(`[Ảnh chụp đề thi: ${file.name}]`);
+        setPrioritizeHighlights(true);
+        setPdfStatusMsg({
+          type: 'success',
+          text: `✔ Đã nạp ảnh chụp đề thi "${file.name}". AI Gemini Vision sẵn sàng quét thị giác nhận diện toàn bộ các từ được dùng bút highlight (vàng, cam, hồng, xanh...) trên trang giấy!`
+        });
+      } catch (err: any) {
+        console.error('Lỗi khi đọc file ảnh:', err);
+        setPdfStatusMsg({
+          type: 'error',
+          text: `Không thể đọc ảnh: ${err.message || 'Lỗi không xác định'}`
+        });
+      } finally {
+        setIsReadingPdf(false);
+      }
+      return;
+    }
+
+    // 2. If PDF file
     if (file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf') {
       setIsReadingPdf(true);
+      setUploadedFileType('pdf');
+      setUploadedFileMime('application/pdf');
+      if (imagePreviewUrl) {
+        URL.revokeObjectURL(imagePreviewUrl);
+        setImagePreviewUrl(null);
+      }
       setPdfStatusMsg({
         type: 'info',
         text: `Đang giải mã và đọc nội dung văn bản & thị giác từ tệp PDF "${file.name}"...`
@@ -306,13 +359,13 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           setExamText(`[Tệp PDF Scan: ${file.name}]`);
           setPdfStatusMsg({
             type: 'warning',
-            text: `⚠️ Tệp PDF "${file.name}" là tệp scan dạng ảnh. Đã kích hoạt chế độ Quét Thị Giác (Vision PDF) trực tiếp để nhận diện 100% các từ bôi vàng!`
+            text: `⚠️ Tệp PDF "${file.name}" là tệp scan dạng ảnh. Đã kích hoạt chế độ Quét Thị Giác (Vision PDF) trực tiếp để nhận diện 100% các từ bôi highlight!`
           });
         } else {
           setExamText(text);
           setPdfStatusMsg({
             type: 'success',
-            text: `✔ Đã nạp tệp PDF "${file.name}" (${text.length} ký tự). Đã kích hoạt Chế độ Quét Thị Giác (Vision) nhận diện 100% các từ bôi vàng!`
+            text: `✔ Đã nạp tệp PDF "${file.name}" (${text.length} ký tự). Đã kích hoạt Chế độ Quét Thị Giác (Vision) nhận diện 100% các từ bôi highlight!`
           });
         }
       } catch (err: any) {
@@ -326,7 +379,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         } catch {}
         setPdfStatusMsg({
           type: 'info',
-          text: `Đã nạp tệp PDF "${file.name}". AI Gemini Vision sẽ quét thị giác trực tiếp tệp gốc để nhận diện các từ bôi vàng.`
+          text: `Đã nạp tệp PDF "${file.name}". AI Gemini Vision sẽ quét thị giác trực tiếp tệp gốc để nhận diện các từ bôi highlight.`
         });
       } finally {
         setIsReadingPdf(false);
@@ -334,8 +387,13 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       return;
     }
 
-    // If TXT or other text file
+    // 3. If TXT or other text file
+    setUploadedFileType('text');
     setUploadedPdfBase64(null);
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
@@ -367,7 +425,12 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   };
 
   const handleRemoveUploadedFile = () => {
+    if (imagePreviewUrl) {
+      URL.revokeObjectURL(imagePreviewUrl);
+      setImagePreviewUrl(null);
+    }
     setUploadedFile(null);
+    setUploadedFileType(null);
     setUploadedPdfBase64(null);
     setExamText('');
     setExamTitle('');
@@ -631,18 +694,18 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       </div>
     )}
 
-      {/* Minimalist & Professional PDF Exam Workspace Card */}
+      {/* Minimalist & Professional Exam Workspace Card */}
       <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200 shadow-xs space-y-5">
         <input
           ref={fileInputRef}
           type="file"
-          accept=".pdf,.txt,.doc,.docx"
+          accept=".pdf,image/*,.jpg,.jpeg,.png,.webp,.heic,.txt"
           onChange={handleFileInputChange}
           className="hidden"
           disabled={isReadingPdf}
         />
 
-        {/* Upload Zone ("Tải đề thi PDF") */}
+        {/* Upload Zone */}
         {!uploadedFile ? (
           <div
             onDragOver={(e) => {
@@ -658,29 +721,48 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 : 'border-slate-300 hover:border-indigo-500 bg-slate-50/60 hover:bg-indigo-50/30'
             }`}
           >
-            <div className="w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-xs group-hover:scale-105 group-hover:bg-indigo-100 transition-all">
+            <div className="relative w-16 h-16 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100/80 shadow-xs group-hover:scale-105 group-hover:bg-indigo-100 transition-all">
               <UploadCloud className="w-8 h-8 text-indigo-600" />
+              <div className="absolute -bottom-1 -right-1 bg-amber-400 text-amber-950 p-1.5 rounded-full shadow-xs">
+                <Camera className="w-3.5 h-3.5" />
+              </div>
             </div>
 
             <div className="space-y-1">
               <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
-                Tải đề thi PDF
+                Tải đề thi PDF hoặc Ảnh chụp đề giấy
               </h3>
               <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Kéo thả tệp đề thi <span className="font-bold text-indigo-600">.PDF</span> vào đây hoặc bấm để chọn tệp từ máy tính
+                Kéo thả tệp đề thi <span className="font-bold text-indigo-600">.PDF</span> hoặc <span className="font-bold text-emerald-600">Ảnh chụp đề giấy (đã tô bút highlight)</span> vào đây
               </p>
             </div>
 
+            <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
+                <FileText className="w-3.5 h-3.5" />
+                <span>Đề thi PDF</span>
+              </span>
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-1">
+                <ImageIcon className="w-3.5 h-3.5 text-amber-600" />
+                <span>Ảnh chụp đề giấy (JPG, PNG)</span>
+              </span>
+              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Nhận diện bút highlight mọi màu</span>
+              </span>
+            </div>
           </div>
         ) : isReadingPdf ? (
           <div className="border-2 border-indigo-200 bg-indigo-50/40 rounded-2xl p-8 text-center flex flex-col items-center justify-center gap-3 animate-pulse">
             <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
             <div className="space-y-1">
               <h4 className="text-sm font-bold text-indigo-900">
-                Đang đọc và giải mã tệp PDF...
+                {uploadedFileType === 'image'
+                  ? 'Đang chuẩn bị ảnh chụp và kích hoạt AI Gemini Vision...'
+                  : 'Đang đọc và giải mã tệp PDF...'}
               </h4>
               <p className="text-xs text-indigo-700">
-                Hệ thống đang trích xuất nội dung văn bản và chuẩn bị quét thị giác các trang đề thi
+                Hệ thống đang trích xuất dữ liệu và chuẩn bị quét thị giác nhận diện từ vựng bôi highlight
               </p>
             </div>
           </div>
@@ -688,21 +770,37 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           <div className="border border-emerald-200 bg-emerald-50/30 rounded-2xl p-5 sm:p-6 transition-all">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 font-black text-xs shadow-xs">
-                  PDF
-                </div>
+                {uploadedFileType === 'image' && imagePreviewUrl ? (
+                  <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-emerald-300 shrink-0 bg-slate-100 shadow-xs group">
+                    <img
+                      src={imagePreviewUrl}
+                      alt="Ảnh chụp đề thi"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ) : (
+                  <div className="w-12 h-12 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 font-black text-xs shadow-xs">
+                    {uploadedFileType === 'image' ? 'IMG' : 'PDF'}
+                  </div>
+                )}
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <h4 className="text-sm sm:text-base font-extrabold text-slate-900 break-all">
                       {uploadedFile.name}
                     </h4>
-                    <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>Đã tải xong • Sẵn sàng phân tích</span>
-                    </span>
+                    {uploadedFileType === 'image' ? (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                        📸 Ảnh chụp đề giấy • Quét bút Highlight
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                        <span>Đã tải xong • Sẵn sàng phân tích</span>
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    Kích thước: {(uploadedFile.size / 1024).toFixed(1)} KB • {examText ? `${examText.length} ký tự trích xuất` : 'Quét thị giác Gemini Vision'}
+                    Kích thước: {(uploadedFile.size / 1024).toFixed(1)} KB • {uploadedFileType === 'image' ? 'Quét thị giác Gemini Vision' : (examText ? `${examText.length} ký tự trích xuất` : 'Quét thị giác Gemini Vision')}
                   </p>
                 </div>
               </div>
@@ -713,7 +811,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                   onClick={() => fileInputRef.current?.click()}
                   className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                 >
-                  Đổi tệp PDF khác
+                  {uploadedFileType === 'image' ? 'Đổi ảnh khác' : 'Đổi tệp PDF khác'}
                 </button>
                 <button
                   type="button"
@@ -865,7 +963,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </span>
               {highlightedCount > 0 && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-300 text-amber-950 border border-amber-400 shadow-2xs">
-                  ⭐ {highlightedCount} từ bôi vàng trong đề
+                  ⭐ {highlightedCount} từ dùng bút highlight
                 </span>
               )}
             </div>
@@ -895,7 +993,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <span>⭐ Từ bôi vàng ({highlightedCount})</span>
+                  <span>⭐ Từ bút highlight ({highlightedCount})</span>
                 </button>
               </div>
             )}
@@ -974,7 +1072,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                       <div className="flex items-center gap-1.5 flex-wrap">
                         {item.isHighlighted && (
                           <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-300 text-amber-950 border border-amber-400 shadow-2xs">
-                            ⭐ Bôi vàng
+                            ⭐ Bút highlight
                           </span>
                         )}
                         <strong

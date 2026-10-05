@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Loader2,
   RefreshCw,
-  Library
+  Library,
+  Compass
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CLEAN_GRAMMAR_TOPICS, CleanGrammarTopic } from '../data/grammarHandbookData';
@@ -257,6 +258,23 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
               {currentTopic.title}
             </h1>
+            {currentTopic.examWeight && (
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 flex items-center gap-1.5 shadow-2xs">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                  <span>{currentTopic.examWeight}</span>
+                </span>
+                <span
+                  className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
+                    currentTopic.difficulty === 'Nâng cao'
+                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  }`}
+                >
+                  {currentTopic.difficulty}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Chuyển nhanh bài trước / sau */}
@@ -320,70 +338,238 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
       </div>
 
       {/* ========================================================
-          NỘI DUNG 1: LÝ THUYẾT (Trình bày rõ ràng, súc tích, dễ hiểu)
+          NỘI DUNG 1: LÝ THUYẾT (Trình bày khoa học, hệ thống, dễ hiểu)
           ======================================================== */}
       {activeTab === 'theory' && (
         <div className="space-y-4 animate-in fade-in duration-150">
-          {/* I. Bản chất & Dấu hiệu nhận biết */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-2">
-            <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase tracking-wider">
-              <span className="w-2 h-4 rounded-full bg-indigo-600" />
-              <span>I. Bản chất & Dấu hiệu nhận biết</span>
-            </div>
-            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium pl-4">
-              {currentTopic.concept}
-            </p>
+          {/* Thanh mục lục điều hướng nhanh */}
+          <div className="bg-white rounded-xl border border-slate-200 px-3 py-2 shadow-2xs flex items-center gap-2 overflow-x-auto text-xs font-bold scrollbar-thin">
+            <span className="text-[11px] text-slate-400 font-semibold shrink-0 flex items-center gap-1 mr-1">
+              <Compass className="w-3.5 h-3.5 text-indigo-500" />
+              Mục lục nhanh:
+            </span>
+            <a
+              href="#sec-overview"
+              className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              🎯 1. Bản chất & Dấu hiệu
+            </a>
+            <a
+              href="#sec-formulas"
+              className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-amber-50 hover:text-amber-800 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              📐 2. Bảng Công thức Vàng
+            </a>
+            <a
+              href="#sec-details"
+              className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-indigo-50 hover:text-indigo-700 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              📚 3. Lý thuyết Chi tiết
+            </a>
+            {currentTopic.comparisonTable && (
+              <a
+                href="#sec-comparison"
+                className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+              >
+                🔄 4. Bảng Đối chiếu
+              </a>
+            )}
+            <a
+              href="#sec-examples"
+              className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-sky-50 hover:text-sky-700 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              🔊 5. Ví dụ Minh họa
+            </a>
+            <a
+              href="#sec-traps"
+              className="px-2.5 py-1 rounded-lg bg-slate-50 hover:bg-rose-50 hover:text-rose-700 text-slate-600 transition-colors whitespace-nowrap border border-slate-200"
+            >
+              ⚠️ 6. Bẫy Đề thi THPTQG
+            </a>
           </div>
 
-          {/* II. Bảng công thức vàng (Đóng khung nổi bật, dễ nhớ) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-amber-800 uppercase tracking-wider">
-              <span className="w-2 h-4 rounded-full bg-amber-500" />
-              <span>II. Bảng Công thức Vàng cốt lõi</span>
+          {/* I. Bản chất Ngữ pháp & Dấu hiệu nhận diện dạng bài */}
+          <div id="sec-overview" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3.5 scroll-mt-20">
+            <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase tracking-wider">
+              <span className="w-2 h-4 rounded-full bg-indigo-600" />
+              <span>I. Bản chất Ngữ pháp & Nguyên lý Giải đề</span>
             </div>
-            <div className="space-y-2 pl-4">
+            <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium pl-3 border-l-2 border-indigo-300">
+              {currentTopic.concept}
+            </p>
+
+            {currentTopic.recognitionSignals && currentTopic.recognitionSignals.length > 0 && (
+              <div className="mt-3 p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                <p className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Dấu hiệu nhận diện dạng câu hỏi trong đề thi THPTQG:</span>
+                </p>
+                <ul className="space-y-1.5 pl-1">
+                  {currentTopic.recognitionSignals.map((sig, sIdx) => (
+                    <li key={sIdx} className="text-xs text-slate-700 font-medium flex items-start gap-2 leading-relaxed">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                      <span>{sig}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* II. Bảng Công thức Vàng cốt lõi */}
+          <div id="sec-formulas" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 scroll-mt-20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-black text-amber-800 uppercase tracking-wider">
+                <span className="w-2 h-4 rounded-full bg-amber-500" />
+                <span>II. Bảng Công thức Vàng cốt lõi (Ghi nhớ nhanh)</span>
+              </div>
+              <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                Key Formulas
+              </span>
+            </div>
+            <div className="space-y-2.5">
               {currentTopic.formulas.map((form, fIdx) => (
                 <div
                   key={fIdx}
-                  className="p-3 rounded-xl bg-slate-900 text-amber-300 font-mono text-xs sm:text-sm font-bold shadow-xs border border-slate-800 overflow-x-auto"
+                  className="p-3.5 rounded-xl bg-slate-900 text-amber-300 font-mono text-xs sm:text-sm font-bold shadow-xs border border-slate-800 overflow-x-auto leading-relaxed flex items-center gap-2.5"
                 >
-                  {form}
+                  <span className="text-slate-500 select-none text-[11px] font-sans">#{fIdx + 1}</span>
+                  <span>{form}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* III. Các quy tắc trọng tâm & Phân biệt */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
-            <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase tracking-wider">
-              <span className="w-2 h-4 rounded-full bg-indigo-600" />
-              <span>III. Các Quy tắc Trọng tâm cần nắm</span>
+          {/* III. Hệ thống Lý thuyết & Quy tắc Trọng tâm Chi tiết */}
+          <div id="sec-details" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4 scroll-mt-20">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase tracking-wider">
+                <span className="w-2 h-4 rounded-full bg-indigo-600" />
+                <span>III. Hệ thống Lý thuyết & Quy tắc Trọng tâm Chi tiết</span>
+              </div>
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                Chuẩn THPTQG
+              </span>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pl-4">
-              {currentTopic.rules.map((rule, rIdx) => (
-                <div
-                  key={rIdx}
-                  className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1"
-                >
-                  <p className="text-xs font-black text-indigo-700 flex items-center gap-1.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-                    <span>{rule.label}</span>
-                  </p>
-                  <p className="text-xs text-slate-600 font-medium leading-relaxed">
-                    {rule.text}
-                  </p>
-                </div>
-              ))}
-            </div>
+
+            {currentTopic.detailedSections && currentTopic.detailedSections.length > 0 ? (
+              <div className="space-y-3.5">
+                {currentTopic.detailedSections.map((sec, secIdx) => (
+                  <div
+                    key={secIdx}
+                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 transition-all hover:bg-slate-50/90"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-md bg-indigo-600 text-white flex items-center justify-center text-[10.5px] font-mono shrink-0">
+                          {secIdx + 1}
+                        </span>
+                        <span>{sec.heading}</span>
+                      </h3>
+                      {sec.badge && (
+                        <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/80 px-2 py-0.5 rounded-md">
+                          {sec.badge}
+                        </span>
+                      )}
+                    </div>
+
+                    <p className="text-xs sm:text-[13px] text-slate-700 font-medium leading-relaxed">
+                      {sec.content}
+                    </p>
+
+                    {sec.formula && (
+                      <div className="p-2.5 rounded-lg bg-slate-900 text-amber-300 font-mono text-xs font-bold border border-slate-800 overflow-x-auto">
+                        👉 {sec.formula}
+                      </div>
+                    )}
+
+                    {sec.rules && sec.rules.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {sec.rules.map((r, rIdx) => (
+                          <div key={rIdx} className="text-xs text-slate-700 font-medium leading-relaxed flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+                            <span>{r}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {sec.bulletPoints && sec.bulletPoints.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        {sec.bulletPoints.map((bp, bpIdx) => (
+                          <div key={bpIdx} className="text-xs text-slate-700 font-medium leading-relaxed flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                            <span>{bp}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {currentTopic.rules.map((rule, rIdx) => (
+                  <div key={rIdx} className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
+                    <p className="text-xs font-black text-indigo-700 flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+                      <span>{rule.label}</span>
+                    </p>
+                    <p className="text-xs text-slate-600 font-medium leading-relaxed">
+                      {rule.text}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* IV. Ví dụ song ngữ điển hình */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3">
+          {/* IV. Bảng Đối chiếu So sánh nếu có */}
+          {currentTopic.comparisonTable && (
+            <div id="sec-comparison" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 scroll-mt-20">
+              <div className="flex items-center gap-2 text-xs font-black text-emerald-800 uppercase tracking-wider">
+                <span className="w-2 h-4 rounded-full bg-emerald-600" />
+                <span>IV. {currentTopic.comparisonTable.title}</span>
+              </div>
+              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                <table className="min-w-full text-xs text-left divide-y divide-slate-200">
+                  <thead className="bg-slate-100 text-slate-800 font-bold uppercase tracking-wider">
+                    <tr>
+                      {currentTopic.comparisonTable.headers.map((h, hIdx) => (
+                        <th key={hIdx} className="px-3.5 py-2.5 font-black text-[11px]">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 bg-white">
+                    {currentTopic.comparisonTable.rows.map((row, rIdx) => (
+                      <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                        {row.map((cell, cIdx) => (
+                          <td
+                            key={cIdx}
+                            className={`px-3.5 py-2.5 font-medium leading-relaxed whitespace-pre-line ${
+                              cIdx === 0 ? 'font-bold text-slate-900' : 'text-slate-700'
+                            }`}
+                          >
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* V. Ví dụ Song ngữ Điển hình & Phân tích Đề thi */}
+          <div id="sec-examples" className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3 scroll-mt-20">
             <div className="flex items-center gap-2 text-xs font-black text-indigo-800 uppercase tracking-wider">
               <span className="w-2 h-4 rounded-full bg-indigo-600" />
-              <span>IV. Ví dụ Minh họa Điển hình</span>
+              <span>V. Ví dụ Minh họa Điển hình & Phân tích Đề thi</span>
             </div>
-            <div className="space-y-2.5 pl-4">
+            <div className="space-y-2.5">
               {currentTopic.examples.map((ex, exIdx) => (
                 <div
                   key={exIdx}
@@ -406,7 +592,7 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
                     👉 {ex.vi}
                   </p>
                   {ex.note && (
-                    <p className="text-[11px] font-semibold text-indigo-700 bg-white/90 px-2 py-0.5 rounded-md border border-indigo-100 inline-block">
+                    <p className="text-[11px] font-semibold text-indigo-700 bg-white/90 px-2.5 py-1 rounded-md border border-indigo-100 inline-block">
                       💡 {ex.note}
                     </p>
                   )}
@@ -415,17 +601,18 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
             </div>
           </div>
 
-          {/* V. Mẹo tránh bẫy đề thi THPTQG */}
+          {/* VI. Cẩm nang Bẫy Đề thi THPT Quốc Gia (Trúng tủ) */}
           {currentTopic.examTips.length > 0 && (
-            <div className="bg-amber-50/90 rounded-2xl border border-amber-200 p-5 shadow-xs space-y-2">
+            <div id="sec-traps" className="bg-amber-50/90 rounded-2xl border border-amber-200 p-5 shadow-xs space-y-2.5 scroll-mt-20">
               <div className="flex items-center gap-2 text-xs font-black text-amber-900">
                 <Lightbulb className="w-4 h-4 text-amber-600" />
-                <span>V. Mẹo tránh bẫy đề thi THPT Quốc Gia (Trúng tủ)</span>
+                <span>VI. Cẩm nang Bẫy Đề thi THPT Quốc Gia (Trúng tủ)</span>
               </div>
-              <ul className="space-y-1.5 pl-6 list-disc text-xs text-amber-950 font-medium">
+              <ul className="space-y-2 pl-2 list-none text-xs text-amber-950 font-medium">
                 {currentTopic.examTips.map((tip, tIdx) => (
-                  <li key={tIdx} className="leading-relaxed">
-                    {tip}
+                  <li key={tIdx} className="leading-relaxed flex items-start gap-2">
+                    <span className="text-amber-600 font-bold shrink-0">⚡</span>
+                    <span>{tip}</span>
                   </li>
                 ))}
               </ul>

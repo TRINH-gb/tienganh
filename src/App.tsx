@@ -54,6 +54,7 @@ export default function App() {
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
   const [selectedExamFilter, setSelectedExamFilter] = useState<string>('ALL');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
   // Manage API Key Modal state (shows automatically if no key is stored)
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(() => {
@@ -199,10 +200,34 @@ export default function App() {
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         isMobileOpen={isMobileMenuOpen}
         setIsMobileOpen={setIsMobileMenuOpen}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
       />
 
       {/* 2. Right Main Content Area (Nội dung chính xuất hiện bên phải) */}
       <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-slate-50">
+        {/* Desktop Expand Bar (chỉ hiển thị khi đã giấu sidebar) */}
+        {isSidebarCollapsed && (
+          <div className="hidden lg:flex sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-2.5 items-center justify-between shadow-xs">
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(false)}
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:text-indigo-600 transition-colors cursor-pointer"
+            >
+              <Menu className="w-4 h-4 text-indigo-600" />
+              <span>Hiện thanh menu (Sidebar)</span>
+            </button>
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white">
+                <GraduationCap className="w-3.5 h-3.5" />
+              </div>
+              <span className="font-extrabold text-slate-900 text-xs tracking-tight">
+                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
+              </span>
+            </div>
+          </div>
+        )}
+
         {/* Mobile Header (hiển thị trên màn hình nhỏ < lg khi chưa mở drawer) */}
         <header className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
           <div className="flex items-center space-x-3">

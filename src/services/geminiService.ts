@@ -1,4 +1,4 @@
-import { VocabularyItem, VocabCategory, QuizQuestion, WordDeepDive, CefrLevel } from '../types';
+import { VocabularyItem, VocabCategory, QuizQuestion, WordDeepDive, CefrLevel, GrammarPracticeQuestion } from '../types';
 
 export const API_KEY_STORAGE_KEY = 'evm_gemini_api_key';
 export const MODEL_STORAGE_KEY = 'evm_gemini_model';
@@ -1679,6 +1679,69 @@ Return valid JSON in this exact structure:
       throw new Error(`Model ${model} không trả về dữ liệu mở rộng từ vựng hợp lệ.`);
     }
     return result as WordDeepDive;
+  }, onModelFallback);
+
+  return parsed;
+}
+
+/**
+ * Task 4: Dynamic AI Quiz Generation for a specific Grammar Topic
+ */
+export async function generateGrammarQuizWithFallback(
+  topicTitle: string,
+  englishTitle: string,
+  count: number = 5,
+  onModelFallback?: (failedModel: string, nextModel: string, error: string) => void
+): Promise<GrammarPracticeQuestion[]> {
+  const prompt = `Bạn là chuyên gia ra đề thi THPT Quốc Gia môn Tiếng Anh.
+Hãy tạo ${count} câu hỏi trắc nghiệm mới toanh, chuẩn ma trận thi tốt nghiệp THPT cho chuyên đề: "${topicTitle}" (${englishTitle}).
+
+Yêu cầu:
+1. Câu hỏi 4 phương án A, B, C, D rõ ràng, bám sát cấu trúc đề thi tốt nghiệp THPT mới.
+2. Dấu hiệu nhận biết và ngữ cảnh câu rõ ràng, thực tế.
+3. Giải thích ngắn gọn, súc tích chỉ rõ tại sao chọn đáp án đó và dịch nghĩa câu tiếng Việt.
+4. Trả về đúng định dạng JSON:
+{
+  "questions": [
+    {
+      "id": "ai-q-1",
+      "question": "Câu hỏi tiếng Anh...",
+      "options": {
+        "A": "Đáp án A",
+        "B": "Đáp án B",
+        "C": "Đáp án C",
+        "D": "Đáp án D"
+      },
+      "correctAnswer": "A",
+      "explanation": "Giải thích chi tiết ngắn gọn...",
+      "clue": "Dấu hiệu nhận biết...",
+      "translation": "Dịch nghĩa tiếng Việt..."
+    }
+  ]
+}`;
+
+  const parsed = await executeWithFallback(async (model, apiKey) => {
+    const rawText = await callGeminiDirect(model, apiKey, prompt);
+    const result = extractJsonFromText(rawText);
+    const qList = extractQuestionsArray(result);
+    if (!Array.isArray(qList) || qList.length === 0) {
+      throw new Error(`Model ${model} không trả về danh sách câu hỏi trắc nghiệm hợp lệ.`);
+    }
+
+    return qList.map((q: any, idx: number) => ({
+      id: `ai-gen-${Date.now()}-${idx + 1}`,
+      question: String(q.question || '').trim(),
+      options: {
+        A: String(q.options?.A || '').trim(),
+        B: String(q.options?.B || '').trim(),
+        C: String(q.options?.C || '').trim(),
+        D: String(q.options?.D || '').trim()
+      },
+      correctAnswer: (['A', 'B', 'C', 'D'].includes(q.correctAnswer) ? q.correctAnswer : 'A') as 'A' | 'B' | 'C' | 'D',
+      explanation: String(q.explanation || '').trim(),
+      clue: q.clue ? String(q.clue).trim() : undefined,
+      translation: q.translation ? String(q.translation).trim() : undefined
+    }));
   }, onModelFallback);
 
   return parsed;

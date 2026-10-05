@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { ExamExtractor } from './components/ExamExtractor';
 import { VocabularyNotebook } from './components/VocabularyNotebook';
+import { GrammarHandbook } from './components/GrammarHandbook';
 import { FlashcardDeck } from './components/FlashcardDeck';
 import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
-import { VocabularyItem, MasteryStatus, normalizeStatus } from './types';
+import { VocabularyItem, MasteryStatus, normalizeStatus, ActiveTab } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { Menu, GraduationCap, KeyRound } from 'lucide-react';
 
@@ -48,7 +49,7 @@ const migrateVocabularyData = (items: VocabularyItem[]): VocabularyItem[] => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'extract' | 'notebook' | 'flashcards' | 'quiz'>('extract');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('extract');
   const [accent, setAccent] = useState<'UK' | 'US'>('US');
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
   const [selectedExamFilter, setSelectedExamFilter] = useState<string>('ALL');
@@ -267,7 +268,15 @@ export default function App() {
             />
           )}
 
-          {/* Tab 3: Flashcards */}
+          {/* Tab 3: Sổ tay Cấu trúc & Ngữ pháp */}
+          {activeTab === 'grammar' && (
+            <GrammarHandbook
+              accent={accent}
+              onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+            />
+          )}
+
+          {/* Tab 4: Flashcards */}
           {activeTab === 'flashcards' && (
             <FlashcardDeck
               vocabulary={vocabulary}

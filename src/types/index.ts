@@ -81,3 +81,48 @@ export interface SampleExam {
   content: string;
   initialVocab: Omit<VocabularyItem, 'id' | 'status' | 'interactionCount' | 'quizCorrectCount' | 'quizTotalCount' | 'addedAt'>[];
 }
+
+export type ActiveTab = 'extract' | 'notebook' | 'grammar' | 'flashcards' | 'quiz';
+
+export interface GrammarPracticeQuestion {
+  id: string;
+  question: string;
+  options: {
+    A: string;
+    B: string;
+    C: string;
+    D: string;
+  };
+  correctAnswer: 'A' | 'B' | 'C' | 'D';
+  explanation: string;
+  clue?: string;
+  translation?: string;
+}
+
+export interface GrammarTheorySection {
+  title: string;
+  subtitle?: string;
+  formula?: string[];
+  rules?: { label: string; text: string }[];
+  examples: {
+    en: string;
+    vi: string;
+    highlight?: string;
+    note?: string;
+  }[];
+  examTips?: string[];
+}
+
+export interface GrammarTopic {
+  id: string;
+  topicNumber: number;
+  title: string;
+  shortTitle: string;
+  englishTitle: string;
+  badge: string;
+  difficulty: 'Cơ bản' | 'Trung bình' | 'Nâng cao' | 'Trọng tâm';
+  summary: string;
+  keyPoints: string[];
+  theorySections: GrammarTheorySection[];
+  questions: GrammarPracticeQuestion[];
+}

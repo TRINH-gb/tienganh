@@ -3,6 +3,7 @@ import {
   GraduationCap,
   Sparkles,
   BookOpen,
+  BookMarked,
   Layers,
   HelpCircle,
   Volume2,
@@ -12,13 +13,13 @@ import {
   X,
   Cpu
 } from 'lucide-react';
-import { VocabularyItem, normalizeStatus } from '../types';
+import { VocabularyItem, normalizeStatus, ActiveTab } from '../types';
 import { getStoredApiKey, getStoredModel } from '../services/geminiService';
 import msTrinhPhoto from '../assets/ms-trinh.jpg';
 
 export interface SidebarProps {
-  activeTab: 'extract' | 'notebook' | 'flashcards' | 'quiz';
-  setActiveTab: (tab: 'extract' | 'notebook' | 'flashcards' | 'quiz') => void;
+  activeTab: ActiveTab;
+  setActiveTab: (tab: ActiveTab) => void;
   vocabulary: VocabularyItem[];
   accent: 'UK' | 'US';
   setAccent: (accent: 'UK' | 'US') => void;
@@ -48,7 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const needReviewCount = vocabulary.filter((v) => normalizeStatus(v.status) === 'Chưa thuộc').length;
   const masteryRate = totalWords > 0 ? Math.round((masteredCount / totalWords) * 100) : 0;
 
-  const handleSelectTab = (tab: 'extract' | 'notebook' | 'flashcards' | 'quiz') => {
+  const handleSelectTab = (tab: ActiveTab) => {
     setActiveTab(tab);
     setIsMobileOpen(false);
   };
@@ -68,6 +69,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       iconColor: 'text-blue-600',
       activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
       badge: totalWords > 0 ? `${totalWords}` : undefined
+    },
+    {
+      id: 'grammar' as const,
+      name: 'Sổ tay Cấu trúc',
+      icon: BookMarked,
+      iconColor: 'text-purple-600',
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
+      badge: '18'
     },
     {
       id: 'flashcards' as const,

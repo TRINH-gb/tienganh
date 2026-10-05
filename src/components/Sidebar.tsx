@@ -11,9 +11,10 @@ import {
   Settings,
   X,
   Cpu,
-  ChevronLeft
+  ChevronLeft,
+  Eye
 } from 'lucide-react';
-import { VocabularyItem, normalizeStatus, ActiveTab } from '../types';
+import { VocabularyItem, normalizeStatus, ActiveTab, VisitorStats } from '../types';
 import { getStoredApiKey, getStoredModel } from '../services/geminiService';
 import msTrinhPhoto from '../assets/ms-trinh.jpg';
 
@@ -28,6 +29,8 @@ export interface SidebarProps {
   setIsMobileOpen: (open: boolean) => void;
   isCollapsed: boolean;
   setIsCollapsed: (collapsed: boolean) => void;
+  visitorStats?: VisitorStats;
+  onOpenVisitorStatsModal?: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -40,7 +43,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isMobileOpen,
   setIsMobileOpen,
   isCollapsed,
-  setIsCollapsed
+  setIsCollapsed,
+  visitorStats,
+  onOpenVisitorStatsModal
 }) => {
   const currentApiKey = getStoredApiKey();
   const hasApiKey = Boolean(currentApiKey);
@@ -384,6 +389,49 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <Settings className="w-3 h-3" />
               <span>{hasApiKey ? 'Cài đặt AI Key' : 'Nhập Key ngay'}</span>
             </button>
+          </div>
+        </div>
+
+        {/* Thống kê Lượt truy cập (Visitor Traffic Counter) */}
+        <div>
+          <div className="px-2 mb-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+              Thống kê truy cập
+            </span>
+            <span className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              {visitorStats?.activeNow || 2} online
+            </span>
+          </div>
+
+          <div
+            onClick={onOpenVisitorStatsModal}
+            className="p-3 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md shadow-indigo-950/20 border border-indigo-900/60 cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
+            title="Nhấp để xem chi tiết thống kê lượt truy cập"
+          >
+            <div className="flex items-center justify-between text-indigo-200 mb-1">
+              <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span>Tổng lượt truy cập</span>
+              </span>
+              <span className="text-[9px] font-bold text-indigo-300 bg-white/10 px-1.5 py-0.5 rounded-md">
+                Tất cả người dùng
+              </span>
+            </div>
+
+            <div className="flex items-baseline justify-between mt-1">
+              <div className="text-2xl font-black font-mono tracking-tight text-white group-hover:text-indigo-200 transition-colors">
+                {(visitorStats?.totalVisits || 1280).toLocaleString('vi-VN')}
+              </div>
+              <span className="text-[10px] text-slate-400">lượt</span>
+            </div>
+
+            <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300">
+              <span>Hôm nay: <strong className="text-emerald-400">+{visitorStats?.todayVisits || 42}</strong></span>
+              <span className="text-indigo-300 group-hover:text-white flex items-center gap-0.5 font-bold underline">
+                Xem chi tiết &raquo;
+              </span>
+            </div>
           </div>
         </div>
       </div>

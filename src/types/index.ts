@@ -126,3 +126,26 @@ export interface GrammarTopic {
   theorySections: GrammarTheorySection[];
   questions: GrammarPracticeQuestion[];
 }
+
+export interface DailyVisitorStat {
+  date: string;
+  visits: number;
+  unique: number;
+}
+
+export interface DeviceStats {
+  desktop: number;
+  mobile: number;
+  tablet: number;
+}
+
+export interface VisitorStats {
+  totalVisits: number;
+  uniqueVisitors: number;
+  todayVisits: number;
+  activeNow: number;
+  lastVisitAt: string;
+  dailyStats: DailyVisitorStat[];
+  deviceStats: DeviceStats;
+}
+

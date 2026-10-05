@@ -6,21 +6,28 @@ import {
   Award,
   Layers,
   Sparkles,
-  BarChart3
+  BarChart3,
+  Eye
 } from 'lucide-react';
-import { VocabularyItem, VocabCategory, normalizeStatus } from '../types';
+import { VocabularyItem, VocabCategory, normalizeStatus, VisitorStats } from '../types';
+import { getCachedVisitorStats } from '../services/visitorStatsService';
 
 interface StatsOverviewProps {
   vocabulary: VocabularyItem[];
   onFilterCategory?: (category: VocabCategory | 'ALL') => void;
   onFilterStatus?: (status: string) => void;
+  visitorStats?: VisitorStats;
+  onOpenVisitorStatsModal?: () => void;
 }
 
 export const StatsOverview: React.FC<StatsOverviewProps> = ({
   vocabulary,
   onFilterCategory,
-  onFilterStatus
+  onFilterStatus,
+  visitorStats,
+  onOpenVisitorStatsModal
 }) => {
+  const effectiveVisitorStats = visitorStats || getCachedVisitorStats();
   const total = vocabulary.length;
   const mastered = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đã thành thạo').length;
   const learning = vocabulary.filter((v) => normalizeStatus(v.status) === 'Đang học').length;
@@ -292,6 +299,46 @@ export const StatsOverview: React.FC<StatsOverviewProps> = ({
           </div>
         );
       })()}
+
+      {/* Website Traffic & Community Overview */}
+      <div className="mt-5 pt-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/70 p-3.5 rounded-xl border border-slate-200/70">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-indigo-100 text-indigo-700 shrink-0">
+            <Eye className="w-4 h-4" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-900">
+                Lượt truy cập toàn hệ thống:
+              </span>
+              <span className="text-sm font-black text-indigo-700 font-mono">
+                {effectiveVisitorStats.totalVisits.toLocaleString('vi-VN')}
+              </span>
+              <span className="text-[10px] text-slate-500">lượt</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-500 mt-0.5">
+              <span>Khách riêng biệt: <strong className="text-slate-700">{effectiveVisitorStats.uniqueVisitors.toLocaleString('vi-VN')}</strong></span>
+              <span>•</span>
+              <span>Hôm nay: <strong className="text-emerald-700 font-bold">+{effectiveVisitorStats.todayVisits}</strong></span>
+              <span>•</span>
+              <span className="flex items-center gap-1 text-emerald-600 font-bold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {effectiveVisitorStats.activeNow} đang học
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {onOpenVisitorStatsModal && (
+          <button
+            type="button"
+            onClick={onOpenVisitorStatsModal}
+            className="self-start sm:self-auto px-3 py-1.5 rounded-lg bg-white hover:bg-slate-100 text-indigo-700 hover:text-indigo-800 border border-slate-200 text-xs font-bold transition-all shadow-2xs cursor-pointer whitespace-nowrap"
+          >
+            Biểu đồ truy cập &raquo;
+          </button>
+        )}
+      </div>
 
       {/* Interaction Summary */}
       <div className="mt-4 pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">

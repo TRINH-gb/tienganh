@@ -7,9 +7,11 @@ import { FlashcardDeck } from './components/FlashcardDeck';
 import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { VisitorStatsModal } from './components/VisitorStatsModal';
 import { VocabularyItem, MasteryStatus, normalizeStatus, ActiveTab } from './types';
 import { getStoredApiKey } from './services/geminiService';
-import { Menu, GraduationCap, KeyRound } from 'lucide-react';
+import { useVisitorStats } from './services/visitorStatsService';
+import { Menu, GraduationCap, KeyRound, Eye } from 'lucide-react';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 
@@ -63,6 +65,14 @@ export default function App() {
     }
     return false;
   });
+
+  // Visitor statistics tracking & analytics across all users
+  const {
+    stats: visitorStats,
+    isRefreshing: isVisitorStatsRefreshing,
+    refresh: refreshVisitorStats
+  } = useVisitorStats();
+  const [isVisitorStatsModalOpen, setIsVisitorStatsModalOpen] = useState<boolean>(false);
 
   // Initialize vocabulary: only user-uploaded exams, zero suggested exams
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>(() => {
@@ -202,6 +212,8 @@ export default function App() {
         setIsMobileOpen={setIsMobileMenuOpen}
         isCollapsed={isSidebarCollapsed}
         setIsCollapsed={setIsSidebarCollapsed}
+        visitorStats={visitorStats}
+        onOpenVisitorStatsModal={() => setIsVisitorStatsModalOpen(true)}
       />
 
       {/* 2. Right Main Content Area (Nội dung chính xuất hiện bên phải) */}
@@ -217,13 +229,26 @@ export default function App() {
               <Menu className="w-4 h-4 text-indigo-600" />
               <span>Hiện thanh menu (Sidebar)</span>
             </button>
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white">
-                <GraduationCap className="w-3.5 h-3.5" />
+            <div className="flex items-center space-x-3">
+              <button
+                type="button"
+                onClick={() => setIsVisitorStatsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer group"
+                title="Xem chi tiết thống kê lượt truy cập toàn trang"
+              >
+                <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                <span>{visitorStats.totalVisits.toLocaleString('vi-VN')} lượt</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white">
+                  <GraduationCap className="w-3.5 h-3.5" />
+                </div>
+                <span className="font-extrabold text-slate-900 text-xs tracking-tight">
+                  MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
+                </span>
               </div>
-              <span className="font-extrabold text-slate-900 text-xs tracking-tight">
-                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
-              </span>
             </div>
           </div>
         )}
@@ -249,18 +274,31 @@ export default function App() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsApiKeyModalOpen(true)}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-              getStoredApiKey()
-                ? 'bg-slate-50 text-slate-700 border-slate-200'
-                : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400/30 animate-pulse'
-            }`}
-          >
-            <KeyRound className="w-3.5 h-3.5" />
-            <span>{getStoredApiKey() ? 'API Key' : 'Nhập Key'}</span>
-          </button>
+          <div className="flex items-center space-x-2">
+            <button
+              type="button"
+              onClick={() => setIsVisitorStatsModalOpen(true)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer hover:bg-slate-800"
+              title="Xem thống kê lượt truy cập toàn trang"
+            >
+              <Eye className="w-3.5 h-3.5 text-indigo-400" />
+              <span>{visitorStats.totalVisits.toLocaleString('vi-VN')}</span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsApiKeyModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                getStoredApiKey()
+                  ? 'bg-slate-50 text-slate-700 border-slate-200'
+                  : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400/30 animate-pulse'
+              }`}
+            >
+              <KeyRound className="w-3.5 h-3.5" />
+              <span>{getStoredApiKey() ? 'API Key' : 'Nhập Key'}</span>
+            </button>
+          </div>
         </header>
 
         {/* Main Content Area - Clean, focused on the active tool */}
@@ -290,6 +328,8 @@ export default function App() {
               accent={accent}
               selectedExamFilter={selectedExamFilter}
               onSelectExamFilter={setSelectedExamFilter}
+              visitorStats={visitorStats}
+              onOpenVisitorStatsModal={() => setIsVisitorStatsModalOpen(true)}
             />
           )}
 
@@ -328,9 +368,33 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-center text-xs text-slate-400">
-          <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
-            <span>Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics</span>
+        <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-xs text-slate-500">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-slate-500 text-center sm:text-left">
+              <span>Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics</span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsVisitorStatsModalOpen(true)}
+              className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-200 rounded-full font-medium text-slate-700 hover:text-indigo-800 transition-all cursor-pointer shadow-2xs group"
+              title="Nhấp để xem chi tiết biểu đồ & số liệu lượt truy cập toàn hệ thống"
+            >
+              <span className="flex items-center gap-1.5">
+                <Eye className="w-3.5 h-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                Tổng lượt truy cập: <strong className="text-slate-900 font-bold">{visitorStats.totalVisits.toLocaleString('vi-VN')}</strong> lượt
+              </span>
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                {visitorStats.activeNow} online
+              </span>
+              <span className="text-slate-300 hidden sm:inline">•</span>
+              <span className="text-slate-600">
+                Hôm nay: <strong className="text-slate-900">+{visitorStats.todayVisits}</strong>
+              </span>
+              <span className="text-indigo-600 font-bold text-[11px] underline ml-0.5">Chi tiết &raquo;</span>
+            </button>
           </div>
         </footer>
       </div>
@@ -348,6 +412,15 @@ export default function App() {
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
         isMandatory={false}
+      />
+
+      {/* Visitor Analytics Modal */}
+      <VisitorStatsModal
+        isOpen={isVisitorStatsModalOpen}
+        onClose={() => setIsVisitorStatsModalOpen(false)}
+        stats={visitorStats}
+        onRefresh={refreshVisitorStats}
+        isRefreshing={isVisitorStatsRefreshing}
       />
     </div>
   );

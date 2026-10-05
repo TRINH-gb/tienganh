@@ -15,9 +15,10 @@ import {
   AlertTriangle,
   RotateCcw
 } from 'lucide-react';
-import { VocabularyItem, VocabCategory, MasteryStatus, CefrLevel, normalizeStatus } from '../types';
+import { VocabularyItem, VocabCategory, MasteryStatus, CefrLevel, normalizeStatus, VisitorStats } from '../types';
 import { speakEnglish } from '../utils/tts';
 import { downloadDocxFile } from '../utils/documentExport';
+import { StatsOverview } from './StatsOverview';
 
 interface VocabularyNotebookProps {
   vocabulary: VocabularyItem[];
@@ -30,6 +31,8 @@ interface VocabularyNotebookProps {
   accent: 'UK' | 'US';
   selectedExamFilter?: string;
   onSelectExamFilter?: (examTitle: string) => void;
+  visitorStats?: VisitorStats;
+  onOpenVisitorStatsModal?: () => void;
 }
 
 export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
@@ -42,7 +45,9 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   onStartQuiz,
   accent,
   selectedExamFilter = 'ALL',
-  onSelectExamFilter
+  onSelectExamFilter,
+  visitorStats,
+  onOpenVisitorStatsModal
 }) => {
   const [currentExamFilter, setCurrentExamFilter] = useState<string>(selectedExamFilter);
   const [searchQuery, setSearchQuery] = useState('');
@@ -250,6 +255,17 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
           </button>
         </div>
       </div>
+
+      {/* STATS OVERVIEW & COMMUNITY WEBSITE TRAFFIC */}
+      {vocabulary.length > 0 && (
+        <StatsOverview
+          vocabulary={examWords}
+          onFilterCategory={(cat) => setSelectedCategory(cat)}
+          onFilterStatus={(st) => setSelectedStatus(st as any)}
+          visitorStats={visitorStats}
+          onOpenVisitorStatsModal={onOpenVisitorStatsModal}
+        />
+      )}
 
       {/* EXAM DIVISION & SELECTION TABS */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">

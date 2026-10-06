@@ -159,7 +159,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           : 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
         status: 'running',
         message: uploadedFileType === 'image'
-          ? 'Gemini Vision đang quét thị giác ảnh đề giấy để nhận diện các từ bôi highlight...'
+          ? 'Gemini Vision đang quét thị giác: chỉ nhận diện từ tô highlight (bỏ qua từ khoanh tròn, gạch chân)...'
           : 'Đang khởi chạy phân tích cấu trúc...'
       },
       {
@@ -317,7 +317,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         setPrioritizeHighlights(true);
         setPdfStatusMsg({
           type: 'success',
-          text: `✔ Đã nạp ảnh chụp đề thi "${file.name}". AI Gemini Vision sẵn sàng quét thị giác nhận diện toàn bộ các từ được dùng bút highlight (vàng, cam, hồng, xanh...) trên trang giấy!`
+          text: `✔ Đã nạp ảnh chụp đề thi "${file.name}". Chế độ quét thị giác: CHỈ nhận diện các từ tô bút highlight dạ quang (tự động bỏ qua các từ khoanh tròn hoặc gạch chân trên giấy)!`
         });
       } catch (err: any) {
         console.error('Lỗi khi đọc file ảnh:', err);
@@ -790,7 +790,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                     </h4>
                     {uploadedFileType === 'image' ? (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                        📸 Ảnh chụp đề giấy • Quét bút Highlight
+                        📸 Ảnh chụp đề giấy • Chỉ nhận diện bút Highlight
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">

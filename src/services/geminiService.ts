@@ -584,18 +584,29 @@ export async function extractVocabularyWithFallback(
 
   const isImage = Boolean(fileMimeType && fileMimeType.startsWith('image/'));
 
-  const highlightSection = (prioritizeHighlights || fileBase64)
-    ? `
-CRITICAL TARGET INSTRUCTION - MANDATORY FOCUS ON HIGHLIGHTED & MARKED TERMS:
-The uploaded ${isImage ? 'IMAGE (PHOTO OF PAPER EXAM / ẢNH CHỤP ĐỀ THI GIẤY)' : 'exam document'} contains target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED BY HIGHLIGHTER PEN / BÚT DẠ QUANG (any neon color: yellow/vàng, green/xanh lá, pink/hồng, orange/cam, blue/xanh dương...), or underlined/circled with pen on paper or PDF annotations.
+  let highlightSection = '';
+  if (isImage) {
+    highlightSection = `
+CRITICAL TARGET INSTRUCTION - STRICT HIGHLIGHT-ONLY DETECTION (ẢNH CHỤP ĐỀ THI GIẤY):
+The uploaded image is a photo of an authentic printed paper exam (Ảnh chụp đề thi giấy).
+The user ONLY wants to extract vocabulary items that have been highlighted with a HIGHLIGHTER PEN / BÚT DẠ QUANG.
 
-YOUR HIGHEST PRIORITY IS TO EXTRACT 100% OF THESE HIGHLIGHTED ITEMS:
-1. VISUAL OCR & COLOR SCANNING: Scrutinize the entire ${isImage ? 'image photo of the paper exam' : 'PDF document'} carefully line by line. Visually identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that:
-   - Are highlighted with ANY highlighter pen (bút dạ quang / bút highlight màu vàng, xanh lá, cam, hồng, xanh dương...).
-   - Have a color-shaded background, underline, or marker annotation.
-   - Or are tagged with [BÔI VÀNG: ...] or ==...== in the text.
-2. EXHAUSTIVE EXTRACTION MANDATE: You MUST extract 100% of these highlighted items without skipping or omitting any. If there are highlighted terms on the paper exam, you must extract all of them.
-3. For each extracted item:
+STRICT VISUAL RULES FOR PAPER EXAM PHOTO:
+1. ONLY EXTRACT HIGHLIGHTED WORDS/PHRASES (CHỈ NHẬN DIỆN BÚT HIGHLIGHT):
+   - Visually scan the entire image photo line by line.
+   - Detect ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that have a translucent neon/colored highlighter stroke covering the text (bút dạ quang mọi màu sắc: vàng/yellow, xanh lá/green, cam/orange, hồng/pink, xanh dương/blue, tím/purple...).
+   - ONLY extract words that are visibly highlighted by highlighter pen. DO NOT extract unhighlighted words from the paper exam.
+
+2. STRICT EXCLUSION - COMPLETELY IGNORE CIRCLED & UNDERLINED WORDS (TUYỆT ĐỐI BỎ QUA TỪ KHOANH TRÒN HOẶC GẠCH CHÂN):
+   - DO NOT extract words, phrases, options, or letters that are CIRCLED with pen or pencil (e.g. circled multiple-choice answers A, B, C, D, circled question numbers, or circled keywords).
+   - DO NOT extract words that are UNDERLINED with pen, pencil, or ruler (gạch chân bằng bút bi, bút chì).
+   - Pen circles and underlines are exam-taking marks or answer selections, NOT target vocabulary. You MUST completely ignore all circled and underlined items!
+
+3. EXHAUSTIVE EXTRACTION MANDATE:
+   - Extract 100% of the highlighted items without omitting any word/phrase covered by highlighter ink.
+   - For every extracted item, set "isHighlighted": true.
+
+4. For each extracted item:
    - "term": Canonical/dictionary base form of the word or phrase (e.g. "make a decision", "break down", "look forward to", "in terms of", "sustainable").
    - "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
    - "ipa": Standard Cambridge/Oxford phonetic transcription (e.g. "/meɪk ə dɪˈsɪʒ.ən/").
@@ -603,9 +614,26 @@ YOUR HIGHEST PRIORITY IS TO EXTRACT 100% OF THESE HIGHLIGHTED ITEMS:
    - "context": EXACT sentence from the exam where the word appears, with the target term enclosed in **bold**.
    - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
    - "examTip": Pedagogical note explaining common exam traps, prepositions, or distractors tested in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT).
-   - "isHighlighted": true (set to true for all items that were highlighted with pen/marker).
-4. In addition to all highlighted items, you may also include any other high-yield B1-C1 vocabulary items from the exam, but highlighted terms are MANDATORY.`
-    : '';
+   - "isHighlighted": true`;
+  } else if (prioritizeHighlights || fileBase64) {
+    highlightSection = `
+CRITICAL TARGET INSTRUCTION - FOCUS ON HIGHLIGHTED TERMS:
+The uploaded exam document contains target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED BY HIGHLIGHTER PEN / BÚT DẠ QUANG (any neon color: yellow/vàng, green/xanh lá, pink/hồng, orange/cam, blue/xanh dương...), or tagged with [BÔI VÀNG: ...] or ==...== in the text.
+
+1. VISUAL OCR & COLOR SCANNING: Visually identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions highlighted with highlighter pens or colored backgrounds.
+2. STRICT EXCLUSION: Do NOT extract words merely because they are circled or underlined with pen/pencil (bỏ qua các từ khoanh tròn hoặc gạch chân).
+3. EXHAUSTIVE EXTRACTION MANDATE: Extract all highlighted items found in the document.
+4. For each extracted item:
+   - "term": Canonical/dictionary base form of the word or phrase.
+   - "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
+   - "ipa": Standard Cambridge/Oxford phonetic transcription.
+   - "meaning": Accurate Vietnamese contextual translation.
+   - "context": EXACT sentence from the exam with the term in **bold**.
+   - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
+   - "examTip": Pedagogical note or exam tip.
+   - "isHighlighted": true if the term was highlighted with highlighter pen, false otherwise.
+5. In addition to highlighted items, you may include other high-yield B1-C1 vocabulary items from the exam.`;
+  }
 
   const prompt = `Act as the AI English Exam Vocabulary Architect (EVM) specializing in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT môn Tiếng Anh).
 
@@ -617,7 +645,7 @@ ${categoryConstraint}
 EXAM TITLE / SOURCE: ${examTitle || 'Đề thi trích dẫn'}
 
 ${fileBase64 ? (isImage
-  ? 'NOTE: The photo of the paper exam is attached as inline image data. Please visually inspect the entire photo, detect all words highlighted with highlighter pens (bút dạ quang/bút highlight mọi màu sắc: vàng, xanh lá, cam, hồng, xanh dương...), read the surrounding context sentences, and extract all highlighted words.'
+  ? 'NOTE: The photo of the paper exam is attached as inline image data. Please visually inspect the entire photo. Detect ONLY words and phrases highlighted with highlighter pens (bút dạ quang/bút highlight mọi màu sắc: vàng, xanh lá, cam, hồng, xanh dương...). STRICTLY DO NOT extract words that are circled or underlined with pen/pencil (tuyệt đối không nhận diện từ khoanh tròn hoặc gạch chân). DO NOT extract unhighlighted words. Extract all highlighted terms.'
   : 'NOTE: The complete authentic exam PDF document is attached as inline document data. Please inspect it visually page by page to detect all highlighted terms and read all text.')
   : ''}
 ${examText ? `EXAM TEXT CONTEXT:\n"""\n${examText.slice(0, 20000)}\n"""` : ''}
@@ -625,7 +653,7 @@ ${examText ? `EXAM TEXT CONTEXT:\n"""\n${examText.slice(0, 20000)}\n"""` : ''}
 REQUIRED JSON OUTPUT FORMAT:
 Ensure the response is valid JSON matching this schema:
 {
-  "summary": "Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ ảnh chụp/tệp đề thi, các cấu trúc phân hóa cao và độ khó tổng thể.",
+  "summary": "${isImage ? 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ ảnh chụp đề thi giấy (đã loại bỏ các từ khoanh tròn hoặc gạch chân), các cấu trúc phân hóa cao và độ khó tổng thể.' : 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ tệp đề thi, các cấu trúc phân hóa cao và độ khó tổng thể.'}",
   "vocabulary": [
     {
       "type": "Collocation",

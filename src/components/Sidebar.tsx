@@ -76,9 +76,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sub: 'Trích xuất từ vựng từ PDF / Ảnh',
       icon: Sparkles,
       iconColor: 'text-indigo-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      isCore: true,
-      coreTag: '⭐ CỐT LÕI 1'
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'notebook' as const,
@@ -86,10 +84,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sub: 'Kho từ cá nhân & tra cứu',
       icon: BookOpen,
       iconColor: 'text-blue-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: totalWords > 0 ? `${totalWords}` : undefined,
-      isCore: true,
-      coreTag: '⭐ CỐT LÕI 2'
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'flashcards' as const,
@@ -97,8 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sub: 'Lật thẻ ghi nhớ phản xạ',
       icon: Layers,
       iconColor: 'text-amber-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      isCore: false
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'quiz' as const,
@@ -106,8 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       sub: 'Trắc nghiệm thông minh',
       icon: HelpCircle,
       iconColor: 'text-emerald-600',
-      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      isCore: false
+      activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
     },
     {
       id: 'grammar' as const,
@@ -116,9 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       icon: BookMarked,
       iconColor: 'text-purple-600',
       activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: '18',
-      isCore: true,
-      coreTag: '⭐ CỐT LÕI 3'
+      badge: '18'
     }
   ];
 
@@ -197,13 +188,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* 2. Scrollable Body: Features */}
       <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-5">
         <div>
-          {/* Header chỉ rõ 3 TRỤ CỘT CHÍNH CỦA APP */}
+          {/* Header */}
           <div className="px-2 mb-2 flex items-center justify-between">
             <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
               Chức năng ứng dụng
-            </span>
-            <span className="text-[9.5px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100">
-              3 Trụ Cột Chính
             </span>
           </div>
 
@@ -220,8 +208,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all text-left group cursor-pointer border ${
                     isActive
                       ? item.activeBg
-                      : item.isCore
-                      ? 'bg-white hover:bg-slate-50 border-indigo-200/80 shadow-2xs text-slate-800'
                       : 'hover:bg-slate-50 border-transparent text-slate-700'
                   }`}
                 >
@@ -230,8 +216,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       className={`p-2 rounded-lg shrink-0 transition-colors ${
                         isActive
                           ? 'bg-white/20 text-white'
-                          : item.isCore
-                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                           : `bg-slate-100 ${item.iconColor} group-hover:bg-slate-200/80`
                       }`}
                     >
@@ -241,7 +225,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <div className="flex items-center gap-1.5">
                         <span
                           className={`text-xs sm:text-sm font-bold truncate ${
-                            isActive ? 'text-white' : item.isCore ? 'text-slate-900 font-extrabold' : 'text-slate-700'
+                            isActive ? 'text-white' : 'text-slate-800'
                           }`}
                         >
                           {item.name}
@@ -258,20 +242,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
 
                   {/* Right Tags & Badges */}
-                  <div className="ml-2 shrink-0 flex items-center gap-1">
-                    {item.isCore && (
-                      <span
-                        className={`text-[9px] font-black px-1.5 py-0.5 rounded-md ${
-                          isActive
-                            ? 'bg-white/20 text-white'
-                            : 'bg-indigo-100/90 text-indigo-700'
-                        }`}
-                      >
-                        CỐT LÕI
-                      </span>
-                    )}
-
-                    {item.badge && (
+                  {item.badge && (
+                    <div className="ml-2 shrink-0 flex items-center gap-1">
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
                           isActive
@@ -281,8 +253,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       >
                         {item.badge}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </button>
               );
             })}

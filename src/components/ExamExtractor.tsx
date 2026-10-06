@@ -138,6 +138,11 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       return;
     }
 
+    if (!examTitle.trim()) {
+      setErrorMsg('Vui lòng nhập tên đề thi trước khi phân tích để lưu vào Sổ tay từ vựng.');
+      return;
+    }
+
     const currentKey = getStoredApiKey();
     if (!currentKey) {
       onOpenApiKeyModal();
@@ -823,6 +828,38 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Bắt buộc học sinh nhập Tên đề thi */}
+            <div className="mt-4 pt-3.5 border-t border-emerald-200/70 space-y-1.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>Tên đề thi <span className="text-rose-600 font-extrabold">* (Bắt buộc nhập)</span>:</span>
+                </label>
+                <span className="text-[11px] text-slate-500 font-medium">
+                  Tên này sẽ dùng để gom nhóm đề thi trong Sổ tay từ vựng
+                </span>
+              </div>
+              <input
+                type="text"
+                value={examTitle}
+                onChange={(e) => {
+                  setExamTitle(e.target.value);
+                  if (errorMsg) setErrorMsg(null);
+                }}
+                placeholder="Nhập tên đề thi (ví dụ: Đề thi thử THPTQG 2026 - Lần 1, Đề Chuyên Lê Quý Đôn...)"
+                className={`w-full px-4 py-2.5 bg-white border rounded-xl text-xs sm:text-sm font-bold text-slate-900 transition-all focus:outline-none focus:ring-2 shadow-2xs ${
+                  !examTitle.trim()
+                    ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-200 bg-amber-50/40 placeholder:text-amber-800/60'
+                    : 'border-slate-300 focus:border-indigo-600 focus:ring-indigo-100 placeholder:text-slate-400'
+                }`}
+              />
+              {!examTitle.trim() && (
+                <p className="text-[11px] font-bold text-amber-700 flex items-center gap-1 mt-1">
+                  <span>⚠️ Vui lòng nhập tên đề thi để hệ thống lưu và gom nhóm vào Sổ tay từ vựng.</span>
+                </p>
+              )}
+            </div>
           </div>
         )}
 
@@ -847,14 +884,21 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           </div>
         )}
 
-        {/* Action Row: Nút Phân tích (Ban đầu hiện mờ, sau khi tải đề xong thì sáng lên) */}
-        <div className="flex justify-end pt-2 border-t border-slate-100">
+        {/* Action Row: Nút Phân tích */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+          <div>
+            {!examTitle.trim() && isFileUploaded && (
+              <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
+                ⚠️ Nhập tên đề thi ở trên để kích hoạt nút Phân tích
+              </span>
+            )}
+          </div>
           <button
             type="button"
-            disabled={!isFileUploaded || isLoading || isReadingPdf}
+            disabled={!isFileUploaded || !examTitle.trim() || isLoading || isReadingPdf}
             onClick={handleRunAiExtraction}
             className={`w-full sm:w-auto px-8 py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 transition-all duration-300 ${
-              !isFileUploaded
+              !isFileUploaded || !examTitle.trim()
                 ? 'opacity-40 bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed select-none shadow-none font-bold'
                 : 'bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white font-extrabold shadow-lg shadow-indigo-300 ring-2 ring-indigo-400/50 hover:scale-[1.01] active:scale-[0.99] cursor-pointer'
             }`}
@@ -866,8 +910,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </>
             ) : (
               <>
-                <Sparkles className={`w-4 h-4 ${isFileUploaded ? 'text-amber-300 animate-pulse' : 'text-slate-400'}`} />
-                <span>Phân tích</span>
+                <Sparkles className={`w-4 h-4 ${isFileUploaded && examTitle.trim() ? 'text-amber-300 animate-pulse' : 'text-slate-400'}`} />
+                <span>{!examTitle.trim() && isFileUploaded ? 'Nhập tên đề thi để phân tích' : 'Phân tích'}</span>
               </>
             )}
           </button>

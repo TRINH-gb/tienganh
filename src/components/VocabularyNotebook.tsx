@@ -267,24 +267,27 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
         />
       )}
 
-      {/* EXAM DIVISION & SELECTION TABS */}
+      {/* DANH SÁCH ĐỀ THI CỦA BẠN */}
       <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-indigo-50 text-indigo-700">
+          <div className="flex items-center gap-2.5">
+            <span className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
               <BookOpen className="w-4 h-4" />
             </span>
             <div>
-              <h3 className="text-xs sm:text-sm font-bold text-slate-900">
-                Lọc theo đề thi
+              <h3 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                Danh sách đề thi của bạn ({examOptions.length} đề)
               </h3>
+              <p className="text-[11px] text-slate-500">
+                Bấm vào đề thi để xem danh sách và số lượng từ vựng bạn đã chọn học từ đề đó
+              </p>
             </div>
           </div>
           {currentExamFilter !== 'ALL' && (
             <button
               type="button"
               onClick={() => handleExamChange('ALL')}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer underline self-start sm:self-auto"
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-bold cursor-pointer underline self-start sm:self-auto"
             >
               Xem tất cả ({vocabulary.length} từ)
             </button>
@@ -296,7 +299,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
           <button
             type="button"
             onClick={() => handleExamChange('ALL')}
-            className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer ${
               currentExamFilter === 'ALL'
                 ? 'bg-indigo-600 text-white shadow-xs'
                 : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -304,13 +307,13 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
           >
             <span>Tất cả đề</span>
             <span
-              className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
                 currentExamFilter === 'ALL'
                   ? 'bg-white/20 text-white'
                   : 'bg-slate-200 text-slate-700'
               }`}
             >
-              {vocabulary.length}
+              {vocabulary.length} từ
             </span>
           </button>
 
@@ -321,7 +324,7 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
                 key={exam}
                 type="button"
                 onClick={() => handleExamChange(exam)}
-                className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer max-w-full text-left ${
+                className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 cursor-pointer max-w-full text-left ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-xs ring-2 ring-indigo-400'
                     : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'
@@ -330,13 +333,13 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
               >
                 <span className="truncate max-w-[240px] sm:max-w-[320px]">{exam}</span>
                 <span
-                  className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
+                  className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold shrink-0 ${
                     isActive
                       ? 'bg-white/20 text-white'
-                      : 'bg-slate-200 text-slate-700'
+                      : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                   }`}
                 >
-                  {count} từ
+                  Đã chọn {count} từ để học
                 </span>
               </button>
             );
@@ -352,8 +355,8 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
               <span className="px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-indigo-500/30 text-indigo-200 border border-indigo-400/40">
                 Đang ôn theo đề thi
               </span>
-              <span className="text-xs text-indigo-200 font-semibold">
-                ● Quy mô: <strong>{examWords.length}</strong> từ vựng
+              <span className="text-xs text-indigo-200 font-bold">
+                ● Đã chọn: <strong className="text-emerald-300">{examWords.length}</strong> từ để học
               </span>
             </div>
             <h3 className="text-base sm:text-lg font-black text-white leading-snug">

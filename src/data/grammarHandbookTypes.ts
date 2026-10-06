@@ -22,7 +22,7 @@ export interface CleanGrammarTopic {
   shortTitle: string;
   englishTitle: string;
   difficulty: 'Trọng tâm' | 'Nâng cao';
-  examWeight: string; // Tần suất & Trọng số trong đề thi THPTQG
+  examWeight?: string; // Tần suất & Trọng số trong đề thi THPTQG
   concept: string; // Bản chất & nguyên lý tư duy giải đề
   recognitionSignals: string[]; // Dấu hiệu nhận biết dạng bài trong đề thi
   formulas: string[]; // Bảng công thức vàng cốt lõi

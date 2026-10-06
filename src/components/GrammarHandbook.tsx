@@ -247,23 +247,14 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
-            <div className="flex items-center gap-2 mb-1">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
               <span className="text-xs font-black text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
                 CHUYÊN ĐỀ {String(currentTopic.topicNumber).padStart(2, '0')}
               </span>
               <span className="text-xs font-semibold text-slate-500">
                 {currentTopic.englishTitle}
               </span>
-            </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              {currentTopic.title}
-            </h1>
-            {currentTopic.examWeight && (
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 flex items-center gap-1.5 shadow-2xs">
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                  <span>{currentTopic.examWeight}</span>
-                </span>
+              {currentTopic.difficulty && (
                 <span
                   className={`text-[10px] font-black px-2 py-0.5 rounded-md border ${
                     currentTopic.difficulty === 'Nâng cao'
@@ -273,8 +264,11 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
                 >
                   {currentTopic.difficulty}
                 </span>
-              </div>
-            )}
+              )}
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              {currentTopic.title}
+            </h1>
           </div>
 
           {/* Chuyển nhanh bài trước / sau */}

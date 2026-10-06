@@ -733,27 +733,19 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </div>
             </div>
 
-            <div className="space-y-1">
-              <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-indigo-600 transition-colors">
-                Tải đề thi PDF hoặc Ảnh chụp đề giấy
+            <div className="space-y-1.5">
+              <h3 className="text-base sm:text-lg font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors">
+                Kéo thả hoặc bấm để tải đề lên
               </h3>
-              <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto">
-                Kéo thả tệp đề thi <span className="font-bold text-indigo-600">.PDF</span> hoặc <span className="font-bold text-emerald-600">Ảnh chụp đề giấy (đã tô bút highlight)</span> vào đây
+              <p className="text-xs sm:text-sm text-slate-500">
+                Hỗ trợ tệp <span className="font-semibold text-slate-700">PDF</span> và <span className="font-semibold text-slate-700">Ảnh chụp</span> (JPG, PNG)
               </p>
             </div>
 
-            <div className="flex items-center justify-center gap-2 flex-wrap pt-1">
-              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 flex items-center gap-1">
-                <FileText className="w-3.5 h-3.5" />
-                <span>Đề thi PDF</span>
-              </span>
-              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-1">
-                <ImageIcon className="w-3.5 h-3.5 text-amber-600" />
-                <span>Ảnh chụp đề giấy (JPG, PNG)</span>
-              </span>
-              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+            <div className="pt-0.5">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Nhận diện bút highlight mọi màu</span>
+                <span>Tự động nhận diện các từ tô bút highlight</span>
               </span>
             </div>
           </div>

@@ -367,36 +367,38 @@ export default function App() {
           )}
         </main>
 
-        {/* Footer */}
-        <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-xs text-slate-500">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-slate-500 text-center sm:text-left">
-              <span>Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics</span>
-            </div>
+        {/* Footer: Lượt truy cập chỉ hiện từ ban đầu lúc học sinh tải đề lên là đủ rồi */}
+        {activeTab === 'extract' && (
+          <footer className="mt-auto border-t border-slate-200 bg-white py-4 text-xs text-slate-500">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-slate-500 text-center sm:text-left">
+                <span>Hỗ trợ bởi Google Gemini AI • Phân tích ngữ liệu Oxford/Cambridge Phonetics</span>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setIsVisitorStatsModalOpen(true)}
-              className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-200 rounded-full font-medium text-slate-700 hover:text-indigo-800 transition-all cursor-pointer shadow-2xs group"
-              title="Nhấp để xem chi tiết biểu đồ & số liệu lượt truy cập toàn hệ thống"
-            >
-              <span className="flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
-                Tổng lượt truy cập: <strong className="text-slate-900 font-bold">{visitorStats.totalVisits.toLocaleString('vi-VN')}</strong> lượt
-              </span>
-              <span className="text-slate-300 hidden sm:inline">•</span>
-              <span className="flex items-center gap-1 text-emerald-700 font-semibold">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                {visitorStats.activeNow} online
-              </span>
-              <span className="text-slate-300 hidden sm:inline">•</span>
-              <span className="text-slate-600">
-                Hôm nay: <strong className="text-slate-900">+{visitorStats.todayVisits}</strong>
-              </span>
-              <span className="text-indigo-600 font-bold text-[11px] underline ml-0.5">Chi tiết &raquo;</span>
-            </button>
-          </div>
-        </footer>
+              <button
+                type="button"
+                onClick={() => setIsVisitorStatsModalOpen(true)}
+                className="inline-flex flex-wrap items-center justify-center gap-2 px-3.5 py-1.5 bg-slate-50 hover:bg-indigo-50/80 border border-slate-200 hover:border-indigo-200 rounded-full font-medium text-slate-700 hover:text-indigo-800 transition-all cursor-pointer shadow-2xs group"
+                title="Nhấp để xem chi tiết biểu đồ & số liệu lượt truy cập toàn hệ thống"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Eye className="w-3.5 h-3.5 text-indigo-600 group-hover:scale-110 transition-transform" />
+                  Tổng lượt truy cập: <strong className="text-slate-900 font-bold">{visitorStats.totalVisits.toLocaleString('vi-VN')}</strong> lượt
+                </span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
+                <span className="flex items-center gap-1 text-emerald-700 font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {visitorStats.activeNow} online
+                </span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
+                <span className="text-slate-600">
+                  Hôm nay: <strong className="text-slate-900">+{visitorStats.todayVisits}</strong>
+                </span>
+                <span className="text-indigo-600 font-bold text-[11px] underline ml-0.5">Chi tiết &raquo;</span>
+              </button>
+            </div>
+          </footer>
+        )}
       </div>
 
       {/* Word Deep Dive Modal */}

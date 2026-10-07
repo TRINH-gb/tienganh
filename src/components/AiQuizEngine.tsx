@@ -231,6 +231,33 @@ interface AiQuizEngineProps {
   onSelectExamFilter?: (exam: string) => void;
 }
 
+const QUIZ_SESSION_STORAGE_KEY = 'evm_active_quiz_session';
+
+interface SavedQuizSession {
+  questions: QuizQuestion[];
+  activeQuestionIdx: number;
+  answers: Record<number, string>;
+  inputAnswers: Record<number, string>;
+  isSubmitted: boolean;
+  quizRound: number;
+  selectedTypes: string[];
+  questionCount: number;
+  filterExam: string;
+  filterVocabMode: 'all' | 'needReview' | 'learning';
+  quizMode: 'instant' | 'exam';
+}
+
+function getStoredQuizSession(): SavedQuizSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(QUIZ_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   vocabulary,
   onUpdateQuizResult,
@@ -239,19 +266,31 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   selectedExamFilter = 'ALL',
   onSelectExamFilter
 }) => {
-  const [filterExam, setFilterExam] = useState<string>(selectedExamFilter);
-  const [questionCount, setQuestionCount] = useState<number>(5);
-  // Default to empty so the 3 cards start with faint borders, and light up upon student selection
-  const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
-  const [filterVocabMode, setFilterVocabMode] = useState<'all' | 'needReview' | 'learning'>('all');
-  const [quizMode, setQuizMode] = useState<'instant' | 'exam'>('instant');
+  const [savedSession] = useState<SavedQuizSession | null>(() => getStoredQuizSession());
 
-  // Synchronize internal filter with selectedExamFilter prop
+  const [filterExam, setFilterExam] = useState<string>(
+    () => savedSession?.filterExam || selectedExamFilter
+  );
+  const [questionCount, setQuestionCount] = useState<number>(
+    () => savedSession?.questionCount || 5
+  );
+  // Restore selected types or start empty
+  const [selectedTypes, setSelectedTypes] = useState<string[]>(
+    () => (Array.isArray(savedSession?.selectedTypes) && savedSession.selectedTypes.length > 0 ? savedSession.selectedTypes : [])
+  );
+  const [filterVocabMode, setFilterVocabMode] = useState<'all' | 'needReview' | 'learning'>(
+    () => savedSession?.filterVocabMode || 'all'
+  );
+  const [quizMode, setQuizMode] = useState<'instant' | 'exam'>(
+    () => savedSession?.quizMode || 'instant'
+  );
+
+  // Synchronize internal filter with selectedExamFilter prop if changed from outside
   React.useEffect(() => {
-    if (selectedExamFilter) {
+    if (selectedExamFilter && !savedSession) {
       setFilterExam(selectedExamFilter);
     }
-  }, [selectedExamFilter]);
+  }, [selectedExamFilter, savedSession]);
 
   const examOptions = React.useMemo(() => {
     const set = new Set<string>();
@@ -272,13 +311,64 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
   // Generator & Quiz State
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
-  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(0);
-  const [answers, setAnswers] = useState<Record<number, string>>({});
-  const [inputAnswers, setInputAnswers] = useState<Record<number, string>>({});
-  const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
+  const [questions, setQuestions] = useState<QuizQuestion[]>(
+    () => (Array.isArray(savedSession?.questions) ? savedSession.questions : [])
+  );
+  const [activeQuestionIdx, setActiveQuestionIdx] = useState<number>(
+    () => (typeof savedSession?.activeQuestionIdx === 'number' ? savedSession.activeQuestionIdx : 0)
+  );
+  const [answers, setAnswers] = useState<Record<number, string>>(
+    () => savedSession?.answers || {}
+  );
+  const [inputAnswers, setInputAnswers] = useState<Record<number, string>>(
+    () => savedSession?.inputAnswers || {}
+  );
+  const [isSubmitted, setIsSubmitted] = useState<boolean>(
+    () => Boolean(savedSession?.isSubmitted)
+  );
   const [quizHistory, setQuizHistory] = useState<PreviousQuestionHistory[]>(() => getStoredQuizHistory());
-  const [quizRound, setQuizRound] = useState<number>(1);
+  const [quizRound, setQuizRound] = useState<number>(
+    () => (typeof savedSession?.quizRound === 'number' ? savedSession.quizRound : 1)
+  );
+
+  // Persist active quiz session to localStorage so reloading keeps progress
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (questions.length === 0 && selectedTypes.length === 0) {
+        localStorage.removeItem(QUIZ_SESSION_STORAGE_KEY);
+        return;
+      }
+      const sessionData: SavedQuizSession = {
+        questions,
+        activeQuestionIdx,
+        answers,
+        inputAnswers,
+        isSubmitted,
+        quizRound,
+        selectedTypes,
+        questionCount,
+        filterExam,
+        filterVocabMode,
+        quizMode
+      };
+      localStorage.setItem(QUIZ_SESSION_STORAGE_KEY, JSON.stringify(sessionData));
+    } catch (err) {
+      console.warn('[EVM] Failed to save active quiz session:', err);
+    }
+  }, [
+    questions,
+    activeQuestionIdx,
+    answers,
+    inputAnswers,
+    isSubmitted,
+    quizRound,
+    selectedTypes,
+    questionCount,
+    filterExam,
+    filterVocabMode,
+    quizMode
+  ]);
 
   // Helper to determine if student's answer is correct (case-insensitive & inflected form check)
   const isAnswerCorrect = (q: QuizQuestion, userAns?: string): boolean => {
@@ -528,6 +618,12 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 onClick={() => {
                   setQuizHistory([]);
                   saveStoredQuizHistory([]);
+                  setQuestions([]);
+                  setAnswers({});
+                  setInputAnswers({});
+                  setIsSubmitted(false);
+                  setActiveQuestionIdx(0);
+                  localStorage.removeItem(QUIZ_SESSION_STORAGE_KEY);
                 }}
                 className="text-xs text-slate-400 hover:text-rose-600 underline cursor-pointer"
                 title="Xóa lịch sử để làm lại từ đầu"

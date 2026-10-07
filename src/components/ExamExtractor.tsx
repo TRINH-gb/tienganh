@@ -50,6 +50,28 @@ interface StepInfo {
   message?: string;
 }
 
+const EXTRACTOR_SESSION_STORAGE_KEY = 'evm_extractor_session';
+
+interface SavedExtractorSession {
+  examTitle: string;
+  examText: string;
+  extractedList: VocabularyItem[];
+  aiSummary: string;
+  selectedWordIds: string[];
+  extractionMode: 'strict_highlight' | 'smart_filter';
+}
+
+function getStoredExtractorSession(): SavedExtractorSession | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem(EXTRACTOR_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   onAddVocabBatch,
   onOpenFlashcardsWithWords,
@@ -58,12 +80,14 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   accent,
   onOpenApiKeyModal
 }) => {
+  const [savedSession] = useState<SavedExtractorSession | null>(() => getStoredExtractorSession());
+
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: number } | null>(null);
   const [uploadedFileType, setUploadedFileType] = useState<'pdf' | 'image' | 'text' | null>(null);
   const [uploadedFileMime, setUploadedFileMime] = useState<string>('application/pdf');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [examTitle, setExamTitle] = useState<string>('');
-  const [examText, setExamText] = useState<string>('');
+  const [examTitle, setExamTitle] = useState<string>(() => savedSession?.examTitle || '');
+  const [examText, setExamText] = useState<string>(() => savedSession?.examText || '');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -87,7 +111,9 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [uploadedPdfBase64, setUploadedPdfBase64] = useState<string | null>(null);
   const [prioritizeHighlights, setPrioritizeHighlights] = useState<boolean>(true);
   const [filterOnlyHighlighted, setFilterOnlyHighlighted] = useState<boolean>(false);
-  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>('strict_highlight');
+  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>(
+    () => savedSession?.extractionMode || 'strict_highlight'
+  );
 
   // 3-step state management strictly following Rule 1 & Rule 3
   const [steps, setSteps] = useState<StepInfo[]>([
@@ -95,26 +121,54 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       step: 1,
       title: 'Bước 1: Phân tích Ngữ liệu',
       desc: 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
-      status: 'idle'
+      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
     },
     {
       step: 2,
       title: 'Bước 2: Bóc tách 5 Nhóm Từ vựng',
       desc: 'Trích xuất Collocations, Phrasal verbs, Idioms, Prepositions & IPA',
-      status: 'idle'
+      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
     },
     {
       step: 3,
       title: 'Bước 3: Tổng hợp Sư phạm & Mẹo thi',
       desc: 'Ghi chú bẫy thi THPT, câu nguyên văn & hoàn thiện kết quả',
-      status: 'idle'
+      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
     }
   ]);
 
-  // Clean initial state: no sample vocabulary loaded
-  const [extractedList, setExtractedList] = useState<VocabularyItem[]>([]);
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(new Set());
+  // Restore extracted vocabulary if saved in session
+  const [extractedList, setExtractedList] = useState<VocabularyItem[]>(
+    () => (Array.isArray(savedSession?.extractedList) ? savedSession.extractedList : [])
+  );
+  const [aiSummary, setAiSummary] = useState<string>(() => savedSession?.aiSummary || '');
+  const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(
+    () => new Set(Array.isArray(savedSession?.selectedWordIds) && savedSession.selectedWordIds.length > 0
+      ? savedSession.selectedWordIds
+      : (savedSession?.extractedList?.map((w) => w.id) || []))
+  );
+
+  // Persist session to localStorage
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      if (extractedList.length === 0 && !examText.trim()) {
+        localStorage.removeItem(EXTRACTOR_SESSION_STORAGE_KEY);
+        return;
+      }
+      const dataToSave: SavedExtractorSession = {
+        examTitle,
+        examText,
+        extractedList,
+        aiSummary,
+        selectedWordIds: Array.from(selectedWordIds),
+        extractionMode
+      };
+      localStorage.setItem(EXTRACTOR_SESSION_STORAGE_KEY, JSON.stringify(dataToSave));
+    } catch (err) {
+      console.warn('[EVM] Failed to save extractor session:', err);
+    }
+  }, [examTitle, examText, extractedList, aiSummary, selectedWordIds, extractionMode]);
 
   const handleToggleCategory = (cat: VocabCategory) => {
     if (selectedCategories.includes(cat)) {

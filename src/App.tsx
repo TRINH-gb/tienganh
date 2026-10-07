@@ -14,6 +14,25 @@ import { useVisitorStats } from './services/visitorStatsService';
 import { Menu, GraduationCap, KeyRound, Eye } from 'lucide-react';
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
+const TAB_STORAGE_KEY = 'evm_active_tab';
+const EXAM_FILTER_STORAGE_KEY = 'evm_selected_exam_filter';
+const ACCENT_STORAGE_KEY = 'evm_accent';
+
+const VALID_TABS: ActiveTab[] = ['extract', 'notebook', 'grammar', 'flashcards', 'quiz'];
+
+const getInitialTab = (): ActiveTab => {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash.replace('#', '') as ActiveTab;
+    if (VALID_TABS.includes(hash)) {
+      return hash;
+    }
+    const saved = localStorage.getItem(TAB_STORAGE_KEY) as ActiveTab;
+    if (VALID_TABS.includes(saved)) {
+      return saved;
+    }
+  }
+  return 'extract';
+};
 
 // Helper to identify and filter out computer-suggested legacy sample exams
 const isMachineSuggestedExam = (item: VocabularyItem): boolean => {
@@ -51,10 +70,21 @@ const migrateVocabularyData = (items: VocabularyItem[]): VocabularyItem[] => {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('extract');
-  const [accent, setAccent] = useState<'UK' | 'US'>('US');
+  const [activeTab, setActiveTab] = useState<ActiveTab>(getInitialTab);
+  const [accent, setAccent] = useState<'UK' | 'US'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(ACCENT_STORAGE_KEY);
+      if (saved === 'UK' || saved === 'US') return saved;
+    }
+    return 'US';
+  });
   const [inspectedWord, setInspectedWord] = useState<VocabularyItem | null>(null);
-  const [selectedExamFilter, setSelectedExamFilter] = useState<string>('ALL');
+  const [selectedExamFilter, setSelectedExamFilter] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(EXAM_FILTER_STORAGE_KEY) || 'ALL';
+    }
+    return 'ALL';
+  });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
@@ -93,6 +123,42 @@ export default function App() {
     // Default: completely empty dataset (zero machine suggestions)
     return [];
   });
+
+  // Save activeTab to localStorage and sync hash
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(TAB_STORAGE_KEY, activeTab);
+      if (window.location.hash !== `#${activeTab}`) {
+        window.history.replaceState(null, '', `#${activeTab}`);
+      }
+    }
+  }, [activeTab]);
+
+  // Listen to browser navigation (back/forward)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '') as ActiveTab;
+      if (VALID_TABS.includes(hash)) {
+        setActiveTab(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Save accent to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(ACCENT_STORAGE_KEY, accent);
+    }
+  }, [accent]);
+
+  // Save selectedExamFilter to localStorage
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem(EXAM_FILTER_STORAGE_KEY, selectedExamFilter);
+    }
+  }, [selectedExamFilter]);
 
   // Save to localStorage on changes
   useEffect(() => {

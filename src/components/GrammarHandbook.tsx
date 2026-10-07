@@ -32,13 +32,37 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
   onOpenApiKeyModal
 }) => {
   // Current active topic ID
-  const [activeTopicId, setActiveTopicId] = useState<string>('topic-1');
+  const [activeTopicId, setActiveTopicId] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evm_grammar_topic_id');
+      if (saved) return saved;
+    }
+    return 'topic-1';
+  });
 
   // Strictly either 'theory' or 'practice'
-  const [activeTab, setActiveTab] = useState<'theory' | 'practice'>('theory');
+  const [activeTab, setActiveTab] = useState<'theory' | 'practice'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evm_grammar_tab');
+      if (saved === 'theory' || saved === 'practice') return saved;
+    }
+    return 'theory';
+  });
 
   // Search keyword to find topics
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('evm_grammar_topic_id', activeTopicId);
+    }
+  }, [activeTopicId]);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('evm_grammar_tab', activeTab);
+    }
+  }, [activeTab]);
 
   // Practice state: active questions for each topic
   // Allows student to regenerate or swap question sets endlessly

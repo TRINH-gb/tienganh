@@ -49,10 +49,39 @@ export const VocabularyNotebook: React.FC<VocabularyNotebookProps> = ({
   onOpenVisitorStatsModal
 }) => {
   const [currentExamFilter, setCurrentExamFilter] = useState<string>(selectedExamFilter);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<VocabCategory | 'ALL'>('ALL');
-  const [selectedStatus, setSelectedStatus] = useState<MasteryStatus | 'ALL'>('ALL');
-  const [selectedCefr, setSelectedCefr] = useState<CefrLevel | 'ALL'>('ALL');
+  const [searchQuery, setSearchQuery] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('evm_nb_search') || '';
+    }
+    return '';
+  });
+  const [selectedCategory, setSelectedCategory] = useState<VocabCategory | 'ALL'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('evm_nb_cat') as any) || 'ALL';
+    }
+    return 'ALL';
+  });
+  const [selectedStatus, setSelectedStatus] = useState<MasteryStatus | 'ALL'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('evm_nb_status') as any) || 'ALL';
+    }
+    return 'ALL';
+  });
+  const [selectedCefr, setSelectedCefr] = useState<CefrLevel | 'ALL'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('evm_nb_cefr') as any) || 'ALL';
+    }
+    return 'ALL';
+  });
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('evm_nb_search', searchQuery);
+      localStorage.setItem('evm_nb_cat', selectedCategory);
+      localStorage.setItem('evm_nb_status', selectedStatus);
+      localStorage.setItem('evm_nb_cefr', selectedCefr);
+    }
+  }, [searchQuery, selectedCategory, selectedStatus, selectedCefr]);
 
   // Synchronize internal filter with selectedExamFilter prop
   React.useEffect(() => {

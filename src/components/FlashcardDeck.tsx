@@ -36,13 +36,25 @@ export const FlashcardDeck: React.FC<FlashcardDeckProps> = ({
   selectedExamFilter = 'ALL',
   onSelectExamFilter
 }) => {
-  const [currentIndex, setCurrentIndex] = useState<number>(0);
+  const [currentIndex, setCurrentIndex] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('evm_flashcard_idx');
+      if (saved) return Math.max(0, parseInt(saved, 10) || 0);
+    }
+    return 0;
+  });
   const [isFlipped, setIsFlipped] = useState<boolean>(false);
   const [filterExam, setFilterExam] = useState<string>(selectedExamFilter);
   const [filterCategory, setFilterCategory] = useState<VocabCategory | 'ALL'>('ALL');
   const [filterStatus, setFilterStatus] = useState<MasteryStatus | 'ALL'>('ALL');
   const [autoPronounce, setAutoPronounce] = useState<boolean>(true);
   const [shuffledIds, setShuffledIds] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('evm_flashcard_idx', String(currentIndex));
+    }
+  }, [currentIndex]);
 
   // Sync with selectedExamFilter prop
   useEffect(() => {

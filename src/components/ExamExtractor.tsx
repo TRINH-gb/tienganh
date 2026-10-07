@@ -854,14 +854,11 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
             {/* Bắt buộc học sinh nhập Tên đề thi */}
             <div className="mt-4 pt-3.5 border-t border-emerald-200/70 space-y-1.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <div>
                 <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-indigo-600 shrink-0" />
                   <span>Tên đề thi <span className="text-rose-600 font-extrabold">* (Bắt buộc nhập)</span>:</span>
                 </label>
-                <span className="text-[11px] text-slate-500 font-medium">
-                  Tên này sẽ dùng để gom nhóm đề thi trong Sổ tay từ vựng
-                </span>
               </div>
               <input
                 type="text"
@@ -877,164 +874,12 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                     : 'border-slate-300 focus:border-indigo-600 focus:ring-indigo-100 placeholder:text-slate-400'
                 }`}
               />
-              {!examTitle.trim() && (
-                <p className="text-[11px] font-bold text-amber-700 flex items-center gap-1 mt-1">
-                  <span>⚠️ Vui lòng nhập tên đề thi để hệ thống lưu và gom nhóm vào Sổ tay từ vựng.</span>
-                </p>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Feedback / Status Alert for PDF */}
-        {pdfStatusMsg && (
-          <div
-            className={`p-3 rounded-xl border text-xs font-medium flex items-start gap-2.5 animate-in fade-in ${
-              pdfStatusMsg.type === 'success'
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                : pdfStatusMsg.type === 'warning'
-                ? 'bg-amber-50 border-amber-300 text-amber-800'
-                : pdfStatusMsg.type === 'error'
-                ? 'bg-rose-50 border-rose-300 text-rose-800'
-                : 'bg-indigo-50 border-indigo-300 text-indigo-800'
-            }`}
-          >
-            {pdfStatusMsg.type === 'success' && <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />}
-            {pdfStatusMsg.type === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />}
-            {pdfStatusMsg.type === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />}
-            {pdfStatusMsg.type === 'info' && <Loader2 className="w-4 h-4 animate-spin text-indigo-600 shrink-0 mt-0.5" />}
-            <div className="flex-1">{pdfStatusMsg.text}</div>
-          </div>
-        )}
-
-        {/* Chế độ Trích xuất (Kiểm soát triệt để từ thừa) */}
-        {isFileUploaded && (
-          <div className="pt-2 border-t border-slate-100 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-              <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
-                <span>Chế độ trích xuất từ vựng:</span>
-              </label>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Chọn chế độ phù hợp để loại bỏ hoàn toàn từ thừa
-              </span>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              {/* Card 1: Strict Highlight */}
-              <div
-                onClick={() => setExtractionMode('strict_highlight')}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 select-none ${
-                  extractionMode === 'strict_highlight'
-                    ? 'border-amber-400 bg-amber-50/70 shadow-xs ring-1 ring-amber-300'
-                    : 'border-slate-200 hover:border-amber-200 bg-slate-50/40 hover:bg-amber-50/20'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="extractionMode"
-                  checked={extractionMode === 'strict_highlight'}
-                  onChange={() => setExtractionMode('strict_highlight')}
-                  className="mt-1 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <strong className="text-xs text-slate-900 font-bold flex items-center gap-1">
-                      <span>🖍️ Chỉ lấy từ Bôi Highlight / Dạ quang</span>
-                    </strong>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
-                      0% từ thừa
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-snug">
-                    Quét thị giác PDF hoặc ảnh chụp, <strong>CHỈ trích xuất từ có vệt màu dạ quang</strong>. Tuyệt đối không lấy từ thừa ngoài vệt highlight.
-                  </p>
-                </div>
-              </div>
-
-              {/* Card 2: Smart Filter */}
-              <div
-                onClick={() => setExtractionMode('smart_filter')}
-                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 select-none ${
-                  extractionMode === 'smart_filter'
-                    ? 'border-indigo-500 bg-indigo-50/70 shadow-xs ring-1 ring-indigo-300'
-                    : 'border-slate-200 hover:border-indigo-200 bg-slate-50/40 hover:bg-indigo-50/20'
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="extractionMode"
-                  checked={extractionMode === 'smart_filter'}
-                  onChange={() => setExtractionMode('smart_filter')}
-                  className="mt-1 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                />
-                <div className="space-y-1 flex-1">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <strong className="text-xs text-slate-900 font-bold flex items-center gap-1">
-                      <span>🎯 Trích xuất Tinh lọc THPTQG (Điểm 8+ 9+)</span>
-                    </strong>
-                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
-                      Khuyên dùng khi chưa bôi màu
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-600 leading-snug">
-                    Tự động phân tích cả đề nhưng <strong>loại sạch từ cơ bản A1-A2</strong> & từ chỉ thị câu hỏi. Chỉ lấy 15-20 cụm từ Collocations, Phrasal verbs, Idioms đắt giá.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Chọn 5 Nhóm Từ Vựng (Category Chips) */}
-            <div className="pt-2 border-t border-slate-100 space-y-1.5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Nhóm từ vựng mục tiêu (Bấm để bật/tắt):</span>
-                </label>
-                <span className="text-[10px] text-slate-500 font-medium">
-                  Mẹo: Tắt bớt nhóm không cần (ví dụ bỏ "Từ đơn") để giảm tối đa từ thừa
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {(['Collocation', 'Phrasal verb', 'Idiom', 'Preposition', 'Single word'] as VocabCategory[]).map((cat) => {
-                  const isSelected = selectedCategories.includes(cat);
-                  const labels: Record<VocabCategory, string> = {
-                    'Collocation': '📌 Collocation (Cụm từ)',
-                    'Phrasal verb': '🚀 Phrasal verb (Cụm ĐT)',
-                    'Idiom': '💡 Idiom (Thành ngữ)',
-                    'Preposition': '🔗 Preposition (Cụm giới từ)',
-                    'Single word': '📖 Single word (Từ đơn B2-C1)'
-                  };
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => handleToggleCategory(cat)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border flex items-center gap-1 ${
-                        isSelected
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700'
-                      }`}
-                    >
-                      {isSelected && <Check className="w-3 h-3 text-white" />}
-                      <span>{labels[cat]}</span>
-                    </button>
-                  );
-                })}
-              </div>
             </div>
           </div>
         )}
 
         {/* Action Row: Nút Phân tích */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
-          <div>
-            {!examTitle.trim() && isFileUploaded && (
-              <span className="text-xs font-bold text-amber-700 flex items-center gap-1">
-                ⚠️ Nhập tên đề thi ở trên để kích hoạt nút Phân tích
-              </span>
-            )}
-          </div>
+        <div className="flex justify-end pt-2 border-t border-slate-100">
           <button
             type="button"
             disabled={!isFileUploaded || !examTitle.trim() || isLoading || isReadingPdf}
@@ -1052,8 +897,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </>
             ) : (
               <>
-                <Sparkles className={`w-4 h-4 ${isFileUploaded && examTitle.trim() ? 'text-amber-300 animate-pulse' : 'text-slate-400'}`} />
-                <span>{!examTitle.trim() && isFileUploaded ? 'Nhập tên đề thi để phân tích' : 'Phân tích'}</span>
+                <Sparkles className="w-4 h-4 text-amber-300" />
+                <span>Phân tích</span>
               </>
             )}
           </button>

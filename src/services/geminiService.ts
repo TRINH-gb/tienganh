@@ -853,7 +853,13 @@ export function getStoredQuizHistory(): PreviousQuestionHistory[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(QUIZ_HISTORY_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(parsed)) return [];
+    // Sanitize: filter out any corrupt or empty items
+    return parsed.filter(
+      (h): h is PreviousQuestionHistory =>
+        Boolean(h && typeof h.term === 'string' && h.term.trim().length > 0)
+    );
   } catch {
     return [];
   }
@@ -862,11 +868,42 @@ export function getStoredQuizHistory(): PreviousQuestionHistory[] {
 export function saveStoredQuizHistory(history: PreviousQuestionHistory[]): void {
   if (typeof window === 'undefined') return;
   try {
-    const trimmed = history.slice(-60);
+    const valid = history.filter(
+      (h) => Boolean(h && typeof h.term === 'string' && h.term.trim().length > 0)
+    );
+    const trimmed = valid.slice(-60);
     localStorage.setItem(QUIZ_HISTORY_STORAGE_KEY, JSON.stringify(trimmed));
   } catch (e) {
     console.warn('[EVM] Failed to save quiz history:', e);
   }
+}
+
+/**
+ * Checks whether a candidate sentence matches or closely resembles any sentence in a banned list.
+ */
+export function isSentenceDuplicate(newSentence: string, bannedList: string[]): boolean {
+  if (!newSentence || !bannedList || bannedList.length === 0) return false;
+  const cleanNew = newSentence
+    .replace(/\*\*/g, '')
+    .replace(/[^a-zA-Z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+  if (cleanNew.length < 15) return false;
+
+  for (const banned of bannedList) {
+    if (!banned) continue;
+    const cleanBanned = banned
+      .replace(/\*\*/g, '')
+      .replace(/[^a-zA-Z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+    if (cleanBanned.length < 15) continue;
+    if (cleanNew === cleanBanned) return true;
+    if (cleanNew.includes(cleanBanned) || cleanBanned.includes(cleanNew)) return true;
+  }
+  return false;
 }
 
 export function extractSuggestedWords(explanation: string): { synonyms: string[]; antonyms: string[] } {
@@ -1209,14 +1246,75 @@ export async function generateQuizWithFallback(
   const numQuestions = Math.min(Number(count) || 5, vocabularyList.length || 5);
   const targetTermsList = vocabularyList.slice(0, numQuestions).map((v) => v.term);
 
+  // Pure lexical definition only - ZERO passage context sent to AI to prevent copying the original exam sentence!
   const vocabSummary = vocabularyList.slice(0, 30).map((v) => ({
     term: v.term,
     type: v.type,
-    meaning: v.meaning,
-    context: v.context
+    meaning: v.meaning
   }));
 
   const profileMap = buildTermLexicalProfiles(history);
+
+  // Extract all authentic past question sentences AND all original passage sentences to ban them from repetition!
+  const originalPassageSentences = vocabularyList
+    .map((v) => v.context?.replace(/\*\*/g, '').trim())
+    .filter((c): c is string => Boolean(c && c.length > 5));
+
+  const pastQuestionSentences = history
+    .map((h) => h.question?.replace(/\*\*/g, '').trim())
+    .filter((q): q is string => Boolean(q && q.length > 5));
+
+  const allBannedSentences = Array.from(new Set([
+    ...pastQuestionSentences,
+    ...originalPassageSentences
+  ])).slice(-50);
+
+  // Generate explicit per-question directives
+  const targetDirectives = targetTermsList.map((term, idx) => {
+    const termLower = term.trim().toLowerCase();
+    const termHistory = history.filter((h) => h.term && h.term.trim().toLowerCase() === termLower);
+    const pastQuestions = termHistory.map((h) => h.question?.replace(/\*\*/g, '').trim()).filter(Boolean);
+
+    let directive = `  * Câu ${idx + 1}: BẮT BUỘC kiểm tra từ/cụm từ: "${term}"`;
+
+    if (allowedTypes.length === 1 && allowedTypes[0] === 'Synonyms/Antonyms') {
+      const hadSynonym = termHistory.some((h) => h.subtype === 'Synonym');
+      const hadAntonym = termHistory.some((h) => h.subtype === 'Antonym');
+
+      if (hadSynonym && !hadAntonym) {
+        directive += `\n    -> BẮT BUỘC DẠNG TRÁI NGHĨA (subtype: "Antonym", OPPOSITE in meaning). Lượt trước đã kiểm tra Đồng nghĩa (Closest), lượt này BẮT BUỘC kiểm tra Trái nghĩa (Opposite)!`;
+      } else if (hadAntonym && !hadSynonym) {
+        directive += `\n    -> BẮT BUỘC DẠNG ĐỒNG NGHĨA (subtype: "Synonym", CLOSEST in meaning). Lượt trước đã kiểm tra Trái nghĩa (Opposite), lượt này BẮT BUỘC kiểm tra Đồng nghĩa (Closest)!`;
+      } else {
+        directive += `\n    -> Chọn subtype 'Synonym' hoặc 'Antonym' linh hoạt, nhưng BẮT BUỘC dùng ngữ cảnh câu văn mới 100%!`;
+      }
+    } else if (allowedTypes.includes('Synonyms/Antonyms') && termHistory.length > 0) {
+      const lastH = termHistory[termHistory.length - 1];
+      if (lastH.type === 'Synonyms/Antonyms') {
+        if (lastH.subtype === 'Synonym') {
+          directive += `\n    -> BẮT BUỘC ĐẢO CHIỀU: Đổi sang dạng TRÁI NGHĨA (subtype: "Antonym", OPPOSITE in meaning) hoặc chuyển sang dạng Fill-in-the-blank / Sentence Completion!`;
+        } else if (lastH.subtype === 'Antonym') {
+          directive += `\n    -> BẮT BUỘC ĐẢO CHIỀU: Đổi sang dạng ĐỒNG NGHĨA (subtype: "Synonym", CLOSEST in meaning) hoặc chuyển sang dạng Fill-in-the-blank / Sentence Completion!`;
+        }
+      }
+    }
+
+    if (pastQuestions.length > 0) {
+      directive += `\n    -> CẤM LẶP LẠI CÂU VĂN: BẮT BUỘC sáng tạo câu văn mới 100%, tuyệt đối không dùng lại câu cũ: "${pastQuestions[pastQuestions.length - 1]}"`;
+    }
+
+    return directive;
+  });
+
+  const bannedSection = allBannedSentences.length > 0 ? `
+DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP (BANNED CONTEXT SENTENCES - ZERO REPETITION):
+${JSON.stringify(allBannedSentences, null, 2)}
+
+QUY TẮC BẮT BUỘC VỀ NGỮ CẢNH (CRITICAL CONTEXT NOVELTY MANDATE):
+- TUYỆT ĐỐI KHÔNG sử dụng lại bất kỳ câu văn, cấu trúc hay tình huống nào trong "DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP" ở trên!
+- Kể cả khi kiểm tra lại cùng một từ vựng, BẮT BUỘC phải sáng tạo CÂU VĂN MỚI 100%, chủ đề mới, ngữ cảnh hoàn toàn mới (công nghệ, trí tuệ nhân tạo, y tế, môi trường, đời sống xã hội, giáo dục, tâm lý học...).
+- Tuyệt đối không lặp lại câu văn cũ hoặc chỉ sửa một vài từ vặt!
+` : '';
 
   let historySection = '';
   if (history && history.length > 0) {
@@ -1244,12 +1342,6 @@ export async function generateQuizWithFallback(
       };
     });
 
-    // Extract all authentic past question sentences to strictly ban them from repetition
-    const bannedPastQuestionSentences = history
-      .map((h) => h.question?.trim())
-      .filter((q): q is string => Boolean(q && q.length > 5))
-      .slice(-40);
-
     const termProfiles = Array.from(profileMap.values()).map((p) => ({
       term: p.term,
       testedSynonyms: p.testedSynonyms,
@@ -1264,35 +1356,27 @@ export async function generateQuizWithFallback(
 DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
 ${JSON.stringify(recentHistory, null, 2)}
 
-DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP (BANNED PAST CONTEXT SENTENCES - ZERO REPETITION):
-${JSON.stringify(bannedPastQuestionSentences, null, 2)}
-
 NGÂN HÀNG TỪ ĐỒNG NGHĨA / TRÁI NGHĨA ĐÃ XÁC LẬP THEO TỪNG TỪ (ESTABLISHED TERM LEXICAL PROFILES):
 ${JSON.stringify(termProfiles, null, 2)}
 
 QUY TẮC BẮT BUỘC KHI TẠO ĐỀ MỚI (MANDATORY RULES FOR NEW QUIZ GENERATION):
-0. TUYỆT ĐỐI CẤM LẶP LẠI CÂU VĂN CŨ (CRITICAL ZERO-DUPLICATION & CONTEXT NOVELTY MANDATE):
-   - TUYỆT ĐỐI KHÔNG sử dụng lại bất kỳ câu văn, ngữ cảnh hay tình huống nào đã có trong "DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP" ở trên!
-   - Kể cả khi kiểm tra lại cùng một từ vựng, BẮT BUỘC phải sáng tạo một CÂU VĂN MỚI 100%, chủ đề mới, tình huống hoàn toàn mới (công nghệ, trí tuệ nhân tạo, y tế, môi trường, đời sống xã hội, giáo dục, tâm lý học...).
-   - Tuyệt đối không lặp lại câu văn cũ hoặc chỉ sửa một vài từ vặt!
-
 1. NGUYÊN TẮC KHÉP KÍN & KIỂM TRA ĐÚNG CÁC TỪ ĐÃ ĐỀ XUẤT (CLOSED-LOOP LEXICAL RULE):
    - ĐỐI VỚI CÁC TỪ ĐÃ CÓ TRONG NGÂN HÀNG ĐỀ XUẤT Ở TRÊN (như 'manipulate'):
      * ĐÁP ÁN ĐÚNG CỦA CÂU HỎI TIẾP THEO BẮT BUỘC PHẢI CHỌN TỪ CHÍNH DANH SÁCH ĐÃ ĐỀ XUẤT TRÊN! Tuyệt đối không chọn đáp án ngoài danh sách đề xuất.
      * NẾU RA CÂU HỎI ĐỒNG NGHĨA (CLOSEST):
        -> BẮT BUỘC chọn đáp án đúng từ danh sách các từ đồng nghĩa CHƯA KIỂM TRA ("untestedSynonymsRemaining")!
-       -> TUYỆT ĐỐI KHÔNG lặp lại đáp án đã kiểm tra ở lượt trước (ví dụ: lượt trước đã kiểm tra 'control' thì lượt này BẮT BUỘC chọn từ khác như 'influence', 'sway',...).
+       -> TUYỆT ĐỐI KHÔNG lặp lại đáp án đã kiểm tra ở lượt trước.
      * NẾU RA CÂU HỎI TRÁI NGHĨA (OPPOSITE - ƯU TIÊN ĐẢO CHIỀU):
        -> BẮT BUỘC chọn đáp án đúng từ danh sách các từ trái nghĩa đã đề xuất ("establishedAntonymsBank" / "untestedAntonymsRemaining").
      * TRONG PHẦN GIẢI THÍCH (EXPLANATION):
-       -> Mục "• Các từ đồng nghĩa chuẩn cùng ngữ cảnh:" BẮT BUỘC PHẢI LIỆT KÊ ĐỦ CẢ: từ đáp án câu này, TẤT CẢ các từ đã kiểm tra ở các lượt trước (ví dụ: 'control') và các từ đã đề xuất! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT từ đã kiểm tra!
+       -> Mục "• Các từ đồng nghĩa chuẩn cùng ngữ cảnh:" BẮT BUỘC PHẢI LIỆT KÊ ĐỦ CẢ: từ đáp án câu này, TẤT CẢ các từ đã kiểm tra ở các lượt trước và các từ đã đề xuất! TUYỆT ĐỐI KHÔNG ĐƯỢC BỎ SÓT từ đã kiểm tra!
        -> Mục "• Các từ trái nghĩa chuẩn cùng ngữ cảnh:" BẮT BUỘC giữ nguyên đầy đủ bộ từ trái nghĩa đã đề xuất.
 
 2. QUY TẮC ĐẢO CHIỀU ĐỒNG NGHĨA <-> TRÁI NGHĨA (CRITICAL SYNONYM <-> ANTONYM FLIP RULE):
-   - KHI TẠO BỘ ĐỀ MỚI, BẠN HOÀN TOÀN ĐƯỢC PHÉP VÀ ĐẶC BIỆT KHUYẾN KHÍCH CHỌN LẠI CÙNG MỘT TỪ ĐÃ KIỂM TRA Ở LƯỢT TRƯỚC ĐỂ ĐẢO CHIỀU:
-     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CHO TỪ ĐÓ:
+   - KHI TẠO BỘ ĐỀ MỚI, NẾU CHỌN LẠI CÙNG MỘT TỪ ĐÃ KIỂM TRA Ở LƯỢT TRƯỚC:
+     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM):
        -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CỦA TỪ ĐÓ (với câu ngữ cảnh mới, đáp án đúng là từ trái nghĩa trong ngân hàng đề xuất)!
-     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM) CHO TỪ ĐÓ:
+     * NẾU CÂU TRƯỚC ĐÃ CHO TÌM TỪ TRÁI NGHĨA (OPPOSITE / ANTONYM):
        -> Ở LƯỢT NÀY BẮT BUỘC PHẢI CHUYỂN SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST / SYNONYM) CỦA TỪ ĐÓ!
      * NẾU CÂU TRƯỚC ĐÃ CHO ĐIỀN TỪ (FILL-IN-THE-BLANK):
        -> Ở lượt này có thể chuyển sang tìm Đồng nghĩa hoặc Trái nghĩa!
@@ -1443,14 +1527,15 @@ DO NOT generate any question type that is not in this allowed list!
 
 USER'S TARGET VOCABULARY LIST (Prioritized order):
 ${JSON.stringify(vocabSummary, null, 2)}
+${bannedSection}
 ${historySection}
 ${typeConstraintNotice}
-CRITICAL MANDATORY CONSTRAINT - 100% DISTINCT TARGET TERMS PER QUESTION (MỖI CÂU 1 TỪ KHÁC NHAU, TUYỆT ĐỐI KHÔNG TRÙNG LẶP TỪ):
+CRITICAL MANDATORY CONSTRAINT - 100% DISTINCT TARGET TERMS & ZERO REPETITION:
 - You MUST generate exactly ${numQuestions} questions.
-- EACH QUESTION MUST TEST A COMPLETELY DIFFERENT VOCABULARY ITEM:
-${targetTermsList.map((t, idx) => `  * Question ${idx + 1}: MUST test target word/phrase: "${t}"`).join('\n')}
+- EACH QUESTION MUST TEST A COMPLETELY DIFFERENT VOCABULARY ITEM ACCORDING TO THESE MANDATORY DIRECTIVES:
+${targetDirectives.join('\n')}
 - STRICTLY FORBIDDEN: DO NOT repeat or test the same target term more than once in this quiz!
-- STRICTLY FORBIDDEN: DO NOT repeat any context sentence from previous rounds! Every single question MUST have a 100% brand-new, authentic context sentence!
+- STRICTLY FORBIDDEN: DO NOT repeat any context sentence from previous rounds or the reading passage! Every single question MUST have a 100% brand-new, authentic context sentence!
 SPECIFICATIONS:
 1. Target Question Types to generate:
 ${specList.join('\n')}
@@ -1526,6 +1611,26 @@ Return valid JSON in this exact structure:
         type = allowedTypes[0] as QuizQuestion['type'];
       }
 
+      // Robust targetTerm resolution:
+      const requestedTerm = (targetTermsList[idx] || '').trim();
+      let resolvedTerm = String(
+        item.targetTerm ||
+        item.term ||
+        item.target_term ||
+        item.targetWord ||
+        item.target_word ||
+        item.word ||
+        ''
+      ).trim();
+
+      if (!resolvedTerm || resolvedTerm.toLowerCase() === 'undefined' || resolvedTerm.toLowerCase() === 'null') {
+        const matchedTarget = targetTermsList.find((t) => {
+          const tRegex = new RegExp(`\\b${t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+          return tRegex.test(item.question || '') || tRegex.test(item.explanation || '');
+        });
+        resolvedTerm = matchedTarget || requestedTerm;
+      }
+
       let rawQuestion = String(item.question || '').trim();
 
       // If type is Fill-in-the-blank or Sentence Completion, ensure question has "_______"
@@ -1533,8 +1638,8 @@ Return valid JSON in this exact structure:
         if (!rawQuestion.includes('_______') && !rawQuestion.includes('______') && !rawQuestion.includes('____')) {
           if (/\*\*[^*]+\*\*/.test(rawQuestion)) {
             rawQuestion = rawQuestion.replace(/\*\*[^*]+\*\*/, '_______');
-          } else if (item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
-            const re = new RegExp(item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          } else if (resolvedTerm && rawQuestion.toLowerCase().includes(resolvedTerm.toLowerCase())) {
+            const re = new RegExp(resolvedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
             rawQuestion = rawQuestion.replace(re, '_______');
           } else {
             const capsMatch = rawQuestion.match(/\b[A-Z]{3,}\b/);
@@ -1547,11 +1652,11 @@ Return valid JSON in this exact structure:
 
       // If type is Synonyms/Antonyms, ensure target word is formatted and not a blank
       if (type === 'Synonyms/Antonyms') {
-        if (rawQuestion.includes('_______') && item.targetTerm) {
-          rawQuestion = rawQuestion.replace('_______', `**${item.targetTerm}**`);
-        } else if (!rawQuestion.includes('**') && item.targetTerm && rawQuestion.toLowerCase().includes(item.targetTerm.toLowerCase())) {
-          const re = new RegExp(`\\b${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
-          rawQuestion = rawQuestion.replace(re, `**${item.targetTerm}**`);
+        if (rawQuestion.includes('_______') && resolvedTerm) {
+          rawQuestion = rawQuestion.replace('_______', `**${resolvedTerm}**`);
+        } else if (!rawQuestion.includes('**') && resolvedTerm && rawQuestion.toLowerCase().includes(resolvedTerm.toLowerCase())) {
+          const re = new RegExp(`\\b${resolvedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+          rawQuestion = rawQuestion.replace(re, `**${resolvedTerm}**`);
         }
       }
 
@@ -1575,7 +1680,7 @@ Return valid JSON in this exact structure:
         .replace(/\(?(?:đề|lượt|vòng|câu)\s+(?:trước|này|sau|cũ)[^)]*\)?/gi, '')
         .trim();
 
-      const targetKey = String(item.targetTerm || '').trim().toLowerCase();
+      const targetKey = resolvedTerm.toLowerCase();
       const profile = profileMap.get(targetKey);
 
       // Extract target word as it appears directly in the question sentence:
@@ -1583,13 +1688,13 @@ Return valid JSON in this exact structure:
       const boldMatch = question.match(/\*\*([^*]+)\*\*/);
       if (boldMatch && boldMatch[1]) {
         targetInSentence = boldMatch[1].trim();
-      } else if (item.targetTerm) {
-        const termRegex = new RegExp(`\\b(${item.targetTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[a-z]*)\\b`, 'i');
+      } else if (resolvedTerm) {
+        const termRegex = new RegExp(`\\b(${resolvedTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[a-z]*)\\b`, 'i');
         const termMatch = question.match(termRegex);
         if (termMatch && termMatch[1]) {
           targetInSentence = termMatch[1].trim();
         } else {
-          targetInSentence = item.targetTerm;
+          targetInSentence = resolvedTerm;
         }
       }
 
@@ -1602,10 +1707,10 @@ Return valid JSON in this exact structure:
 
       // Harmonize options to match targetInSentence inflection
       if (type === 'Synonyms/Antonyms' && targetInSentence) {
-        optA = harmonizeWordForm(optA, targetInSentence, item.targetTerm);
-        optB = harmonizeWordForm(optB, targetInSentence, item.targetTerm);
-        optC = harmonizeWordForm(optC, targetInSentence, item.targetTerm);
-        optD = harmonizeWordForm(optD, targetInSentence, item.targetTerm);
+        optA = harmonizeWordForm(optA, targetInSentence, resolvedTerm);
+        optB = harmonizeWordForm(optB, targetInSentence, resolvedTerm);
+        optC = harmonizeWordForm(optC, targetInSentence, resolvedTerm);
+        optD = harmonizeWordForm(optD, targetInSentence, resolvedTerm);
       }
 
       const optionsMap: Record<string, string> = { A: optA, B: optB, C: optC, D: optD };
@@ -1621,8 +1726,8 @@ Return valid JSON in this exact structure:
         : extractedFromExp.antonyms;
 
       // Harmonize itemSyns and itemAnts as well
-      const harmonizedItemSyns = itemSyns.map((s) => harmonizeWordForm(s, targetInSentence, item.targetTerm));
-      const harmonizedItemAnts = itemAnts.map((a) => harmonizeWordForm(a, targetInSentence, item.targetTerm));
+      const harmonizedItemSyns = itemSyns.map((s) => harmonizeWordForm(s, targetInSentence, resolvedTerm));
+      const harmonizedItemAnts = itemAnts.map((a) => harmonizeWordForm(a, targetInSentence, resolvedTerm));
 
       // Build unified full synonym & antonym sets
       const unifiedSynonymsSet = new Set<string>();
@@ -1631,16 +1736,16 @@ Return valid JSON in this exact structure:
       // 1. If we have a profile from history, add all previously known & tested words
       if (profile) {
         profile.allProposedSynonyms.forEach((w) => {
-          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, resolvedTerm));
         });
         profile.testedSynonyms.forEach((w) => {
-          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+          if (w.trim()) unifiedSynonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, resolvedTerm));
         });
         profile.allProposedAntonyms.forEach((w) => {
-          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, resolvedTerm));
         });
         profile.testedAntonyms.forEach((w) => {
-          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, item.targetTerm));
+          if (w.trim()) unifiedAntonymsSet.add(harmonizeWordForm(w.trim(), targetInSentence, resolvedTerm));
         });
       }
 
@@ -1690,7 +1795,7 @@ Return valid JSON in this exact structure:
       let acceptableAnswers: string[] | undefined = undefined;
 
       if (type === 'Sentence Completion') {
-        const targetTerm = String(item.targetTerm || '').trim();
+        const targetTerm = resolvedTerm;
         correctWordAnswer = targetTerm;
 
         // Collect all available words from user's notebook
@@ -1742,7 +1847,7 @@ Return valid JSON in this exact structure:
         id: item.id || `q-${Date.now()}-${idx}`,
         type,
         subtype: resolvedSubtype,
-        targetTerm: String(item.targetTerm || '').trim(),
+        targetTerm: resolvedTerm,
         instruction,
         question,
         testedFocus: sanitizedFocus,
@@ -1763,6 +1868,15 @@ Return valid JSON in this exact structure:
         acceptableAnswers
       };
     });
+
+    // Code-level strict verification: Check if any question repeats a banned sentence
+    for (const q of formatted) {
+      if (isSentenceDuplicate(q.question, allBannedSentences)) {
+        throw new Error(
+          `AI đã tạo lại câu văn bị trùng lặp: "${q.question.slice(0, 50)}...". Kích hoạt cơ chế tự động thử lại với câu văn mới.`
+        );
+      }
+    }
 
     // Deduplicate questions by targetTerm and sentence to guarantee distinct questions
     const seenTerms = new Set<string>();

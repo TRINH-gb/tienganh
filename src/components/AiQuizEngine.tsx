@@ -439,32 +439,41 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     // Accumulate finished questions into history for subsequent round generation
     let accumulatedHistory = [...quizHistory];
     if (questions.length > 0) {
-      const currentRoundItems: PreviousQuestionHistory[] = questions.map((q) => {
-        const extracted = extractSuggestedWords(q.explanation);
-        const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
-          ? q.suggestedSynonyms
-          : extracted.synonyms;
-        const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
-          ? q.suggestedAntonyms
-          : extracted.antonyms;
+      const currentRoundItems: PreviousQuestionHistory[] = questions
+        .map((q) => {
+          const extracted = extractSuggestedWords(q.explanation);
+          const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
+            ? q.suggestedSynonyms
+            : extracted.synonyms;
+          const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
+            ? q.suggestedAntonyms
+            : extracted.antonyms;
+          const resolvedTerm = (
+            q.targetTerm ||
+            targetVocabList.find((v) => q.question?.toLowerCase().includes(v.term.toLowerCase()))?.term ||
+            ''
+          ).trim();
 
-        return {
-          term: q.targetTerm,
-          type: q.type,
-          subtype: q.subtype,
-          question: q.question,
-          testedFocus: q.testedFocus || q.options[q.correctAnswer] || '',
-          correctAnswerText: q.options[q.correctAnswer] || '',
-          suggestedSynonyms: syns,
-          suggestedAntonyms: ants
-        };
-      });
+          return {
+            term: resolvedTerm,
+            type: q.type,
+            subtype: q.subtype,
+            question: q.question,
+            testedFocus: q.testedFocus || q.options[q.correctAnswer] || '',
+            correctAnswerText: q.options[q.correctAnswer] || '',
+            suggestedSynonyms: syns,
+            suggestedAntonyms: ants
+          };
+        })
+        .filter((h) => Boolean(h.term && h.term.length > 0));
+
       accumulatedHistory = [...accumulatedHistory, ...currentRoundItems];
       setQuizHistory(accumulatedHistory);
       saveStoredQuizHistory(accumulatedHistory);
       setQuizRound((r) => r + 1);
     }
 
+    setQuestions([]);
     setIsLoading(true);
     setErrorMsg(null);
     setAnswers({});
@@ -489,26 +498,33 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
       setQuestions(generatedQuestions);
 
       // Immediately persist newly generated questions into history & localStorage
-      const newRoundItems: PreviousQuestionHistory[] = generatedQuestions.map((q) => {
-        const extracted = extractSuggestedWords(q.explanation);
-        const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
-          ? q.suggestedSynonyms
-          : extracted.synonyms;
-        const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
-          ? q.suggestedAntonyms
-          : extracted.antonyms;
+      const newRoundItems: PreviousQuestionHistory[] = generatedQuestions
+        .map((q) => {
+          const extracted = extractSuggestedWords(q.explanation);
+          const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
+            ? q.suggestedSynonyms
+            : extracted.synonyms;
+          const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
+            ? q.suggestedAntonyms
+            : extracted.antonyms;
+          const resolvedTerm = (
+            q.targetTerm ||
+            targetVocabList.find((v) => q.question?.toLowerCase().includes(v.term.toLowerCase()))?.term ||
+            ''
+          ).trim();
 
-        return {
-          term: q.targetTerm,
-          type: q.type,
-          subtype: q.subtype,
-          question: q.question,
-          testedFocus: q.testedFocus || (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
-          correctAnswerText: (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
-          suggestedSynonyms: syns,
-          suggestedAntonyms: ants
-        };
-      });
+          return {
+            term: resolvedTerm,
+            type: q.type,
+            subtype: q.subtype,
+            question: q.question,
+            testedFocus: q.testedFocus || (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
+            correctAnswerText: (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
+            suggestedSynonyms: syns,
+            suggestedAntonyms: ants
+          };
+        })
+        .filter((h) => Boolean(h.term && h.term.length > 0));
 
       const updatedHistory = [...accumulatedHistory];
       for (const item of newRoundItems) {
@@ -875,6 +891,23 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
           )}
         </button>
       </div>
+
+      {/* Generating Quiz Loading State */}
+      {isLoading && (
+        <div className="bg-white rounded-3xl border border-emerald-200/80 shadow-md p-8 sm:p-12 text-center space-y-4 animate-in fade-in duration-300">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto text-emerald-600 shadow-inner">
+            <Loader2 className="w-8 h-8 animate-spin" />
+          </div>
+          <div className="space-y-1.5 max-w-md mx-auto">
+            <h4 className="text-base sm:text-lg font-black text-slate-900">
+              AI đang kiến tạo bộ đề thi mới...
+            </h4>
+            <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
+              Hệ thống đang rà soát ngân hàng từ vựng, ưu tiên từ chưa kiểm tra và bảo đảm câu văn mới 100% không trùng lặp.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Quiz Active Area */}
       {questions.length > 0 && (

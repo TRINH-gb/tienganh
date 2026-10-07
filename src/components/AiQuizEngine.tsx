@@ -310,6 +310,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
   // Generator & Quiz State
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [fallbackStatus, setFallbackStatus] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [questions, setQuestions] = useState<QuizQuestion[]>(
     () => (Array.isArray(savedSession?.questions) ? savedSession.questions : [])
@@ -475,6 +476,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
 
     setQuestions([]);
     setIsLoading(true);
+    setFallbackStatus(null);
     setErrorMsg(null);
     setAnswers({});
     setInputAnswers({});
@@ -491,6 +493,7 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
         selectedTypes,
         (failedModel, nextModel, error) => {
           console.warn(`[EVM Gemini] Model ${failedModel} failed (${error.slice(0, 80)}...). Fallback to ${nextModel}.`);
+          setFallbackStatus(`Model ${failedModel} bận. Đang tự động chuyển sang ${nextModel}...`);
         },
         accumulatedHistory
       );
@@ -905,6 +908,13 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
             <p className="text-xs sm:text-sm text-slate-500 leading-relaxed">
               Hệ thống đang rà soát ngân hàng từ vựng, ưu tiên từ chưa kiểm tra và bảo đảm câu văn mới 100% không trùng lặp.
             </p>
+            {fallbackStatus && (
+              <div className="pt-2">
+                <span className="inline-block px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold animate-pulse">
+                  {fallbackStatus}
+                </span>
+              </div>
+            )}
           </div>
         </div>
       )}

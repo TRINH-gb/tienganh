@@ -277,19 +277,31 @@ function cleanModelId(model: string): string {
   return model.replace(/^models\//, '').trim();
 }
 
+let liveModelsCache: { key: string; models: string[]; expiry: number } | null = null;
+
 /**
  * Dynamically queries Google AI Studio for the real list of models supporting generateContent.
+ * Caches results for 30 minutes to eliminate redundant HTTP requests on every AI action.
  */
 export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]> {
+  const key = apiKey.trim();
+  const now = Date.now();
+  if (liveModelsCache && liveModelsCache.key === key && liveModelsCache.expiry > now && liveModelsCache.models.length > 0) {
+    return liveModelsCache.models;
+  }
+
   try {
-    const key = apiKey.trim();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
     const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${key}`;
     const res = await fetch(url, {
       method: 'GET',
       headers: {
         'x-goog-api-key': key
-      }
+      },
+      signal: controller.signal
     });
+    clearTimeout(timeoutId);
     if (!res.ok) return [];
     const data = await res.json();
     if (data.models && Array.isArray(data.models)) {
@@ -314,11 +326,10 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
       );
 
       // Stable priority sorting:
-      // 0: gemini-2.0-flash
+      // 0: gemini-2.0-flash (fastest, lowest latency)
       // 1: gemini-1.5-flash
       // 2: gemini-1.5-flash-8b
-      // 3: other flash models
-      return valid.sort((a, b) => {
+      const sorted = valid.sort((a, b) => {
         const getScore = (name: string) => {
           if (name === 'gemini-2.0-flash') return 0;
           if (name === 'gemini-1.5-flash') return 1;
@@ -333,6 +344,11 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
         if (scoreA !== scoreB) return scoreA - scoreB;
         return a.localeCompare(b);
       });
+
+      if (sorted.length > 0) {
+        liveModelsCache = { key, models: sorted, expiry: now + 30 * 60 * 1000 };
+      }
+      return sorted;
     }
   } catch (err) {
     console.warn('[EVM Gemini Service] Could not fetch live models:', err);
@@ -341,7 +357,7 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
 }
 
 /**
- * Direct call to Google Gemini REST API
+ * Direct call to Google Gemini REST API with strict timeout to prevent infinite UI freezes.
  */
 async function callGeminiDirect(
   model: string,
@@ -350,7 +366,9 @@ async function callGeminiDirect(
   systemInstruction: string = SYSTEM_INSTRUCTION_EVM,
   fileBase64?: string,
   fileMimeType?: string,
-  temperature: number = 0.1
+  temperature: number = 0.1,
+  maxOutputTokens: number = 4096,
+  timeoutMs: number = 22000
 ): Promise<string> {
   const cleanModel = cleanModelId(model);
   const key = apiKey.trim();
@@ -378,7 +396,7 @@ async function callGeminiDirect(
     generationConfig: {
       responseMimeType: 'application/json',
       temperature: Math.max(0.0, Math.min(1.0, temperature)),
-      maxOutputTokens: 8192
+      maxOutputTokens: Math.max(512, Math.min(8192, maxOutputTokens))
     }
   };
 
@@ -388,41 +406,54 @@ async function callGeminiDirect(
     };
   }
 
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': key
-    },
-    body: JSON.stringify(payload)
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    let errCode = response.status;
-    let errStatus = '';
-    let errMsg = '';
-    try {
-      const errData = await response.json();
-      if (errData.error) {
-        errCode = errData.error.code || errCode;
-        errStatus = errData.error.status || '';
-        errMsg = errData.error.message || '';
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': key
+      },
+      body: JSON.stringify(payload),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      let errCode = response.status;
+      let errStatus = '';
+      let errMsg = '';
+      try {
+        const errData = await response.json();
+        if (errData.error) {
+          errCode = errData.error.code || errCode;
+          errStatus = errData.error.status || '';
+          errMsg = errData.error.message || '';
+        }
+      } catch {
+        errMsg = await response.text().catch(() => 'Network/HTTP error');
       }
-    } catch {
-      errMsg = await response.text().catch(() => 'Network/HTTP error');
+
+      const formattedError = `[${errCode} ${errStatus}] ${errMsg || `HTTP ${response.statusText}`}`;
+      throw new Error(formattedError);
     }
 
-    const formattedError = `[${errCode} ${errStatus}] ${errMsg || `HTTP ${response.statusText}`}`;
-    throw new Error(formattedError);
-  }
+    const result = await response.json();
+    const textOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!textOutput) {
+      throw new Error('Gemini model không trả về nội dung.');
+    }
 
-  const result = await response.json();
-  const textOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (!textOutput) {
-    throw new Error('Gemini model không trả về nội dung.');
+    return textOutput;
+  } catch (err: any) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') {
+      throw new Error(`Model ${cleanModel} phản hồi quá thời gian (${Math.round(timeoutMs / 1000)}s). Đang tự động chuyển model khác.`);
+    }
+    throw err;
   }
-
-  return textOutput;
 }
 
 /**
@@ -891,6 +922,9 @@ export function isSentenceDuplicate(newSentence: string, bannedList: string[]): 
     .toLowerCase();
   if (cleanNew.length < 15) return false;
 
+  const newWords = new Set(cleanNew.split(/\s+/).filter((w) => w.length > 2));
+  if (newWords.size === 0) return false;
+
   for (const banned of bannedList) {
     if (!banned) continue;
     const cleanBanned = banned
@@ -900,8 +934,22 @@ export function isSentenceDuplicate(newSentence: string, bannedList: string[]): 
       .trim()
       .toLowerCase();
     if (cleanBanned.length < 15) continue;
+
+    // Exact match
     if (cleanNew === cleanBanned) return true;
-    if (cleanNew.includes(cleanBanned) || cleanBanned.includes(cleanNew)) return true;
+
+    // High word-level similarity (Jaccard similarity >= 75%)
+    const bannedWords = new Set(cleanBanned.split(/\s+/).filter((w) => w.length > 2));
+    if (bannedWords.size === 0) continue;
+
+    let commonCount = 0;
+    for (const w of newWords) {
+      if (bannedWords.has(w)) commonCount++;
+    }
+    const similarity = commonCount / Math.max(newWords.size, bannedWords.size);
+    if (similarity >= 0.75) {
+      return true;
+    }
   }
   return false;
 }
@@ -1246,8 +1294,12 @@ export async function generateQuizWithFallback(
   const numQuestions = Math.min(Number(count) || 5, vocabularyList.length || 5);
   const targetTermsList = vocabularyList.slice(0, numQuestions).map((v) => v.term);
 
+  const targetTermsSet = new Set(targetTermsList.map((t) => t.toLowerCase()));
+  const otherVocab = vocabularyList.filter((v) => !targetTermsSet.has(v.term.toLowerCase())).slice(0, 4);
+  const relevantVocab = [...vocabularyList.slice(0, numQuestions), ...otherVocab];
+
   // Pure lexical definition only - ZERO passage context sent to AI to prevent copying the original exam sentence!
-  const vocabSummary = vocabularyList.slice(0, 30).map((v) => ({
+  const vocabSummary = relevantVocab.map((v) => ({
     term: v.term,
     type: v.type,
     meaning: v.meaning
@@ -1267,7 +1319,7 @@ export async function generateQuizWithFallback(
   const allBannedSentences = Array.from(new Set([
     ...pastQuestionSentences,
     ...originalPassageSentences
-  ])).slice(-50);
+  ])).slice(-15);
 
   // Generate explicit per-question directives
   const targetDirectives = targetTermsList.map((term, idx) => {
@@ -1318,43 +1370,47 @@ QUY TẮC BẮT BUỘC VỀ NGỮ CẢNH (CRITICAL CONTEXT NOVELTY MANDATE):
 
   let historySection = '';
   if (history && history.length > 0) {
-    const recentHistory = history.slice(-40).map((h, i) => {
-      let flipAction = 'Đổi câu văn ngữ cảnh mới';
-      if (h.type === 'Synonyms/Antonyms') {
-        if (h.subtype === 'Synonym') {
-          flipAction = 'ĐÃ KIỂM TRA ĐỒNG NGHĨA (CLOSEST) -> NẾU CHỌN LẠI TỪ NÀY Ở LƯỢT NÀY, BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE)!';
-        } else if (h.subtype === 'Antonym') {
-          flipAction = 'ĐÃ KIỂM TRA TRÁI NGHĨA (OPPOSITE) -> NẾU CHỌN LẠI TỪ NÀY Ở LƯỢT NÀY, BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST)!';
+    const relevantHistory = history
+      .filter((h) => h.term && targetTermsSet.has(h.term.toLowerCase()))
+      .slice(-10)
+      .map((h, i) => {
+        let flipAction = 'Đổi câu văn ngữ cảnh mới';
+        if (h.type === 'Synonyms/Antonyms') {
+          if (h.subtype === 'Synonym') {
+            flipAction = 'ĐÃ KIỂM TRA ĐỒNG NGHĨA (CLOSEST) -> BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ TRÁI NGHĨA (OPPOSITE)!';
+          } else if (h.subtype === 'Antonym') {
+            flipAction = 'ĐÃ KIỂM TRA TRÁI NGHĨA (OPPOSITE) -> BẮT BUỘC ĐẢO CHIỀU SANG TÌM TỪ ĐỒNG NGHĨA (CLOSEST)!';
+          }
+        } else if (h.type === 'Fill-in-the-blank') {
+          flipAction = `Đã kiểm tra điền '${h.testedFocus || h.correctAnswerText || 'từ này'}' -> Lượt này chuyển sang dạng khác`;
         }
-      } else if (h.type === 'Fill-in-the-blank') {
-        flipAction = `Đã kiểm tra điền '${h.testedFocus || h.correctAnswerText || 'từ này'}' -> Lượt này có thể chuyển sang kiểm tra Đồng nghĩa / Trái nghĩa hoặc điền thành phần khuyết khác`;
-      }
 
-      return {
-        index: i + 1,
-        targetTerm: h.term,
-        previousQuestionType: h.type,
-        previousSubtype: h.subtype || 'None',
-        previousCorrectAnswerWord: h.correctAnswerText || 'N/A',
-        testedFocus: h.testedFocus || h.correctAnswerText || 'N/A',
-        mandatoryActionIfReused: flipAction,
-        previousFullQuestionSentence: h.question || ''
-      };
-    });
+        return {
+          index: i + 1,
+          targetTerm: h.term,
+          previousQuestionType: h.type,
+          previousSubtype: h.subtype || 'None',
+          previousCorrectAnswerWord: h.correctAnswerText || 'N/A',
+          mandatoryActionIfReused: flipAction,
+          previousQuestion: h.question || ''
+        };
+      });
 
-    const termProfiles = Array.from(profileMap.values()).map((p) => ({
-      term: p.term,
-      testedSynonyms: p.testedSynonyms,
-      testedAntonyms: p.testedAntonyms,
-      establishedSynonymsBank: p.allProposedSynonyms,
-      untestedSynonymsRemaining: p.remainingSynonyms,
-      establishedAntonymsBank: p.allProposedAntonyms,
-      untestedAntonymsRemaining: p.remainingAntonyms
-    }));
+    const termProfiles = Array.from(profileMap.values())
+      .filter((p) => targetTermsSet.has(p.term.toLowerCase()))
+      .map((p) => ({
+        term: p.term,
+        testedSynonyms: p.testedSynonyms,
+        testedAntonyms: p.testedAntonyms,
+        establishedSynonymsBank: p.allProposedSynonyms,
+        untestedSynonymsRemaining: p.remainingSynonyms,
+        establishedAntonymsBank: p.allProposedAntonyms,
+        untestedAntonymsRemaining: p.remainingAntonyms
+      }));
 
     historySection = `
 DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
-${JSON.stringify(recentHistory, null, 2)}
+${JSON.stringify(relevantHistory, null, 2)}
 
 NGÂN HÀNG TỪ ĐỒNG NGHĨA / TRÁI NGHĨA ĐÃ XÁC LẬP THEO TỪNG TỪ (ESTABLISHED TERM LEXICAL PROFILES):
 ${JSON.stringify(termProfiles, null, 2)}
@@ -1596,7 +1652,17 @@ Return valid JSON in this exact structure:
 `;
 
   const formattedQuestions = await executeWithFallback(async (model, apiKey) => {
-    const rawText = await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, undefined, undefined, 0.7);
+    const rawText = await callGeminiDirect(
+      model,
+      apiKey,
+      prompt,
+      SYSTEM_INSTRUCTION_EVM,
+      undefined,
+      undefined,
+      0.7,
+      2048,
+      18000
+    );
     const parsed = extractJsonFromText(rawText);
     const questionsRaw = extractQuestionsArray(parsed);
     if (!questionsRaw || !Array.isArray(questionsRaw) || questionsRaw.length === 0) {

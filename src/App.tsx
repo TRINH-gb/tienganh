@@ -22,13 +22,13 @@ const VALID_TABS: ActiveTab[] = ['extract', 'notebook', 'grammar', 'flashcards',
 
 const getInitialTab = (): ActiveTab => {
   if (typeof window !== 'undefined') {
-    const hash = window.location.hash.replace('#', '') as ActiveTab;
-    if (VALID_TABS.includes(hash)) {
-      return hash;
-    }
     const saved = localStorage.getItem(TAB_STORAGE_KEY) as ActiveTab;
     if (VALID_TABS.includes(saved)) {
       return saved;
+    }
+    const hash = window.location.hash.replace('#', '') as ActiveTab;
+    if (VALID_TABS.includes(hash)) {
+      return hash;
     }
   }
   return 'extract';
@@ -124,27 +124,12 @@ export default function App() {
     return [];
   });
 
-  // Save activeTab to localStorage and sync hash
+  // Save activeTab to localStorage
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.setItem(TAB_STORAGE_KEY, activeTab);
-      if (window.location.hash !== `#${activeTab}`) {
-        window.history.replaceState(null, '', `#${activeTab}`);
-      }
     }
   }, [activeTab]);
-
-  // Listen to browser navigation (back/forward)
-  useEffect(() => {
-    const handleHashChange = () => {
-      const hash = window.location.hash.replace('#', '') as ActiveTab;
-      if (VALID_TABS.includes(hash)) {
-        setActiveTab(hash);
-      }
-    };
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
 
   // Save accent to localStorage
   useEffect(() => {

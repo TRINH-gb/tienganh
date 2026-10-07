@@ -17,14 +17,18 @@ import {
   Cpu,
   Trash2,
   Camera,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Filter,
+  Check,
+  Eraser
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory } from '../types';
 import { speakEnglish } from '../utils/tts';
 import {
   extractVocabularyWithFallback,
   getStoredApiKey,
-  getStoredModel
+  getStoredModel,
+  isRedundantVocabItem
 } from '../services/geminiService';
 
 interface ExamExtractorProps {
@@ -83,6 +87,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [uploadedPdfBase64, setUploadedPdfBase64] = useState<string | null>(null);
   const [prioritizeHighlights, setPrioritizeHighlights] = useState<boolean>(true);
   const [filterOnlyHighlighted, setFilterOnlyHighlighted] = useState<boolean>(false);
+  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>('strict_highlight');
 
   // 3-step state management strictly following Rule 1 & Rule 3
   const [steps, setSteps] = useState<StepInfo[]>([
@@ -118,6 +123,31 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     } else {
       setSelectedCategories([...selectedCategories, cat]);
     }
+  };
+
+  const handleDeleteExtractedWord = (id: string) => {
+    setExtractedList((prev) => prev.filter((item) => item.id !== id));
+    setSelectedWordIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const handleFilterRedundantWords = () => {
+    const filtered = extractedList.filter((item) => !isRedundantVocabItem(item));
+    setExtractedList(filtered);
+    setSelectedWordIds(new Set(filtered.map((item) => item.id)));
+  };
+
+  const handleFilterRemoveBasicWords = () => {
+    const filtered = extractedList.filter((item) => {
+      if (isRedundantVocabItem(item)) return false;
+      if (item.type === 'Single word' && item.cefrLevel === 'B1') return false;
+      return true;
+    });
+    setExtractedList(filtered);
+    setSelectedWordIds(new Set(filtered.map((item) => item.id)));
   };
 
   const updateStepStatus = (
@@ -159,13 +189,13 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       {
         step: 1,
         title: 'Bước 1: Phân tích Ngữ liệu & Thị giác',
-        desc: uploadedFileType === 'image'
-          ? 'Quét thị giác ảnh đề giấy & nhận diện vệt bút dạ quang / highlight'
-          : 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
+        desc: extractionMode === 'strict_highlight'
+          ? 'Quét thị giác & CHỈ nhận diện từ bôi bút dạ quang / highlight (0% từ thừa)'
+          : 'Tinh lọc ngữ liệu, loại bỏ từ cơ bản A1-A2 & bóc tách từ phân hóa 8+ 9+',
         status: 'running',
-        message: uploadedFileType === 'image'
-          ? 'Gemini Vision đang quét thị giác: chỉ nhận diện từ tô highlight (bỏ qua từ khoanh tròn, gạch chân)...'
-          : 'Đang khởi chạy phân tích cấu trúc...'
+        message: extractionMode === 'strict_highlight'
+          ? 'Gemini Vision đang quét thị giác: CHỈ nhận diện từ tô highlight (loại bỏ 100% từ thừa, từ khoanh tròn, gạch chân)...'
+          : 'Đang tinh lọc: tự động loại bỏ từ cơ bản A1-A2, từ chỉ thị câu hỏi & từ thừa...'
       },
       {
         step: 2,
@@ -199,7 +229,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         },
         uploadedPdfBase64 || undefined,
         prioritizeHighlights,
-        uploadedFileMime
+        uploadedFileMime,
+        extractionMode === 'strict_highlight'
       );
 
       // On complete success
@@ -876,6 +907,125 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
           </div>
         )}
 
+        {/* Chế độ Trích xuất (Kiểm soát triệt để từ thừa) */}
+        {isFileUploaded && (
+          <div className="pt-2 border-t border-slate-100 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Chế độ trích xuất từ vựng:</span>
+              </label>
+              <span className="text-[11px] text-slate-500 font-medium">
+                Chọn chế độ phù hợp để loại bỏ hoàn toàn từ thừa
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Card 1: Strict Highlight */}
+              <div
+                onClick={() => setExtractionMode('strict_highlight')}
+                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 select-none ${
+                  extractionMode === 'strict_highlight'
+                    ? 'border-amber-400 bg-amber-50/70 shadow-xs ring-1 ring-amber-300'
+                    : 'border-slate-200 hover:border-amber-200 bg-slate-50/40 hover:bg-amber-50/20'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="extractionMode"
+                  checked={extractionMode === 'strict_highlight'}
+                  onChange={() => setExtractionMode('strict_highlight')}
+                  className="mt-1 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                />
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <strong className="text-xs text-slate-900 font-bold flex items-center gap-1">
+                      <span>🖍️ Chỉ lấy từ Bôi Highlight / Dạ quang</span>
+                    </strong>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                      0% từ thừa
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Quét thị giác PDF hoặc ảnh chụp, <strong>CHỈ trích xuất từ có vệt màu dạ quang</strong>. Tuyệt đối không lấy từ thừa ngoài vệt highlight.
+                  </p>
+                </div>
+              </div>
+
+              {/* Card 2: Smart Filter */}
+              <div
+                onClick={() => setExtractionMode('smart_filter')}
+                className={`p-3.5 rounded-xl border-2 transition-all cursor-pointer flex items-start gap-3 select-none ${
+                  extractionMode === 'smart_filter'
+                    ? 'border-indigo-500 bg-indigo-50/70 shadow-xs ring-1 ring-indigo-300'
+                    : 'border-slate-200 hover:border-indigo-200 bg-slate-50/40 hover:bg-indigo-50/20'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="extractionMode"
+                  checked={extractionMode === 'smart_filter'}
+                  onChange={() => setExtractionMode('smart_filter')}
+                  className="mt-1 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div className="space-y-1 flex-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <strong className="text-xs text-slate-900 font-bold flex items-center gap-1">
+                      <span>🎯 Trích xuất Tinh lọc THPTQG (Điểm 8+ 9+)</span>
+                    </strong>
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
+                      Khuyên dùng khi chưa bôi màu
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 leading-snug">
+                    Tự động phân tích cả đề nhưng <strong>loại sạch từ cơ bản A1-A2</strong> & từ chỉ thị câu hỏi. Chỉ lấy 15-20 cụm từ Collocations, Phrasal verbs, Idioms đắt giá.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Chọn 5 Nhóm Từ Vựng (Category Chips) */}
+            <div className="pt-2 border-t border-slate-100 space-y-1.5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                  <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                  <span>Nhóm từ vựng mục tiêu (Bấm để bật/tắt):</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">
+                  Mẹo: Tắt bớt nhóm không cần (ví dụ bỏ "Từ đơn") để giảm tối đa từ thừa
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(['Collocation', 'Phrasal verb', 'Idiom', 'Preposition', 'Single word'] as VocabCategory[]).map((cat) => {
+                  const isSelected = selectedCategories.includes(cat);
+                  const labels: Record<VocabCategory, string> = {
+                    'Collocation': '📌 Collocation (Cụm từ)',
+                    'Phrasal verb': '🚀 Phrasal verb (Cụm ĐT)',
+                    'Idiom': '💡 Idiom (Thành ngữ)',
+                    'Preposition': '🔗 Preposition (Cụm giới từ)',
+                    'Single word': '📖 Single word (Từ đơn B2-C1)'
+                  };
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleToggleCategory(cat)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer border flex items-center gap-1 ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                          : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100 hover:text-slate-700'
+                      }`}
+                    >
+                      {isSelected && <Check className="w-3 h-3 text-white" />}
+                      <span>{labels[cat]}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Row: Nút Phân tích */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
           <div>
@@ -938,7 +1088,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
           {/* Quick Batch Action Toolbar */}
           <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="text-xs font-bold text-slate-800">
                 Đã chọn: <strong className="text-indigo-600">{selectedWordIds.size}</strong> / {extractedList.length} mục từ
               </span>
@@ -950,6 +1100,30 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                 {selectedWordIds.size === extractedList.length
                   ? 'Bỏ chọn'
                   : 'Chọn tất cả'}
+              </button>
+
+              <span className="text-slate-300 mx-0.5">|</span>
+
+              {/* Lọc sạch từ thừa button */}
+              <button
+                type="button"
+                onClick={handleFilterRedundantWords}
+                title="Quét và loại bỏ ngay các từ thừa, từ chỉ thị câu hỏi hoặc giới từ vô nghĩa"
+                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Eraser className="w-3.5 h-3.5 text-rose-600" />
+                <span>🧹 Lọc từ thừa</span>
+              </button>
+
+              {/* Chỉ giữ từ điểm 8+ 9+ button */}
+              <button
+                type="button"
+                onClick={handleFilterRemoveBasicWords}
+                title="Chỉ giữ lại cụm từ (Collocations, Phrasal verbs, Idioms) và từ học thuật B2-C1"
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
+              >
+                <Filter className="w-3.5 h-3.5 text-indigo-600" />
+                <span>🎯 Chỉ giữ từ điểm 8+ 9+</span>
               </button>
             </div>
 
@@ -1154,15 +1328,25 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
 
                     {/* Actions */}
                     <td className="p-3.5 text-center">
-                      <button
-                        type="button"
-                        onClick={() => onInspectWord(item)}
-                        title="Xem mở rộng word family & bẫy đề"
-                        className="px-2 py-1 rounded-md bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 font-semibold text-[11px] inline-flex items-center gap-1 cursor-pointer"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>Mở rộng</span>
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onInspectWord(item)}
+                          title="Xem mở rộng word family & bẫy đề"
+                          className="px-2 py-1 rounded-md bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-800 font-semibold text-[11px] inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>Mở rộng</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteExtractedWord(item.id)}
+                          title="Xóa từ thừa này khỏi danh sách"
+                          className="p-1 rounded-md bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-200 hover:border-rose-300 transition-colors cursor-pointer"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

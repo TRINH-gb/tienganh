@@ -110,7 +110,13 @@ Your role is a learning coordinator and corpus analysis architect:
 
 6. Comprehensive Synonym/Antonym Coverage Across All Lexical Types:
    - In Vietnam's National High School Graduation Exam, Synonym (CLOSEST) and Antonym (OPPOSITE) questions test BOTH single words AND multi-word expressions (Phrasal verbs, Collocations, Idioms, Prepositional phrases).
-   - Every vocabulary item in the user's notebook regardless of type can and must be tested in Closest/Opposite formats.`;
+   - Every vocabulary item in the user's notebook regardless of type can and must be tested in Closest/Opposite formats.
+
+7. Strict Anti-Redundancy & Zero-Trivial-Words Principle (Nguyên tắc Triệt tiêu Từ thừa & Tinh chọn Phân hóa Điểm 8+ 9+):
+   - ABSOLUTE PROHIBITION ON ELEMENTARY/COMMON WORDS: Never extract basic A1-A2 or everyday conversational words (e.g. people, person, student, school, book, learn, study, teacher, friend, child, good, bad, happy, important, problem, different, country, world, activity, need, help, make, take, do, go, come, get, have, etc.). High school exam candidates already know these.
+   - ABSOLUTE PROHIBITION ON EXAM META-WORDS: Never extract exam instruction or reading prompt words (e.g. according to, passage, paragraph, author, mention, refer to, best title, true/false, following, statement, question, option, answer, blank, line, sentence).
+   - NO BARE PREPOSITIONS: Never extract standalone isolated prepositions (in, on, at, for, with, by) unless part of a genuine dependent preposition structure (e.g. capable of) or complete prepositional phrase (e.g. at the expense of).
+   - MAXIMUM DISTINCTION FOCUS: Prioritize high-yield Collocations, Phrasal verbs, Idioms, and advanced academic single words (B2-C1) that determine scores 8+ and 9+ in Vietnam's National High School Graduation Exam.`;
 /**
  * Cleans and repairs JSON strings from LLM outputs.
  */
@@ -560,6 +566,66 @@ export async function testApiKey(
 }
 
 /**
+ * Blacklist of redundant exam meta-words, conversational stop words, and basic A1-A2 vocabulary
+ * that should NEVER be extracted into the notebook for Vietnam's National High School Exam.
+ */
+export const REDUNDANT_WORDS_BLACKLIST = new Set([
+  // Reading comprehension & exam question meta-words
+  'according to', 'passage', 'paragraph', 'author', 'mention', 'mentions', 'mentioned',
+  'refer to', 'refers to', 'referred to', 'imply', 'implies', 'implied', 'infer', 'infers',
+  'inferred', 'best title', 'title', 'true', 'false', 'not true', 'following', 'statement',
+  'question', 'option', 'answer', 'blank', 'line', 'sentence', 'closest in meaning',
+  'opposite in meaning', 'closest', 'opposite', 'meaning', 'synonym', 'antonym',
+  // Everyday basic elementary words (A1-A2) that high school candidates already know
+  'people', 'person', 'student', 'students', 'teacher', 'teachers', 'school', 'schools',
+  'study', 'studies', 'learn', 'learned', 'learning', 'book', 'books', 'live', 'lived',
+  'living', 'work', 'worked', 'working', 'job', 'jobs', 'life', 'day', 'days', 'year',
+  'years', 'time', 'times', 'world', 'country', 'countries', 'problem', 'problems',
+  'thing', 'things', 'way', 'ways', 'good', 'bad', 'new', 'old', 'big', 'small', 'easy',
+  'hard', 'important', 'different', 'help', 'helps', 'helped', 'helping', 'need', 'needs',
+  'needed', 'try', 'tries', 'tried', 'want', 'wants', 'wanted', 'look', 'looks', 'looked',
+  'see', 'saw', 'seen', 'think', 'thought', 'know', 'knew', 'known', 'make', 'do', 'have',
+  'get', 'go', 'come', 'take', 'give', 'use', 'find', 'tell', 'say', 'said', 'man', 'men',
+  'woman', 'women', 'child', 'children', 'boy', 'girl', 'friend', 'friends', 'family',
+  'families', 'home', 'house', 'place', 'water', 'food', 'city', 'cities'
+]);
+
+export function isRedundantVocabItem(item: Partial<VocabularyItem>): boolean {
+  const termLower = String(item.term || '').trim().toLowerCase();
+  if (!termLower) return true;
+
+  // Single bare prepositions without collocation context
+  if (item.type === 'Preposition') {
+    const barePrepositions = [
+      'in', 'on', 'at', 'for', 'with', 'about', 'by', 'of', 'to', 'from',
+      'into', 'onto', 'under', 'over', 'between', 'among', 'through', 'during',
+      'before', 'after', 'above', 'below', 'behind'
+    ];
+    if (barePrepositions.includes(termLower)) return true;
+  }
+
+  // Exact match with blacklist
+  if (REDUNDANT_WORDS_BLACKLIST.has(termLower)) {
+    return true;
+  }
+
+  // Partial match with common exam meta patterns
+  if (
+    termLower.startsWith('according to') ||
+    termLower.includes('paragraph ') ||
+    termLower.includes('passage ') ||
+    termLower.includes('best title') ||
+    termLower.includes('not true') ||
+    termLower === 'the passage' ||
+    termLower === 'the author'
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Task 1: Extract Vocabulary from Exam Text with multi-step support
  */
 export interface ExtractionResult {
@@ -575,7 +641,8 @@ export async function extractVocabularyWithFallback(
   onModelFallback?: (failedModel: string, nextModel: string, error: string) => void,
   fileBase64?: string,
   prioritizeHighlights: boolean = true,
-  fileMimeType: string = 'application/pdf'
+  fileMimeType: string = 'application/pdf',
+  strictHighlightOnly: boolean = false
 ): Promise<ExtractionResult> {
   const categoryConstraint =
     categories && categories.length > 0
@@ -583,28 +650,29 @@ export async function extractVocabularyWithFallback(
       : `Categorize all items into the 5 standard categories: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.`;
 
   const isImage = Boolean(fileMimeType && fileMimeType.startsWith('image/'));
+  // If strictHighlightOnly is selected OR it's an image, we enforce strict highlight-only extraction
+  const isStrictHighlight = strictHighlightOnly || isImage;
 
   let highlightSection = '';
-  if (isImage) {
+  if (isStrictHighlight) {
     highlightSection = `
-CRITICAL TARGET INSTRUCTION - STRICT HIGHLIGHT-ONLY DETECTION (ẢNH CHỤP ĐỀ THI GIẤY):
-The uploaded image is a photo of an authentic printed paper exam (Ảnh chụp đề thi giấy).
-The user ONLY wants to extract vocabulary items that have been highlighted with a HIGHLIGHTER PEN / BÚT DẠ QUANG.
+CRITICAL TARGET INSTRUCTION - STRICT HIGHLIGHT-ONLY EXTRACTION (CHỈ NHẬN DIỆN VỆT BÚT HIGHLIGHT / DẠ QUANG - LOẠI BỎ 100% TỪ THỪA):
+The user has selected STRICT HIGHLIGHT MODE. You must ONLY extract vocabulary items that have been highlighted with a HIGHLIGHTER PEN / BÚT DẠ QUANG (any neon color: yellow/vàng, green/xanh lá, orange/cam, pink/hồng, blue/xanh dương, purple/tím...), or marked with [BÔI VÀNG: ...] or ==...== in the document.
 
-STRICT VISUAL RULES FOR PAPER EXAM PHOTO:
-1. ONLY EXTRACT HIGHLIGHTED WORDS/PHRASES (CHỈ NHẬN DIỆN BÚT HIGHLIGHT):
-   - Visually scan the entire image photo line by line.
-   - Detect ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that have a translucent neon/colored highlighter stroke covering the text (bút dạ quang mọi màu sắc: vàng/yellow, xanh lá/green, cam/orange, hồng/pink, xanh dương/blue, tím/purple...).
-   - ONLY extract words that are visibly highlighted by highlighter pen. DO NOT extract unhighlighted words from the paper exam.
+STRICT VISUAL & LOGICAL EXTRACTION MANDATES:
+1. ONLY EXTRACT HIGHLIGHTED WORDS/PHRASES (CHỈ TRÍCH XUẤT TỪ CÓ VỆT BÚT HIGHLIGHT):
+   - Visually scan the entire document/image line by line.
+   - Detect ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions that have a translucent neon/colored highlighter stroke covering the text.
+   - ABSOLUTE PROHIBITION ON UNHIGHLIGHTED WORDS: DO NOT extract ANY unhighlighted words from reading comprehension texts, passages, or questions. Zero unhighlighted words allowed!
+   - Every extracted item MUST have "isHighlighted": true.
 
 2. STRICT EXCLUSION - COMPLETELY IGNORE CIRCLED & UNDERLINED WORDS (TUYỆT ĐỐI BỎ QUA TỪ KHOANH TRÒN HOẶC GẠCH CHÂN):
-   - DO NOT extract words, phrases, options, or letters that are CIRCLED with pen or pencil (e.g. circled multiple-choice answers A, B, C, D, circled question numbers, or circled keywords).
+   - DO NOT extract words, phrases, options, or letters that are CIRCLED with pen or pencil (e.g. circled multiple-choice answers A, B, C, D, circled question numbers).
    - DO NOT extract words that are UNDERLINED with pen, pencil, or ruler (gạch chân bằng bút bi, bút chì).
-   - Pen circles and underlines are exam-taking marks or answer selections, NOT target vocabulary. You MUST completely ignore all circled and underlined items!
+   - Pen circles and underlines are exam-taking marks or answer selections, NOT target vocabulary. Completely ignore them!
 
 3. EXHAUSTIVE EXTRACTION MANDATE:
    - Extract 100% of the highlighted items without omitting any word/phrase covered by highlighter ink.
-   - For every extracted item, set "isHighlighted": true.
 
 4. For each extracted item:
    - "term": Canonical/dictionary base form of the word or phrase (e.g. "make a decision", "break down", "look forward to", "in terms of", "sustainable").
@@ -615,24 +683,41 @@ STRICT VISUAL RULES FOR PAPER EXAM PHOTO:
    - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
    - "examTip": Pedagogical note explaining common exam traps, prepositions, or distractors tested in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT).
    - "isHighlighted": true`;
-  } else if (prioritizeHighlights || fileBase64) {
+  } else {
     highlightSection = `
-CRITICAL TARGET INSTRUCTION - FOCUS ON HIGHLIGHTED TERMS:
-The uploaded exam document contains target vocabulary items, collocations, phrasal verbs, idioms, and prepositions HIGHLIGHTED BY HIGHLIGHTER PEN / BÚT DẠ QUANG (any neon color: yellow/vàng, green/xanh lá, pink/hồng, orange/cam, blue/xanh dương...), or tagged with [BÔI VÀNG: ...] or ==...== in the text.
+CRITICAL TARGET INSTRUCTION - SMART HIGH-YIELD THPTQG EXTRACTION (TINH LỌC TRỌNG TÂM THPTQG - TRIỆT TIÊU TỪ THỪA):
+The uploaded exam is an authentic Vietnamese National High School Graduation Exam (Đề thi Tốt nghiệp THPT Quốc Gia môn Tiếng Anh).
+Extract ONLY authentic high-yield, high-distinction vocabulary items (nhóm từ vựng phân hóa điểm 8+ 9+) that high school candidates need for the exam.
 
-1. VISUAL OCR & COLOR SCANNING: Visually identify ALL words, phrases, phrasal verbs, collocations, idioms, and prepositions highlighted with highlighter pens or colored backgrounds.
-2. STRICT EXCLUSION: Do NOT extract words merely because they are circled or underlined with pen/pencil (bỏ qua các từ khoanh tròn hoặc gạch chân).
-3. EXHAUSTIVE EXTRACTION MANDATE: Extract all highlighted items found in the document.
-4. For each extracted item:
-   - "term": Canonical/dictionary base form of the word or phrase.
-   - "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
-   - "ipa": Standard Cambridge/Oxford phonetic transcription.
-   - "meaning": Accurate Vietnamese contextual translation.
-   - "context": EXACT sentence from the exam with the term in **bold**.
-   - "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
-   - "examTip": Pedagogical note or exam tip.
-   - "isHighlighted": true if the term was highlighted with highlighter pen, false otherwise.
-5. In addition to highlighted items, you may include other high-yield B1-C1 vocabulary items from the exam.`;
+STRICT ANTI-REDUNDANCY & BLACKLIST RULES (BỘ QUY TẮC BÀI TRỪ TỪ THỪA):
+1. ZERO BASIC/ELEMENTARY WORDS (CẤM TUYỆT ĐỐI TỪ VỰNG CƠ BẢN A1-A2 & LOW B1):
+   - DO NOT extract common everyday words that any high school senior already knows, such as: people, person, student, teacher, school, study, learn, book, live, work, job, life, day, year, time, world, country, problem, thing, way, good, bad, new, old, big, small, easy, hard, important, interesting, different, help, need, try, want, look, see, think, know, make, do, have, get, go, come, take, give, tell, say, child, friend, environment, protect, solution, society, develop, provide, produce, community, natural, etc.
+
+2. ZERO EXAM PROMPT META-WORDS (CẤM TỪ CHỈ THỊ / CÂU HỎI ĐỀ THI):
+   - DO NOT extract words and phrases that belong to exam instructions or question stems, such as: according to, passage, paragraph, author, mention, refer to, imply, infer, best title, true, not true, false, following, statement, question, option, answer, blank, line, sentence, context, closest in meaning, opposite in meaning.
+
+3. ZERO BARE PREPOSITIONS (CẤM GIỚI TỪ ĐỨNG MỘT MÌNH):
+   - DO NOT extract single isolated prepositions ('in', 'on', 'at', 'for', 'with', 'about', 'by', 'of', 'to', 'from').
+   - ONLY extract if it is a verified Dependent Preposition structure (e.g. 'capable of', 'immune to', 'associated with') or an authentic Prepositional Phrase (e.g. 'at the expense of', 'in terms of', 'in jeopardy').
+
+4. PRIORITIZE HIGH-DISTINCTION TESTED CATEGORIES:
+   - Give highest priority to:
+     * Collocations: Natural, idiomatic pairings commonly tested in multiple-choice questions (e.g. 'bear resemblance to', 'take into account', 'pose a threat', 'pay attention to', 'make concessions').
+     * Phrasal verbs: Multi-word verbs frequently tested (e.g. 'bring about', 'call off', 'put up with', 'come down with').
+     * Idioms: Figurative expressions appearing in conversational or reading questions (e.g. 'a drop in the ocean', 'burn the midnight oil', 'on the fence').
+     * Advanced Single words: ONLY academic B2-C1 words that carry significant weight in reading passages (e.g. 'unprecedented', 'deteriorate', 'mitigate', 'reluctant', 'obsolete', 'indispensable').
+
+5. CONCENTRATED QUALITY-OVER-QUANTITY:
+   - Extract a compact, high-value set of 15 to 20 top-tier items from the entire exam. Quality and exam distinction value are paramount. DO NOT extract dozens of filler words!
+   - For each extracted item:
+     * "term": Canonical/dictionary base form of the word or phrase.
+     * "type": Classify accurately into one of: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.
+     * "ipa": Standard Cambridge/Oxford phonetic transcription.
+     * "meaning": Accurate Vietnamese contextual translation.
+     * "context": EXACT sentence from the exam with the term in **bold**.
+     * "cefrLevel": CEFR difficulty ('B1', 'B2', or 'C1').
+     * "examTip": Pedagogical note or exam tip.
+     * "isHighlighted": false`;
   }
 
   const prompt = `Act as the AI English Exam Vocabulary Architect (EVM) specializing in Vietnam's National High School Graduation Exam (Tốt nghiệp THPT môn Tiếng Anh).
@@ -644,16 +729,16 @@ ${categoryConstraint}
 
 EXAM TITLE / SOURCE: ${examTitle || 'Đề thi trích dẫn'}
 
-${fileBase64 ? (isImage
-  ? 'NOTE: The photo of the paper exam is attached as inline image data. Please visually inspect the entire photo. Detect ONLY words and phrases highlighted with highlighter pens (bút dạ quang/bút highlight mọi màu sắc: vàng, xanh lá, cam, hồng, xanh dương...). STRICTLY DO NOT extract words that are circled or underlined with pen/pencil (tuyệt đối không nhận diện từ khoanh tròn hoặc gạch chân). DO NOT extract unhighlighted words. Extract all highlighted terms.'
-  : 'NOTE: The complete authentic exam PDF document is attached as inline document data. Please inspect it visually page by page to detect all highlighted terms and read all text.')
+${fileBase64 ? (isStrictHighlight
+  ? 'NOTE: Strictly detect ONLY words and phrases highlighted with highlighter pens (bút dạ quang mọi màu sắc). STRICTLY DO NOT extract words that are unhighlighted, or that are circled or underlined with pen/pencil. Zero redundant unhighlighted words.'
+  : 'NOTE: The complete authentic exam PDF document is attached as inline document data. Apply the strict anti-redundancy rules to extract only high-yield B2-C1 distinction vocabulary, omitting all common/basic words and exam meta-words.')
   : ''}
 ${examText ? `EXAM TEXT CONTEXT:\n"""\n${examText.slice(0, 20000)}\n"""` : ''}
 
 REQUIRED JSON OUTPUT FORMAT:
 Ensure the response is valid JSON matching this schema:
 {
-  "summary": "${isImage ? 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ ảnh chụp đề thi giấy (đã loại bỏ các từ khoanh tròn hoặc gạch chân), các cấu trúc phân hóa cao và độ khó tổng thể.' : 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công từ tệp đề thi, các cấu trúc phân hóa cao và độ khó tổng thể.'}",
+  "summary": "${isStrictHighlight ? 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ tổng số từ/cụm từ bôi bút highlight/dạ quang đã nhận diện thành công (đã loại bỏ 100% từ không bôi highlight, từ khoanh tròn hoặc gạch chân), các cấu trúc phân hóa cao và độ khó tổng thể.' : 'Tóm tắt sư phạm ngắn gọn bằng tiếng Việt: Nêu rõ số lượng từ/cụm từ cốt lõi phân hóa cao B2-C1 đã tinh lọc từ đề thi (đã tự động loại bỏ triệt để từ cơ bản A1-A2, từ chỉ thị câu hỏi và từ thừa), các cấu trúc trọng tâm và độ khó tổng thể.'}",
   "vocabulary": [
     {
       "type": "Collocation",
@@ -663,7 +748,7 @@ Ensure the response is valid JSON matching this schema:
       "context": "Young graduates must **make an effort** to cultivate skills.",
       "cefrLevel": "B1",
       "examTip": "Bẫy thi THPT: Luôn đi với động từ make (không dùng do an effort).",
-      "isHighlighted": true
+      "isHighlighted": ${isStrictHighlight ? 'true' : 'false'}
     }
   ]
 }
@@ -674,9 +759,9 @@ Respond ONLY with valid JSON. No conversational preamble.`;
     onStepProgress(
       1,
       'running',
-      isImage
-        ? 'Đang quét thị giác ảnh chụp đề giấy & nhận diện vệt bút highlight...'
-        : 'Đang phân tích cấu trúc & quét thị giác nhận diện từ bôi vàng/highlight...'
+      isStrictHighlight
+        ? 'Đang quét thị giác nhận diện vệt bút dạ quang & loại bỏ 100% từ thừa...'
+        : 'Đang tinh lọc ngữ liệu đề thi, tự động loại bỏ từ cơ bản A1-A2 & meta-words...'
     );
   }
 
@@ -707,9 +792,26 @@ Respond ONLY with valid JSON. No conversational preamble.`;
         isHighlighted: Boolean(item.isHighlighted)
       }));
 
+      // Filter out redundant items (blacklist & meta-words)
+      let cleaned = formatted.filter((item) => !isRedundantVocabItem(item));
+
+      // If strictHighlightOnly, strictly keep only highlighted items
+      if (isStrictHighlight) {
+        const onlyHighlighted = cleaned.filter((item) => item.isHighlighted);
+        if (onlyHighlighted.length > 0) {
+          cleaned = onlyHighlighted;
+        }
+      }
+
+      if (cleaned.length === 0 && formatted.length > 0) {
+        cleaned = formatted;
+      }
+
       return {
-        summary: parsed.summary || 'Đã phân tích và trích xuất thành công ngữ liệu đề thi.',
-        vocabulary: formatted
+        summary: parsed.summary || (isStrictHighlight
+          ? 'Đã bóc tách chính xác các từ bôi bút highlight (đã loại bỏ 100% từ thừa).'
+          : 'Đã tinh lọc thành công các từ vựng trọng tâm THPTQG (đã loại bỏ từ thừa & từ cơ bản).'),
+        vocabulary: cleaned
       };
     }, onModelFallback);
 

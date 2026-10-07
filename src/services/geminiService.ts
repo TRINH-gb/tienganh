@@ -319,7 +319,7 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
           !id.includes('image') &&
           !id.includes('preview') &&
           !id.includes('experimental') &&
-          !id.includes('2.5-flash-lite') && // Exclude known 404 in Google AI Studio
+          !id.includes('2.5') && // Exclude 2.5 models because of strict 20 RPD free tier limits
           !id.includes('1.5-pro') && // Exclude 1.5-pro because Google returns 404 on v1beta
           !id.includes('3-') &&
           !id.includes('3.')
@@ -514,18 +514,20 @@ export async function executeWithFallback<T>(
       const errorMsg = err?.message || String(err);
       console.warn(`[EVM Gemini Service] Model ${currentModel} failed:`, errorMsg);
 
-      // If the error is fatal to the API key or quota, fail fast instead of looping
-      if (
-        errorMsg.includes('429') ||
-        errorMsg.includes('RESOURCE_EXHAUSTED') ||
+      // Fatal errors indicating the API key is completely invalid or permissions are blocked
+      const isKeyInvalid =
         errorMsg.includes('API_KEY_INVALID') ||
         errorMsg.includes('PERMISSION_DENIED') ||
-        errorMsg.includes('Failed to fetch') ||
-        errorMsg.includes('NetworkError')
-      ) {
+        errorMsg.includes('API key not valid');
+
+      // If the browser device is definitively offline, abort immediately
+      const isDeviceOffline = typeof navigator !== 'undefined' && navigator.onLine === false;
+
+      if (isKeyInvalid || isDeviceOffline) {
         throw err;
       }
 
+      // If 429 / RESOURCE_EXHAUSTED or other model-specific errors, continue to the next candidate model
       if (i < candidatesToTry.length - 1) {
         const nextModel = candidatesToTry[i + 1];
         if (onFallback) {
@@ -533,6 +535,14 @@ export async function executeWithFallback<T>(
         }
       }
     }
+  }
+
+  // If all models failed, provide a user-friendly error message
+  const lastMsg = lastError?.message || String(lastError || '');
+  if (lastMsg.includes('429') || lastMsg.includes('RESOURCE_EXHAUSTED')) {
+    throw new Error(
+      'Hạn ngạch API Key của bạn trên Google AI Studio đã tạm thời đạt giới hạn hôm nay trên các mô hình Gemini. Vui lòng thử lại sau hoặc nhập API Key khác (hoặc sử dụng ngân hàng đề thi có sẵn).'
+    );
   }
 
   // If all models failed, throw the verbatim error from the last model
@@ -2047,7 +2057,17 @@ Yêu cầu:
 }`;
 
   const parsed = await executeWithFallback(async (model, apiKey) => {
-    const rawText = await callGeminiDirect(model, apiKey, prompt);
+    const rawText = await callGeminiDirect(
+      model,
+      apiKey,
+      prompt,
+      SYSTEM_INSTRUCTION_EVM,
+      undefined,
+      undefined,
+      0.2,
+      2048,
+      20000
+    );
     const result = extractJsonFromText(rawText);
     const qList = extractQuestionsArray(result);
     if (!Array.isArray(qList) || qList.length === 0) {

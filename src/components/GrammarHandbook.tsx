@@ -14,7 +14,8 @@ import {
   Loader2,
   RefreshCw,
   Library,
-  Compass
+  Compass,
+  AlertTriangle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CLEAN_GRAMMAR_TOPICS, CleanGrammarTopic } from '../data/grammarHandbookData';
@@ -83,6 +84,7 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
   // AI Generation loading state
   const [isGeneratingAi, setIsGeneratingAi] = useState<boolean>(false);
   const [aiErrorMsg, setAiErrorMsg] = useState<string | null>(null);
+  const [fallbackStatus, setFallbackStatus] = useState<string | null>(null);
 
   // Active topic object
   const currentTopic = useMemo(() => {
@@ -182,12 +184,16 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
 
     setIsGeneratingAi(true);
     setAiErrorMsg(null);
+    setFallbackStatus(null);
 
     try {
       const newQuestions = await generateGrammarQuizWithFallback(
         currentTopic.title,
         currentTopic.englishTitle,
-        5
+        5,
+        (failedModel, nextModel) => {
+          setFallbackStatus(`Mô hình ${failedModel} bận hoặc vượt giới hạn, đang tự động chuyển sang ${nextModel}...`);
+        }
       );
 
       if (newQuestions && newQuestions.length > 0) {
@@ -203,6 +209,7 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
       setAiErrorMsg(err.message || 'Không thể tạo câu hỏi từ AI lúc này. Vui lòng thử lại sau.');
     } finally {
       setIsGeneratingAi(false);
+      setFallbackStatus(null);
     }
   };
 
@@ -719,17 +726,43 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
             </div>
           </div>
 
+          {/* Trạng thái chuyển đổi model dự phòng */}
+          {fallbackStatus && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-medium flex items-center gap-2 animate-pulse">
+              <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>{fallbackStatus}</span>
+            </div>
+          )}
+
           {/* Lỗi AI nếu có */}
           {aiErrorMsg && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center justify-between">
-              <span>{aiErrorMsg}</span>
-              <button
-                type="button"
-                onClick={() => setAiErrorMsg(null)}
-                className="font-bold underline ml-2"
-              >
-                Đóng
-              </button>
+            <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-rose-900">Không thể tạo câu hỏi với AI</p>
+                  <p className="text-slate-700 mt-0.5">{aiErrorMsg}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAiErrorMsg(null);
+                    handleSwapBankQuestions();
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
+                >
+                  Làm đề có sẵn ngay
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAiErrorMsg(null)}
+                  className="px-2 py-1.5 text-slate-500 hover:text-slate-800 text-xs font-medium cursor-pointer"
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           )}
 

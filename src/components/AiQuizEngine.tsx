@@ -107,58 +107,62 @@ function sortVocabByHistory(
     }
   });
 
-  const sorted = [...vocabList].sort((a, b) => {
+  // Strict Tier Partitioning:
+  // Tier 0: Pure brand new words never tested anywhere (total === 0) - MUST COME FIRST!
+  // Tier 1: Words tested in other formats, but NEVER tested in current format (thisType === 0)
+  // Tier 2: Flippable words in Synonyms/Antonyms (tested in 1 direction)
+  // Tier 3: Words already tested in current format (sorted by fewest tests, then oldest tested)
+  const tier0: VocabularyItem[] = [];
+  const tier1: VocabularyItem[] = [];
+  const tier2: VocabularyItem[] = [];
+  const tier3: VocabularyItem[] = [];
+
+  for (const item of vocabList) {
+    const key = String(item?.term || '').toLowerCase().trim();
+    const total = countTotalMap.get(key) || 0;
+    const thisType = countThisTypeMap.get(key) || 0;
+    const sub = testedSubtypesMap.get(key);
+    const flippable = isSynAntSelected && sub && (
+      (sub.has('Synonym') && !sub.has('Antonym')) ||
+      (sub.has('Antonym') && !sub.has('Synonym'))
+    );
+
+    if (total === 0) {
+      tier0.push(item);
+    } else if (thisType === 0) {
+      tier1.push(item);
+    } else if (flippable) {
+      tier2.push(item);
+    } else {
+      tier3.push(item);
+    }
+  }
+
+  // Shuffle within untested tiers for natural variety
+  tier0.sort(() => Math.random() - 0.5);
+  tier1.sort(() => Math.random() - 0.5);
+  tier2.sort(() => Math.random() - 0.5);
+
+  // In tier 3, sort by least tested count, then oldest tested
+  tier3.sort((a, b) => {
     const keyA = String(a?.term || '').toLowerCase().trim();
     const keyB = String(b?.term || '').toLowerCase().trim();
-
-    const thisTypeA = countThisTypeMap.get(keyA) || 0;
-    const thisTypeB = countThisTypeMap.get(keyB) || 0;
-
-    const totalA = countTotalMap.get(keyA) || 0;
-    const totalB = countTotalMap.get(keyB) || 0;
-
-    const subA = testedSubtypesMap.get(keyA);
-    const subB = testedSubtypesMap.get(keyB);
-
-    const flippableA = isSynAntSelected && subA && (
-      (subA.has('Synonym') && !subA.has('Antonym')) ||
-      (subA.has('Antonym') && !subA.has('Synonym'))
-    );
-    const flippableB = isSynAntSelected && subB && (
-      (subB.has('Synonym') && !subB.has('Antonym')) ||
-      (subB.has('Antonym') && !subB.has('Synonym'))
-    );
-
-    // Score hierarchy:
-    // Score 0: Never tested at all across any quiz!
-    // Score 1: Tested before in other formats, but NEVER tested in current format!
-    // Score 2: Flippable in current format (tested in 1 direction)
-    // Score 3 + count: Already tested in this format
-    const getScore = (total: number, thisType: number, flippable?: boolean) => {
-      if (total === 0) return 0; // Pure brand new word
-      if (thisType === 0) return 1; // Untested in this format
-      if (flippable) return 2; // Flippable
-      return 3 + thisType;
-    };
-
-    const scoreA = getScore(totalA, thisTypeA, flippableA);
-    const scoreB = getScore(totalB, thisTypeB, flippableB);
-
-    if (scoreA !== scoreB) {
-      return scoreA - scoreB;
-    }
-
-    // Secondary: least recently tested (older index first)
+    const countA = countThisTypeMap.get(keyA) || 0;
+    const countB = countThisTypeMap.get(keyB) || 0;
+    if (countA !== countB) return countA - countB;
     const lastA = lastIndexMap.get(keyA) ?? -1;
     const lastB = lastIndexMap.get(keyB) ?? -1;
-    if (lastA !== lastB) {
-      return lastA - lastB;
-    }
-
-    return Math.random() - 0.5;
+    return lastA - lastB;
   });
 
-  return interleaveVocabByCategory(sorted);
+  // Interleave within each tier to maintain category variety,
+  // but strictly preserve the tier hierarchy so NO tested word can take precedence over an untested one!
+  return [
+    ...interleaveVocabByCategory(tier0),
+    ...interleaveVocabByCategory(tier1),
+    ...interleaveVocabByCategory(tier2),
+    ...interleaveVocabByCategory(tier3)
+  ];
 }
 
 function renderFormattedInstruction(instructionText: string) {
@@ -393,6 +397,37 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
       );
 
       setQuestions(generatedQuestions);
+
+      // Immediately persist newly generated questions into history & localStorage
+      const newRoundItems: PreviousQuestionHistory[] = generatedQuestions.map((q) => {
+        const extracted = extractSuggestedWords(q.explanation);
+        const syns = q.suggestedSynonyms && q.suggestedSynonyms.length > 0
+          ? q.suggestedSynonyms
+          : extracted.synonyms;
+        const ants = q.suggestedAntonyms && q.suggestedAntonyms.length > 0
+          ? q.suggestedAntonyms
+          : extracted.antonyms;
+
+        return {
+          term: q.targetTerm,
+          type: q.type,
+          subtype: q.subtype,
+          question: q.question,
+          testedFocus: q.testedFocus || (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
+          correctAnswerText: (q.options ? q.options[q.correctAnswer] : '') || q.correctWordAnswer || '',
+          suggestedSynonyms: syns,
+          suggestedAntonyms: ants
+        };
+      });
+
+      const updatedHistory = [...accumulatedHistory];
+      for (const item of newRoundItems) {
+        if (!updatedHistory.some((h) => h.term === item.term && h.question === item.question)) {
+          updatedHistory.push(item);
+        }
+      }
+      setQuizHistory(updatedHistory);
+      saveStoredQuizHistory(updatedHistory);
     } catch (err: any) {
       console.error('Quiz generation error:', err);
       setErrorMsg(err.message || 'Không thể tạo bài tập trắc nghiệm AI. Vui lòng thử lại.');

@@ -349,7 +349,8 @@ async function callGeminiDirect(
   prompt: string,
   systemInstruction: string = SYSTEM_INSTRUCTION_EVM,
   fileBase64?: string,
-  fileMimeType?: string
+  fileMimeType?: string,
+  temperature: number = 0.1
 ): Promise<string> {
   const cleanModel = cleanModelId(model);
   const key = apiKey.trim();
@@ -376,7 +377,7 @@ async function callGeminiDirect(
     ],
     generationConfig: {
       responseMimeType: 'application/json',
-      temperature: 0.1,
+      temperature: Math.max(0.0, Math.min(1.0, temperature)),
       maxOutputTokens: 8192
     }
   };
@@ -1219,7 +1220,7 @@ export async function generateQuizWithFallback(
 
   let historySection = '';
   if (history && history.length > 0) {
-    const recentHistory = history.slice(-15).map((h, i) => {
+    const recentHistory = history.slice(-40).map((h, i) => {
       let flipAction = 'Đổi câu văn ngữ cảnh mới';
       if (h.type === 'Synonyms/Antonyms') {
         if (h.subtype === 'Synonym') {
@@ -1239,9 +1240,15 @@ export async function generateQuizWithFallback(
         previousCorrectAnswerWord: h.correctAnswerText || 'N/A',
         testedFocus: h.testedFocus || h.correctAnswerText || 'N/A',
         mandatoryActionIfReused: flipAction,
-        previousQuestionSnippet: h.question ? h.question.slice(0, 90) : ''
+        previousFullQuestionSentence: h.question || ''
       };
     });
+
+    // Extract all authentic past question sentences to strictly ban them from repetition
+    const bannedPastQuestionSentences = history
+      .map((h) => h.question?.trim())
+      .filter((q): q is string => Boolean(q && q.length > 5))
+      .slice(-40);
 
     const termProfiles = Array.from(profileMap.values()).map((p) => ({
       term: p.term,
@@ -1257,10 +1264,18 @@ export async function generateQuizWithFallback(
 DANH SÁCH CÁC CÂU HỎI ĐÃ KIỂM TRA Ở CÁC LƯỢT TRƯỚC (PREVIOUS QUIZ HISTORY):
 ${JSON.stringify(recentHistory, null, 2)}
 
+DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP (BANNED PAST CONTEXT SENTENCES - ZERO REPETITION):
+${JSON.stringify(bannedPastQuestionSentences, null, 2)}
+
 NGÂN HÀNG TỪ ĐỒNG NGHĨA / TRÁI NGHĨA ĐÃ XÁC LẬP THEO TỪNG TỪ (ESTABLISHED TERM LEXICAL PROFILES):
 ${JSON.stringify(termProfiles, null, 2)}
 
 QUY TẮC BẮT BUỘC KHI TẠO ĐỀ MỚI (MANDATORY RULES FOR NEW QUIZ GENERATION):
+0. TUYỆT ĐỐI CẤM LẶP LẠI CÂU VĂN CŨ (CRITICAL ZERO-DUPLICATION & CONTEXT NOVELTY MANDATE):
+   - TUYỆT ĐỐI KHÔNG sử dụng lại bất kỳ câu văn, ngữ cảnh hay tình huống nào đã có trong "DANH SÁCH CÂU VĂN BỊ CẤM TRÙNG LẶP" ở trên!
+   - Kể cả khi kiểm tra lại cùng một từ vựng, BẮT BUỘC phải sáng tạo một CÂU VĂN MỚI 100%, chủ đề mới, tình huống hoàn toàn mới (công nghệ, trí tuệ nhân tạo, y tế, môi trường, đời sống xã hội, giáo dục, tâm lý học...).
+   - Tuyệt đối không lặp lại câu văn cũ hoặc chỉ sửa một vài từ vặt!
+
 1. NGUYÊN TẮC KHÉP KÍN & KIỂM TRA ĐÚNG CÁC TỪ ĐÃ ĐỀ XUẤT (CLOSED-LOOP LEXICAL RULE):
    - ĐỐI VỚI CÁC TỪ ĐÃ CÓ TRONG NGÂN HÀNG ĐỀ XUẤT Ở TRÊN (như 'manipulate'):
      * ĐÁP ÁN ĐÚNG CỦA CÂU HỎI TIẾP THEO BẮT BUỘC PHẢI CHỌN TỪ CHÍNH DANH SÁCH ĐÃ ĐỀ XUẤT TRÊN! Tuyệt đối không chọn đáp án ngoài danh sách đề xuất.
@@ -1435,7 +1450,7 @@ CRITICAL MANDATORY CONSTRAINT - 100% DISTINCT TARGET TERMS PER QUESTION (MỖI C
 - EACH QUESTION MUST TEST A COMPLETELY DIFFERENT VOCABULARY ITEM:
 ${targetTermsList.map((t, idx) => `  * Question ${idx + 1}: MUST test target word/phrase: "${t}"`).join('\n')}
 - STRICTLY FORBIDDEN: DO NOT repeat or test the same target term more than once in this quiz!
-- STRICTLY FORBIDDEN: DO NOT repeat the same context sentence! Every question MUST have an authentic, completely distinct context sentence!
+- STRICTLY FORBIDDEN: DO NOT repeat any context sentence from previous rounds! Every single question MUST have a 100% brand-new, authentic context sentence!
 SPECIFICATIONS:
 1. Target Question Types to generate:
 ${specList.join('\n')}
@@ -1492,10 +1507,11 @@ ${specList.join('\n')}
 Return valid JSON in this exact structure:
 {
   "questions": ${JSON.stringify(exampleQuestions, null, 2)}
-}`;
+}
+`;
 
   const formattedQuestions = await executeWithFallback(async (model, apiKey) => {
-    const rawText = await callGeminiDirect(model, apiKey, prompt);
+    const rawText = await callGeminiDirect(model, apiKey, prompt, SYSTEM_INSTRUCTION_EVM, undefined, undefined, 0.7);
     const parsed = extractJsonFromText(rawText);
     const questionsRaw = extractQuestionsArray(parsed);
     if (!questionsRaw || !Array.isArray(questionsRaw) || questionsRaw.length === 0) {

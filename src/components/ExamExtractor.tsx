@@ -212,6 +212,10 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     ]);
 
     try {
+      // Tối ưu tốc độ: Chỉ gửi base64 cho ảnh chụp hoặc tệp scan không có chữ.
+      // Với tệp PDF đã bóc tách được 18.000 ký tự chữ, gửi trực tiếp text giúp AI xử lý chỉ mất 2-3s thay vì >60s.
+      const base64ToSend = (uploadedFileType === 'image' || !examText.trim()) ? (uploadedPdfBase64 || undefined) : undefined;
+
       const result = await extractVocabularyWithFallback(
         examText || (uploadedFileType === 'image' ? 'Ảnh chụp đề thi giấy' : 'Nội dung đề thi từ tệp PDF'),
         examTitle || uploadedFile?.name || 'Đề thi trích dẫn',
@@ -227,10 +231,10 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             `Model "${failedModel}" gặp sự cố (${error.slice(0, 100)}...). Hệ thống tự động chuyển sang thử lại với model dự phòng "${nextModel}".`
           );
         },
-        uploadedPdfBase64 || undefined,
+        base64ToSend,
         prioritizeHighlights,
         uploadedFileMime,
-        extractionMode === 'strict_highlight'
+        uploadedFileType === 'image'
       );
 
       // On complete success

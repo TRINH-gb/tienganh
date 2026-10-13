@@ -76,23 +76,13 @@ const WORD_DOC_CSS = `
   .header-table {
     width: 100%;
     border-collapse: collapse;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 2px solid #2563eb;
+    padding-bottom: 6px;
   }
   .header-table td {
-    vertical-align: top;
-    padding: 0;
-  }
-  .left-header {
-    width: 50%;
-    text-align: center;
-    font-size: 11pt;
-    line-height: 1.3;
-  }
-  .right-header {
-    width: 50%;
-    text-align: center;
-    font-size: 11pt;
-    line-height: 1.3;
+    vertical-align: middle;
+    padding: 2px 0;
   }
   .exam-title {
     text-align: center;
@@ -255,35 +245,40 @@ export function generateExamDocHtml(
 </head>
 <body>
 
-  <!-- Top Ministry & School Header -->
-  <table class="header-table">
+  <!-- Top App & Author Header -->
+  <table class="header-table" style="width: 100%; border-collapse: collapse; margin-bottom: 14px; border-bottom: 2px solid #2563eb; padding-bottom: 6px;">
     <tr>
-      <td class="left-header">
-        <b>SỞ GD&ĐT / TRƯỜNG THPT: .............................</b><br>
-        <b>TỔ BỘ MÔN TIẾNG ANH</b><br>
-        <i>-------------------------</i>
+      <td style="width: 58%; vertical-align: middle; text-align: left; padding: 2px 0;">
+        <div style="font-size: 13.5pt; font-weight: bold; color: #1e3a8a; text-transform: uppercase;">
+          MASTER THPTQG TIẾNG ANH (EVM)
+        </div>
+        <div style="font-size: 9.5pt; color: #475569; font-style: italic; margin-top: 2px;">
+          AI English Exam Vocabulary Architect • Ứng dụng Luyện thi THPT
+        </div>
       </td>
-      <td class="right-header">
-        <b>KỲ THI TỐT NGHIỆP TRUNG HỌC PHỔ THÔNG</b><br>
-        <b>BÀI THI: NGOẠI NGỮ; MÔN: TIẾNG ANH</b><br>
-        <i>Thời gian làm bài: 50 phút (không kể thời gian phát đề)</i>
+      <td style="width: 42%; vertical-align: middle; text-align: right; padding: 2px 0;">
+        <div style="font-size: 11pt; font-weight: bold; color: #0f172a;">
+          Developed by Ms.Trinh
+        </div>
+        <div style="font-size: 9.5pt; color: #475569; margin-top: 1px;">
+          THPT Võ Thị Sáu Bà Rịa Vũng Tàu
+        </div>
+        <div style="font-size: 9.5pt; color: #2563eb; font-weight: bold; margin-top: 1px;">
+          Hotline / Zalo: 039.772.6024
+        </div>
       </td>
     </tr>
   </table>
 
   <div class="exam-title">${title}</div>
-  <div class="exam-sub">Hệ thống bóc tách & biên soạn đề thi: AI Exam Vocabulary Architect (EVM) • Ngày: ${currentDate}</div>
+  <div class="exam-sub">Ngày xuất bản: ${currentDate}</div>
 
   <!-- Student Info Box -->
   <div class="student-info">
     <table style="width: 100%; border: none;">
       <tr>
-        <td style="width: 60%; padding: 2px 0;"><b>Họ và tên thí sinh:</b> ............................................................................</td>
-        <td style="width: 40%; padding: 2px 0;"><b>Lớp:</b> .........................................</td>
-      </tr>
-      <tr>
-        <td style="padding: 2px 0;"><b>Số báo danh (SBD):</b> ........................................................................</td>
-        <td style="padding: 2px 0;"><b>Phòng thi:</b> ....................................</td>
+        <td style="width: 65%; padding: 2px 0;"><b>Họ và tên học sinh:</b> ............................................................................</td>
+        <td style="width: 35%; padding: 2px 0;"><b>Lớp:</b> .........................................</td>
       </tr>
       ${scoreText ? `<tr><td colspan="2" style="padding: 3px 0; color: #166534; font-weight: bold;">📊 <b>${scoreText}</b></td></tr>` : ''}
     </table>
@@ -332,7 +327,7 @@ export function generateExamDocHtml(
     questions.length > 0
       ? `
   <!-- Section 2: Multiple Choice Questions -->
-  <div class="section-title">PHẦN 2: BÀI TẬP TRẮC NGHIỆM THI THPT QUỐC GIA (PRACTICE QUESTIONS)</div>
+  <div class="section-title">PHẦN 2: BÀI TẬP TRẮC NGHIỆM VẬN DỤNG (PRACTICE QUESTIONS)</div>
   <p style="font-style: italic; margin-bottom: 12px; font-size: 11pt; color: #374151;">
     Mark the letter A, B, C, or D on your answer sheet to indicate the correct answer to each of the following questions.
   </p>
@@ -411,7 +406,7 @@ export function generateExamDocHtml(
 
   <div class="footer-note">
     --- HẾT ---<br>
-    Thí sinh không được sử dụng tài liệu. Cán bộ coi thi không giải thích gì thêm.
+    MASTER THPTQG TIẾNG ANH (EVM) • Developed by Ms.Trinh (THPT Võ Thị Sáu Bà Rịa Vũng Tàu - Hotline/Zalo: 039.772.6024)
   </div>
 
 </body>
@@ -449,44 +444,49 @@ export function generateGrammarExamDocHtml(
 <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
 <head>
   <meta charset='utf-8'>
-  <title>${topic.title} - Bài tập trắc nghiệm THPTQG</title>
+  <title>${topic.title} - Bài tập vận dụng</title>
   <style>
     ${WORD_DOC_CSS}
   </style>
 </head>
 <body>
 
-  <!-- Top Ministry & School Header -->
-  <table class="header-table">
+  <!-- Top App & Author Header -->
+  <table class="header-table" style="width: 100%; border-collapse: collapse; margin-bottom: 14px; border-bottom: 2px solid #2563eb; padding-bottom: 6px;">
     <tr>
-      <td class="left-header">
-        <b>SỞ GD&ĐT / TRƯỜNG THPT: .............................</b><br>
-        <b>TỔ BỘ MÔN TIẾNG ANH</b><br>
-        <i>-------------------------</i>
+      <td style="width: 58%; vertical-align: middle; text-align: left; padding: 2px 0;">
+        <div style="font-size: 13.5pt; font-weight: bold; color: #1e3a8a; text-transform: uppercase;">
+          MASTER THPTQG TIẾNG ANH (EVM)
+        </div>
+        <div style="font-size: 9.5pt; color: #475569; font-style: italic; margin-top: 2px;">
+          AI English Exam Vocabulary Architect • Ứng dụng Luyện thi THPT
+        </div>
       </td>
-      <td class="right-header">
-        <b>KỲ THI TỐT NGHIỆP TRUNG HỌC PHỔ THÔNG</b><br>
-        <b>BÀI THI: NGOẠI NGỮ; MÔN: TIẾNG ANH</b><br>
-        <i>Thời gian làm bài: 15 - 20 phút</i>
+      <td style="width: 42%; vertical-align: middle; text-align: right; padding: 2px 0;">
+        <div style="font-size: 11pt; font-weight: bold; color: #0f172a;">
+          Developed by Ms.Trinh
+        </div>
+        <div style="font-size: 9.5pt; color: #475569; margin-top: 1px;">
+          THPT Võ Thị Sáu Bà Rịa Vũng Tàu
+        </div>
+        <div style="font-size: 9.5pt; color: #2563eb; font-weight: bold; margin-top: 1px;">
+          Hotline / Zalo: 039.772.6024
+        </div>
       </td>
     </tr>
   </table>
 
-  <div class="exam-title">BÀI TẬP TRỌNG TÂM: ${topic.title.toUpperCase()}</div>
+  <div class="exam-title">BÀI TẬP VẬN DỤNG: ${topic.title.toUpperCase()}</div>
   <div class="exam-sub">
-    Chuyên đề số ${topic.topicNumber}: ${topic.englishTitle} • Mức độ: ${topic.difficulty} • Ngày biên soạn: ${currentDate}
+    Chuyên đề ${topic.topicNumber}: ${topic.englishTitle} • Mức độ: ${topic.difficulty} • Ngày xuất bản: ${currentDate}
   </div>
 
   <!-- Student Info Box -->
   <div class="student-info">
     <table style="width: 100%; border: none;">
       <tr>
-        <td style="width: 60%; padding: 2px 0;"><b>Họ và tên thí sinh:</b> ............................................................................</td>
-        <td style="width: 40%; padding: 2px 0;"><b>Lớp:</b> .........................................</td>
-      </tr>
-      <tr>
-        <td style="padding: 2px 0;"><b>Số báo danh (SBD):</b> ........................................................................</td>
-        <td style="padding: 2px 0;"><b>Phòng thi:</b> ....................................</td>
+        <td style="width: 65%; padding: 2px 0;"><b>Họ và tên học sinh:</b> ............................................................................</td>
+        <td style="width: 35%; padding: 2px 0;"><b>Lớp:</b> .........................................</td>
       </tr>
       ${scoreSummaryHtml}
     </table>
@@ -588,7 +588,7 @@ export function generateGrammarExamDocHtml(
 
   <div class="footer-note">
     --- HẾT ---<br>
-    Tài liệu biên soạn phục vụ ôn thi Tốt nghiệp THPT Quốc Gia môn Tiếng Anh.
+    MASTER THPTQG TIẾNG ANH (EVM) • Developed by Ms.Trinh (THPT Võ Thị Sáu Bà Rịa Vũng Tàu - Hotline/Zalo: 039.772.6024)
   </div>
 
 </body>

@@ -8,10 +8,14 @@ import { AiQuizEngine } from './components/AiQuizEngine';
 import { WordDetailModal } from './components/WordDetailModal';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { VisitorStatsModal } from './components/VisitorStatsModal';
-import { VocabularyItem, MasteryStatus, normalizeStatus, ActiveTab } from './types';
+import { LoginModal } from './components/LoginModal';
+import { SchoolStatsModal } from './components/SchoolStatsModal';
+import { VocabularyItem, MasteryStatus, normalizeStatus, ActiveTab, UserProfile } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { useVisitorStats } from './services/visitorStatsService';
-import { Menu, GraduationCap, KeyRound, Eye } from 'lucide-react';
+import { getStoredUserProfile, clearStoredUserProfile, checkServerHostStatus } from './services/authService';
+import { Menu, GraduationCap, KeyRound, Eye, User, School, ShieldCheck } from 'lucide-react';
+
 
 const STORAGE_KEY = 'evm_vocabulary_data_v1';
 const TAB_STORAGE_KEY = 'evm_active_tab';
@@ -88,13 +92,35 @@ export default function App() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState<boolean>(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
 
-  // Manage API Key Modal state (shows automatically if no key is stored)
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return !getStoredApiKey();
-    }
-    return false;
-  });
+  // User Profile authentication state
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(() => getStoredUserProfile());
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(() => !getStoredUserProfile());
+  const [isServerHost, setIsServerHost] = useState<boolean>(false);
+  const [isSchoolStatsModalOpen, setIsSchoolStatsModalOpen] = useState<boolean>(false);
+
+  // Manage API Key Modal state (shows only if manually opened or if logged in but key missing)
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+
+  // Check if current browser is the server host machine
+  useEffect(() => {
+    checkServerHostStatus().then((isHost) => {
+      setIsServerHost(isHost);
+    });
+  }, []);
+
+  const handleLogout = () => {
+    clearStoredUserProfile();
+    setUserProfile(null);
+    setIsLoginModalOpen(true);
+  };
+
+  const handleLoginSuccess = (profile: UserProfile) => {
+    setUserProfile(profile);
+    setIsLoginModalOpen(false);
+    checkServerHostStatus().then((isHost) => {
+      setIsServerHost(isHost);
+    });
+  };
 
   // Visitor statistics tracking & analytics across all users
   const {
@@ -103,6 +129,7 @@ export default function App() {
     refresh: refreshVisitorStats
   } = useVisitorStats();
   const [isVisitorStatsModalOpen, setIsVisitorStatsModalOpen] = useState<boolean>(false);
+
 
   // Initialize vocabulary: only user-uploaded exams, zero suggested exams
   const [vocabulary, setVocabulary] = useState<VocabularyItem[]>(() => {
@@ -265,6 +292,11 @@ export default function App() {
         setIsCollapsed={setIsSidebarCollapsed}
         visitorStats={visitorStats}
         onOpenVisitorStatsModal={() => setIsVisitorStatsModalOpen(true)}
+        userProfile={userProfile}
+        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onLogout={handleLogout}
+        isServerHost={isServerHost}
+        onOpenSchoolStatsModal={() => setIsSchoolStatsModalOpen(true)}
       />
 
       {/* 2. Right Main Content Area (Nội dung chính xuất hiện bên phải) */}
@@ -292,6 +324,41 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
               </button>
 
+              {isServerHost && (
+                <button
+                  type="button"
+                  onClick={() => setIsSchoolStatsModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  title="Thống kê đăng nhập theo trường (Dành riêng cho máy chủ)"
+                >
+                  <School className="w-3.5 h-3.5" />
+                  <span>Thống kê trường</span>
+                </button>
+              )}
+
+              {userProfile ? (
+                <button
+                  type="button"
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  title={`Đang đăng nhập: ${userProfile.username} (${userProfile.school})`}
+                >
+                  <span className="w-5 h-5 rounded-md bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">
+                    {userProfile.username.charAt(0).toUpperCase()}
+                  </span>
+                  <span className="max-w-[120px] truncate">{userProfile.username}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsLoginModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Đăng nhập</span>
+                </button>
+              )}
+
               <div className="flex items-center space-x-2">
                 <div className="w-6 h-6 rounded-md bg-indigo-600 flex items-center justify-center text-white">
                   <GraduationCap className="w-3.5 h-3.5" />
@@ -306,7 +373,7 @@ export default function App() {
 
         {/* Mobile Header (hiển thị trên màn hình nhỏ < lg khi chưa mở drawer) */}
         <header className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 py-3 flex items-center justify-between shadow-xs">
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2">
             <button
               type="button"
               onClick={() => setIsMobileMenuOpen(true)}
@@ -315,39 +382,59 @@ export default function App() {
             >
               <Menu className="w-5 h-5 text-slate-700" />
             </button>
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
-                <GraduationCap className="w-4 h-4" />
+            <div className="flex items-center space-x-1.5">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-indigo-600 via-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-xs">
+                <GraduationCap className="w-3.5 h-3.5" />
               </div>
-              <span className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight">
-                MASTER THPTQG <span className="text-indigo-600 font-bold">TIENG ANH</span>
+              <span className="font-extrabold text-slate-900 text-xs tracking-tight truncate max-w-[130px] sm:max-w-none">
+                MASTER THPTQG
               </span>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1.5">
+            {isServerHost && (
+              <button
+                type="button"
+                onClick={() => setIsSchoolStatsModalOpen(true)}
+                className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer"
+                title="Thống kê đăng nhập theo trường"
+              >
+                <School className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {userProfile ? (
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-900 text-xs font-bold transition-all cursor-pointer"
+                title={`${userProfile.username} (${userProfile.school})`}
+              >
+                <span className="w-4 h-4 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] font-bold">
+                  {userProfile.username.charAt(0).toUpperCase()}
+                </span>
+                <span className="max-w-[65px] truncate">{userProfile.username}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsLoginModalOpen(true)}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>Đăng nhập</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => setIsVisitorStatsModalOpen(true)}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer hover:bg-slate-800"
+              className="flex items-center gap-1 px-2 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer hover:bg-slate-800"
               title="Xem thống kê lượt truy cập toàn trang"
             >
               <Eye className="w-3.5 h-3.5 text-indigo-400" />
               <span>{visitorStats.totalVisits.toLocaleString('vi-VN')}</span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setIsApiKeyModalOpen(true)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
-                getStoredApiKey()
-                  ? 'bg-slate-50 text-slate-700 border-slate-200'
-                  : 'bg-rose-50 text-rose-700 border-rose-300 ring-2 ring-rose-400/30 animate-pulse'
-              }`}
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              <span>{getStoredApiKey() ? 'API Key' : 'Nhập Key'}</span>
             </button>
           </div>
         </header>
@@ -474,6 +561,21 @@ export default function App() {
         stats={visitorStats}
         onRefresh={refreshVisitorStats}
         isRefreshing={isVisitorStatsRefreshing}
+      />
+
+      {/* Login & User Profile Modal */}
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onLoginSuccess={handleLoginSuccess}
+        isMandatory={!userProfile}
+      />
+
+      {/* School Statistics Modal (Chỉ Máy Chủ Quản Trị) */}
+      <SchoolStatsModal
+        isOpen={isSchoolStatsModalOpen}
+        onClose={() => setIsSchoolStatsModalOpen(false)}
+        isServerHost={isServerHost}
       />
     </div>
   );

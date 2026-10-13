@@ -149,3 +149,47 @@ export interface VisitorStats {
   deviceStats: DeviceStats;
 }
 
+export type SchoolOption =
+  | 'THPT Võ Thị Sáu Bà Rịa - Vũng Tàu'
+  | 'THPT Xuyên Mộc'
+  | 'THPT Hòa Bình'
+  | 'THPT Phước Bửu'
+  | 'THPT Long Hải Phước Tỉnh'
+  | 'THPT Minh Đạm'
+  | 'THPT Dương Bạch Mai'
+  | 'THPT Trần Phú'
+  | 'THPT Nguyễn Du'
+  | 'Khác';
+
+export interface UserProfile {
+  username: string;
+  school: SchoolOption | string;
+  customSchool?: string;
+  apiKey: string;
+  loginAt: string;
+}
+
+export interface SchoolLoginRecord {
+  id: string;
+  username: string;
+  school: string;
+  customSchool?: string;
+  timestamp: string;
+  deviceType?: 'desktop' | 'mobile' | 'tablet';
+}
+
+export interface SchoolLoginStats {
+  totalLogins: number;
+  uniqueUsersCount: number;
+  lastLoginAt: string;
+  schoolCounts: Record<string, number>;
+  customSchoolCounts: Record<string, number>;
+  recentLogins: SchoolLoginRecord[];
+  dailySchoolStats: Array<{
+    date: string;
+    total: number;
+    bySchool: Record<string, number>;
+  }>;
+}
+
+

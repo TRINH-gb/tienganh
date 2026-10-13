@@ -324,17 +324,15 @@ export default function App() {
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
               </button>
 
-              {isServerHost && (
-                <button
-                  type="button"
-                  onClick={() => setIsSchoolStatsModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer"
-                  title="Thống kê đăng nhập theo trường (Dành riêng cho máy chủ)"
-                >
-                  <School className="w-3.5 h-3.5" />
-                  <span>Thống kê trường</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setIsSchoolStatsModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
+                title="Bảng thống kê số lượt đăng nhập theo trường (Bảo mật cho Quản trị viên)"
+              >
+                <School className="w-3.5 h-3.5" />
+                <span>Thống kê trường</span>
+              </button>
 
               {userProfile ? (
                 <button
@@ -393,16 +391,14 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-1.5">
-            {isServerHost && (
-              <button
-                type="button"
-                onClick={() => setIsSchoolStatsModalOpen(true)}
-                className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer"
-                title="Thống kê đăng nhập theo trường"
-              >
-                <School className="w-3.5 h-3.5" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setIsSchoolStatsModalOpen(true)}
+              className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer"
+              title="Bảng thống kê đăng nhập theo trường"
+            >
+              <School className="w-3.5 h-3.5" />
+            </button>
 
             {userProfile ? (
               <button
@@ -569,6 +565,7 @@ export default function App() {
         onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         isMandatory={!userProfile}
+        onOpenSchoolStats={() => setIsSchoolStatsModalOpen(true)}
       />
 
       {/* School Statistics Modal (Chỉ Máy Chủ Quản Trị) */}

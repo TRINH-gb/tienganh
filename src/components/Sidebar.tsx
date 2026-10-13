@@ -471,54 +471,40 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Thống kê Đăng nhập Theo Trường (DÀNH RIÊNG CHO MÁY CHỦ QUẢN TRỊ) */}
-        {isServerHost ? (
-          <div>
-            <div className="px-2 mb-1.5 flex items-center justify-between">
-              <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3 text-amber-500" />
-                Máy Chủ Quản Trị
+        <div>
+          <div className="px-2 mb-1.5 flex items-center justify-between">
+            <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-amber-500" />
+              Máy Chủ Quản Trị
+            </span>
+            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
+              {isServerHost ? 'Đã mở khóa' : 'Bảo mật PIN'}
+            </span>
+          </div>
+
+          <div
+            onClick={onOpenSchoolStatsModal}
+            className="p-3 rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-indigo-950 text-white shadow-md border border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-lg transition-all group"
+            title="Nhấp để xem bảng thống kê số lượt đăng nhập từ các trường"
+          >
+            <div className="flex items-center justify-between text-amber-200 mb-1">
+              <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                <School className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                <span>Lượt Dùng Theo Trường</span>
               </span>
-              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-                Độc quyền
+              <span className="text-[9px] font-bold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-md">
+                Chỉ riêng bạn
               </span>
             </div>
 
-            <div
-              onClick={onOpenSchoolStatsModal}
-              className="p-3 rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-indigo-950 text-white shadow-md border border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-lg transition-all group"
-              title="Nhấp để xem bảng thống kê số lượt đăng nhập từ các trường"
-            >
-              <div className="flex items-center justify-between text-amber-200 mb-1">
-                <span className="text-[10.5px] font-bold flex items-center gap-1.5">
-                  <School className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-                  <span>Lượt Dùng Theo Trường</span>
-                </span>
-                <span className="text-[9px] font-bold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-md">
-                  Chỉ máy chủ
-                </span>
-              </div>
-
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xs text-slate-300">Theo dõi 9 trường THPT</span>
-                <span className="text-xs text-amber-400 font-bold group-hover:underline flex items-center gap-0.5">
-                  Chi tiết &raquo;
-                </span>
-              </div>
+            <div className="mt-1 flex items-center justify-between">
+              <span className="text-xs text-slate-300">Theo dõi 9 trường THPT</span>
+              <span className="text-xs text-amber-400 font-bold group-hover:underline flex items-center gap-0.5">
+                Xem thống kê &raquo;
+              </span>
             </div>
           </div>
-        ) : (
-          <div className="text-center pt-0.5">
-            <button
-              type="button"
-              onClick={onOpenSchoolStatsModal}
-              className="text-[10px] text-slate-400 hover:text-slate-600 hover:underline flex items-center justify-center gap-1 mx-auto cursor-pointer"
-              title="Khu vực dành riêng cho quản trị viên máy chủ"
-            >
-              <KeyRound className="w-2.5 h-2.5" />
-              <span>Quản trị máy chủ</span>
-            </button>
-          </div>
-        )}
+        </div>
       </div>
     </div>
   );

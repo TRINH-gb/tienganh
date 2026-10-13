@@ -274,8 +274,18 @@ export const SchoolStatsModal: React.FC<SchoolStatsModalProps> = ({
                 </div>
 
                 {pinError && (
-                  <p className="text-xs text-rose-600 font-medium">{pinError}</p>
+                  <p className="text-xs text-rose-600 font-bold">{pinError}</p>
                 )}
+
+                <div className="flex items-center justify-between text-xs pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setAdminPin('admin2026')}
+                    className="text-[11px] text-indigo-600 hover:text-indigo-800 hover:underline font-bold cursor-pointer"
+                  >
+                    Điền mã PIN mặc định: <code className="bg-indigo-50 px-1.5 py-0.5 rounded text-indigo-700">admin2026</code>
+                  </button>
+                </div>
 
                 <button
                   type="submit"

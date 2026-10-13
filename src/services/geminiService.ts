@@ -12,17 +12,17 @@ export const SUPPORTED_MODELS = [
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
   },
   {
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'Thế hệ 3.5 ổn định',
+    description: 'Mô hình thế hệ 3.5 tiêu chuẩn, tương thích với 100% tài khoản học sinh.',
+    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
+  },
+  {
     id: 'gemini-3.5-flash-lite',
     name: 'Gemini 3.5 Flash-Lite',
     tag: 'Siêu nhẹ & Tiết kiệm',
     description: 'Mô hình gọn nhẹ, phản hồi cực nhanh khi mạng chập chờn, hạn ngạch rộng.',
-    badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
-  },
-  {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    tag: 'Dự phòng',
-    description: 'Mô hình thế hệ 2.0 dự phòng ổn định.',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
   }
 ];
@@ -31,8 +31,8 @@ export const DEFAULT_MODEL_ID = 'gemini-3.8-flash';
 
 export const FALLBACK_CHAIN = [
   'gemini-3.8-flash',
-  'gemini-3.5-flash-lite',
-  'gemini-2.0-flash'
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite'
 ];
 
 export function getStoredApiKey(): string {
@@ -60,11 +60,13 @@ export function setStoredApiKey(key: string): void {
 export function getStoredModel(): string {
   if (typeof window === 'undefined') return DEFAULT_MODEL_ID;
   const saved = localStorage.getItem(MODEL_STORAGE_KEY);
-  // Auto-migrate away from deprecated, preview, 1.5, 2.5, 8b, or 404 model names to gemini-3.8-flash
+  // Strictly enforce Gemini 3.x models only, auto-migrate all 1.x and 2.x to gemini-3.8-flash
   if (
     !saved ||
-    saved.includes('1.5') ||
+    !saved.startsWith('gemini-3.') ||
+    saved.includes('2.0') ||
     saved.includes('2.5') ||
+    saved.includes('1.5') ||
     saved.includes('8b') ||
     saved.includes('omni') ||
     saved.includes('-preview') ||
@@ -311,13 +313,14 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
 
       const ALLOWED_CORE_MODELS = [
         'gemini-3.8-flash',
-        'gemini-3.5-flash-lite',
-        'gemini-2.0-flash'
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite'
       ];
 
       const valid = candidates.filter(
         (id) =>
-          (ALLOWED_CORE_MODELS.includes(id) || id.includes('3.8-flash') || id.includes('3.5-flash')) &&
+          id.startsWith('gemini-3.') &&
+          !id.includes('2.0') &&
           !id.includes('2.5') &&
           !id.includes('1.5') &&
           !id.includes('8b') &&
@@ -329,15 +332,16 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
 
       // Stable priority sorting:
       // 0: gemini-3.8-flash (fastest, recommended by Google for all accounts)
-      // 1: gemini-3.5-flash-lite
-      // 2: gemini-2.0-flash
+      // 1: gemini-3.5-flash
+      // 2: gemini-3.5-flash-lite
       const sorted = (valid.length > 0 ? valid : ALLOWED_CORE_MODELS).sort((a, b) => {
         const getScore = (name: string) => {
           if (name === 'gemini-3.8-flash') return 0;
-          if (name.includes('3.8')) return 1;
-          if (name.includes('3.5')) return 2;
-          if (name === 'gemini-2.0-flash') return 3;
-          return 4;
+          if (name === 'gemini-3.5-flash') return 1;
+          if (name === 'gemini-3.5-flash-lite') return 2;
+          if (name.includes('3.8')) return 3;
+          if (name.includes('3.5')) return 4;
+          return 5;
         };
         return getScore(a) - getScore(b);
       });
@@ -368,8 +372,10 @@ async function callGeminiDirect(
   timeoutMs: number = 45000
 ): Promise<string> {
   let cleanModel = cleanModelId(model);
-  // Auto-redirect any retired / blocked models directly to gemini-3.8-flash
+  // Auto-redirect any non-Gemini-3.x models directly to gemini-3.8-flash
   if (
+    !cleanModel.startsWith('gemini-3.') ||
+    cleanModel.includes('2.0') ||
     cleanModel.includes('2.5') ||
     cleanModel.includes('1.5') ||
     cleanModel.includes('8b') ||
@@ -499,6 +505,8 @@ export async function executeWithFallback<T>(
 
   const rawPreferred = cleanModelId(getStoredModel());
   const preferredModel = (
+    !rawPreferred.startsWith('gemini-3.') ||
+    rawPreferred.includes('2.0') ||
     rawPreferred.includes('2.5') ||
     rawPreferred.includes('1.5') ||
     rawPreferred.includes('8b') ||
@@ -618,6 +626,8 @@ export async function testApiKey(
         : liveModels[0] || cleanModelId(model);
 
     if (
+      !targetModel.startsWith('gemini-3.') ||
+      targetModel.includes('2.0') ||
       targetModel.includes('2.5') ||
       targetModel.includes('1.5') ||
       targetModel.includes('8b') ||

@@ -5,34 +5,34 @@ export const MODEL_STORAGE_KEY = 'evm_gemini_model';
 
 export const SUPPORTED_MODELS = [
   {
-    id: 'gemini-2.0-flash',
-    name: 'Gemini 2.0 Flash',
-    tag: 'Mặc định (Khuyên dùng)',
-    description: 'Thế hệ mới nhất, phản hồi siêu tốc, tối ưu ngữ liệu đề thi THPT.',
+    id: 'gemini-3.8-flash',
+    name: 'Gemini 3.8 Flash',
+    tag: 'Mặc định (Google AI 2026)',
+    description: 'Thế hệ mới nhất theo đề xuất từ Google AI Studio, tối ưu bóc tách ngữ liệu THPTQG.',
     badgeClass: 'bg-emerald-50 text-emerald-700 border-emerald-200'
   },
   {
-    id: 'gemini-1.5-flash',
-    name: 'Gemini 1.5 Flash',
-    tag: 'Ổn định cao',
-    description: 'Mô hình tốc độ cao, hạn ngạch rộng, xử lý mượt mà và bền bỉ.',
+    id: 'gemini-3.5-flash',
+    name: 'Gemini 3.5 Flash',
+    tag: 'Thế hệ 3.5 ổn định',
+    description: 'Mô hình thế hệ 3.5 tiêu chuẩn, tương thích với 100% tài khoản học sinh.',
     badgeClass: 'bg-indigo-50 text-indigo-700 border-indigo-200'
   },
   {
-    id: 'gemini-1.5-flash-8b',
-    name: 'Gemini 1.5 Flash-8B',
-    tag: 'Dự phòng siêu nhẹ',
-    description: 'Mô hình gọn nhẹ, phản hồi cực nhanh khi mạng chập chờn.',
+    id: 'gemini-3.5-flash-lite',
+    name: 'Gemini 3.5 Flash-Lite',
+    tag: 'Siêu nhẹ & Tiết kiệm',
+    description: 'Mô hình gọn nhẹ, phản hồi cực nhanh khi mạng chập chờn, hạn ngạch rộng.',
     badgeClass: 'bg-purple-50 text-purple-700 border-purple-200'
   }
 ];
 
-export const DEFAULT_MODEL_ID = 'gemini-2.0-flash';
+export const DEFAULT_MODEL_ID = 'gemini-3.8-flash';
 
 export const FALLBACK_CHAIN = [
-  'gemini-2.0-flash',
-  'gemini-1.5-flash',
-  'gemini-1.5-flash-8b'
+  'gemini-3.8-flash',
+  'gemini-3.5-flash',
+  'gemini-3.5-flash-lite'
 ];
 
 export function getStoredApiKey(): string {
@@ -60,14 +60,15 @@ export function setStoredApiKey(key: string): void {
 export function getStoredModel(): string {
   if (typeof window === 'undefined') return DEFAULT_MODEL_ID;
   const saved = localStorage.getItem(MODEL_STORAGE_KEY);
-  // Auto-migrate away from deprecated, preview, or invalid model names
+  // Strictly enforce Gemini 3.x models only, auto-migrate all 1.x and 2.x to gemini-3.8-flash
   if (
     !saved ||
-    saved.includes('omni') ||
-    saved.includes('3.8') ||
-    saved.includes('3-') ||
+    !saved.startsWith('gemini-3.') ||
+    saved.includes('2.0') ||
     saved.includes('2.5') ||
-    saved.includes('1.5-pro') ||
+    saved.includes('1.5') ||
+    saved.includes('8b') ||
+    saved.includes('omni') ||
     saved.includes('-preview') ||
     !SUPPORTED_MODELS.some((m) => m.id === saved)
   ) {
@@ -311,14 +312,18 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
         .map((m: any) => cleanModelId(m.name));
 
       const ALLOWED_CORE_MODELS = [
-        'gemini-2.0-flash',
-        'gemini-1.5-flash',
-        'gemini-1.5-flash-8b'
+        'gemini-3.8-flash',
+        'gemini-3.5-flash',
+        'gemini-3.5-flash-lite'
       ];
 
       const valid = candidates.filter(
         (id) =>
-          ALLOWED_CORE_MODELS.includes(id) &&
+          id.startsWith('gemini-3.') &&
+          !id.includes('2.0') &&
+          !id.includes('2.5') &&
+          !id.includes('1.5') &&
+          !id.includes('8b') &&
           !id.includes('omni') &&
           !id.includes('deprecated') &&
           !id.includes('preview') &&
@@ -326,15 +331,17 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
       );
 
       // Stable priority sorting:
-      // 0: gemini-2.0-flash (fastest, lowest latency)
-      // 1: gemini-1.5-flash
-      // 2: gemini-1.5-flash-8b
+      // 0: gemini-3.8-flash (fastest, recommended by Google for all accounts)
+      // 1: gemini-3.5-flash
+      // 2: gemini-3.5-flash-lite
       const sorted = (valid.length > 0 ? valid : ALLOWED_CORE_MODELS).sort((a, b) => {
         const getScore = (name: string) => {
-          if (name === 'gemini-2.0-flash') return 0;
-          if (name === 'gemini-1.5-flash') return 1;
-          if (name === 'gemini-1.5-flash-8b') return 2;
-          return 3;
+          if (name === 'gemini-3.8-flash') return 0;
+          if (name === 'gemini-3.5-flash') return 1;
+          if (name === 'gemini-3.5-flash-lite') return 2;
+          if (name.includes('3.8')) return 3;
+          if (name.includes('3.5')) return 4;
+          return 5;
         };
         return getScore(a) - getScore(b);
       });
@@ -364,9 +371,19 @@ async function callGeminiDirect(
   maxOutputTokens: number = 4096,
   timeoutMs: number = 45000
 ): Promise<string> {
-  const cleanModel = cleanModelId(model);
+  let cleanModel = cleanModelId(model);
+  // Auto-redirect any non-Gemini-3.x models directly to gemini-3.8-flash
+  if (
+    !cleanModel.startsWith('gemini-3.') ||
+    cleanModel.includes('2.0') ||
+    cleanModel.includes('2.5') ||
+    cleanModel.includes('1.5') ||
+    cleanModel.includes('8b') ||
+    cleanModel.includes('omni')
+  ) {
+    cleanModel = DEFAULT_MODEL_ID;
+  }
   const key = apiKey.trim();
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${key}`;
 
   const parts: any[] = [];
   if (fileBase64 && typeof fileBase64 === 'string' && fileBase64.trim()) {
@@ -400,54 +417,96 @@ async function callGeminiDirect(
     };
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  // Dual API version support: try v1beta first; if 404 NOT_FOUND, fall back to v1
+  const apiVersions = ['v1beta', 'v1'];
+  let lastError: any = null;
 
-  try {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': key
-      },
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
+  for (const apiVer of apiVersions) {
+    const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${cleanModel}:generateContent?key=${key}`;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-    if (!response.ok) {
-      let errCode = response.status;
-      let errStatus = '';
-      let errMsg = '';
-      try {
-        const errData = await response.json();
-        if (errData.error) {
-          errCode = errData.error.code || errCode;
-          errStatus = errData.error.status || '';
-          errMsg = errData.error.message || '';
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        let errCode = response.status;
+        let errStatus = '';
+        let errMsg = '';
+        try {
+          const errData = await response.json();
+          if (errData.error) {
+            errCode = errData.error.code || errCode;
+            errStatus = errData.error.status || '';
+            errMsg = errData.error.message || '';
+          }
+        } catch {
+          errMsg = await response.text().catch(() => 'Network/HTTP error');
         }
-      } catch {
-        errMsg = await response.text().catch(() => 'Network/HTTP error');
+
+        // If 503 UNAVAILABLE (traffic spike), wait 2.5s and retry once automatically
+        if (errCode === 503 || errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE')) {
+          console.warn(`[EVM Gemini Service] Model ${cleanModel} hit 503 high demand spike. Retrying after 2.5s...`);
+          await new Promise((r) => setTimeout(r, 2500));
+          try {
+            const retryRes = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': key
+              },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            if (retryRes.ok) {
+              const retryResult = await retryRes.json();
+              const textOutput = retryResult?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (textOutput) return textOutput;
+            }
+          } catch {}
+        }
+
+        // If 404 NOT_FOUND on v1beta, seamlessly retry on v1 before giving up
+        if (errCode === 404 && apiVer === 'v1beta') {
+          console.warn(`[EVM Gemini Service] Model ${cleanModel} returned 404 on v1beta. Retrying with v1...`);
+          continue;
+        }
+
+        const formattedError = `[${errCode} ${errStatus}] ${errMsg || `HTTP ${response.statusText}`}`;
+        throw new Error(formattedError);
       }
 
-      const formattedError = `[${errCode} ${errStatus}] ${errMsg || `HTTP ${response.statusText}`}`;
-      throw new Error(formattedError);
-    }
+      const result = await response.json();
+      const textOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!textOutput) {
+        throw new Error('Gemini model không trả về nội dung.');
+      }
 
-    const result = await response.json();
-    const textOutput = result?.candidates?.[0]?.content?.parts?.[0]?.text;
-    if (!textOutput) {
-      throw new Error('Gemini model không trả về nội dung.');
+      return textOutput;
+    } catch (err: any) {
+      clearTimeout(timeoutId);
+      lastError = err;
+      if (err.name === 'AbortError') {
+        throw new Error(`Model ${cleanModel} phản hồi quá thời gian (${Math.round(timeoutMs / 1000)}s). Đang tự động chuyển model khác.`);
+      }
+      // If error was 404 and we can try v1, loop will continue
+      if (String(err?.message || '').includes('404') && apiVer === 'v1beta') {
+        continue;
+      }
+      throw err;
     }
-
-    return textOutput;
-  } catch (err: any) {
-    clearTimeout(timeoutId);
-    if (err.name === 'AbortError') {
-      throw new Error(`Model ${cleanModel} phản hồi quá thời gian (${Math.round(timeoutMs / 1000)}s). Đang tự động chuyển model khác.`);
-    }
-    throw err;
   }
+
+  throw lastError || new Error(`Model ${cleanModel} không phản hồi hợp lệ.`);
 }
 
 /**
@@ -467,30 +526,35 @@ export async function executeWithFallback<T>(
   const liveModels = await getLiveModelsFromGoogle(apiKey);
 
   const rawPreferred = cleanModelId(getStoredModel());
-  const preferredModel = rawPreferred.includes('1.5-pro') ? DEFAULT_MODEL_ID : rawPreferred;
+  const preferredModel = (
+    !rawPreferred.startsWith('gemini-3.') ||
+    rawPreferred.includes('2.0') ||
+    rawPreferred.includes('2.5') ||
+    rawPreferred.includes('1.5') ||
+    rawPreferred.includes('8b') ||
+    rawPreferred.includes('omni')
+  ) ? DEFAULT_MODEL_ID : rawPreferred;
   const modelsToTry: string[] = [];
 
+  // 1. Always prioritize preferredModel (gemini-3.8-flash) first
+  if (preferredModel) {
+    modelsToTry.push(preferredModel);
+  }
+
+  // 2. Add live models returned by Google
   if (liveModels && liveModels.length > 0) {
-    // If the user's preferred model is confirmed alive by Google AI Studio, put it first
-    if (preferredModel && liveModels.includes(preferredModel)) {
-      modelsToTry.push(preferredModel);
-    }
-    // Then add all remaining live models that Google returned
     for (const m of liveModels) {
       if (!modelsToTry.includes(m)) {
         modelsToTry.push(m);
       }
     }
-  } else {
-    // Fallback if live models query failed
-    if (preferredModel) {
-      modelsToTry.push(preferredModel);
-    }
-    for (const m of FALLBACK_CHAIN) {
-      const clean = cleanModelId(m);
-      if (!modelsToTry.includes(clean)) {
-        modelsToTry.push(clean);
-      }
+  }
+
+  // 3. Ensure entire fallback chain is available
+  for (const m of FALLBACK_CHAIN) {
+    const clean = cleanModelId(m);
+    if (!modelsToTry.includes(clean)) {
+      modelsToTry.push(clean);
     }
   }
 
@@ -508,6 +572,17 @@ export async function executeWithFallback<T>(
       const errorMsg = err?.message || String(err);
       console.warn(`[EVM Gemini Service] Model ${currentModel} failed:`, errorMsg);
 
+      // Auto-migrate stored model away from 404/retired models
+      if (
+        errorMsg.includes('404') ||
+        errorMsg.includes('no longer available') ||
+        errorMsg.includes('NOT_FOUND')
+      ) {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(MODEL_STORAGE_KEY, DEFAULT_MODEL_ID);
+        }
+      }
+
       // Fatal errors indicating the API key is completely invalid or permissions are blocked
       const isKeyInvalid =
         errorMsg.includes('API_KEY_INVALID') ||
@@ -521,9 +596,15 @@ export async function executeWithFallback<T>(
         throw err;
       }
 
-      // If 429 / RESOURCE_EXHAUSTED rate limit, cool down briefly before trying next model
-      if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-        await new Promise((r) => setTimeout(r, 2000));
+      // If 503 (high demand) or 429 (rate limit), cool down 3 seconds before next candidate
+      if (
+        errorMsg.includes('503') ||
+        errorMsg.includes('UNAVAILABLE') ||
+        errorMsg.includes('high demand') ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('RESOURCE_EXHAUSTED')
+      ) {
+        await new Promise((r) => setTimeout(r, 3000));
       }
 
       // If other model-specific errors, continue to the next candidate model
@@ -565,38 +646,65 @@ export async function testApiKey(
   const key = apiKey.trim();
   try {
     const liveModels = await getLiveModelsFromGoogle(key);
-    const targetModel =
+    let targetModel =
       liveModels.length > 0 && liveModels.includes(cleanModelId(model))
         ? cleanModelId(model)
         : liveModels[0] || cleanModelId(model);
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${key}`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': key
-      },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
-        generationConfig: { responseMimeType: 'application/json' }
-      })
-    });
+    if (
+      !targetModel.startsWith('gemini-3.') ||
+      targetModel.includes('2.0') ||
+      targetModel.includes('2.5') ||
+      targetModel.includes('1.5') ||
+      targetModel.includes('8b') ||
+      targetModel.includes('omni')
+    ) {
+      targetModel = DEFAULT_MODEL_ID;
+    }
 
-    if (!response.ok) {
-      const errData = await response.json().catch(() => ({}));
-      const code = errData.error?.code || response.status;
-      const status = errData.error?.status || '';
-      const msg = errData.error?.message || response.statusText;
+    const apiVersions = ['v1beta', 'v1'];
+    let lastErrMessage = '';
+
+    for (const apiVer of apiVersions) {
+      const url = `https://generativelanguage.googleapis.com/${apiVer}/models/${targetModel}:generateContent?key=${key}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': key
+        },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts: [{ text: 'Respond with JSON: {"status":"ok"}' }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        const code = errData.error?.code || response.status;
+        const status = errData.error?.status || '';
+        const msg = errData.error?.message || response.statusText;
+        lastErrMessage = `[${code} ${status}] ${msg}`;
+
+        if (code === 404 && apiVer === 'v1beta') {
+          continue;
+        }
+
+        return {
+          success: false,
+          message: lastErrMessage
+        };
+      }
+
       return {
-        success: false,
-        message: `[${code} ${status}] ${msg}`
+        success: true,
+        message: `Kết nối thành công với Google AI Studio (Model: ${targetModel}, Endpoint: ${apiVer})!`
       };
     }
 
     return {
-      success: true,
-      message: `Kết nối thành công với Google AI Studio (Model khả dụng: ${targetModel})!`
+      success: false,
+      message: lastErrMessage || 'Không thể kết nối tới Google AI Studio.'
     };
   } catch (err: any) {
     return {

@@ -16,8 +16,7 @@ import {
   ShieldCheck,
   Lock,
   X,
-  Award,
-  ChevronRight
+  Award
 } from 'lucide-react';
 import {
   SCHOOL_OPTIONS,
@@ -178,17 +177,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </div>
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-lg sm:text-xl font-black tracking-tight text-white uppercase">
-                    Đăng Nhập EVM
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base sm:text-lg font-black tracking-tight text-white uppercase">
+                    ĐĂNG NHẬP MASTER THPT QUỐC GIA TIẾNG ANH
                   </h3>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-bold">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    THPTQG 2026
+                    2026
                   </span>
                 </div>
-                <p className="text-xs text-indigo-200/90 font-medium">
-                  Kiến Trúc Sư Từ Vựng Đề Thi Tiếng Anh • Ms. Trinh (THPT Võ Thị Sáu BR-VT)
+                <p className="text-xs text-indigo-200 font-medium mt-0.5 flex items-center gap-1.5 flex-wrap">
+                  <span>Developed by Ms.Trinh - THPT Võ Thị Sáu Bà Rịa Vũng Tàu</span>
+                  <span>•</span>
+                  <span>SĐT: <a href="tel:0397726024" className="text-amber-300 font-bold hover:underline font-mono">039.772.6024</a></span>
                 </p>
               </div>
             </div>
@@ -279,9 +280,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 required
               />
             </div>
-            <p className="text-[11px] text-slate-400 mt-1">
-              Nhập tên học sinh hoặc thầy cô để lưu trữ lịch sử làm bài và sổ tay từ vựng.
-            </p>
           </div>
 
           {/* Trường THPT */}
@@ -445,25 +443,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </button>
           </div>
         </form>
-
-        {/* 4. Footer Admin Access Banner ("Chỉ riêng tôi thấy") */}
-        {onOpenSchoolStats && (
-          <div className="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-1.5 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-              <span>Khu vực dành riêng cho Giáo viên / Quản trị viên máy chủ</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={onOpenSchoolStats}
-              className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-bold hover:underline cursor-pointer"
-            >
-              <span>Xem thống kê các trường</span>
-              <ChevronRight className="w-3 h-3" />
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );

@@ -618,6 +618,23 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
     (q, idx) => isAnswerCorrect(q, answers[idx])
   ).length;
 
+  const handleExportWord = () => {
+    const answersMap: Record<string, string> = {};
+    questions.forEach((q, idx) => {
+      if (answers[idx]) {
+        answersMap[q.id] = answers[idx];
+      }
+    });
+
+    const examTitle =
+      filterExam !== 'ALL'
+        ? `ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT: ${filterExam}`
+        : 'ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT QUỐC GIA (AI QUIZ)';
+    const filename = `De_Thi_Tieng_Anh_THPT_${(filterExam !== 'ALL' ? filterExam : 'AI_Quiz').replace(/[^a-zA-Z0-9]/g, '_')}`;
+
+    downloadDocxFile(filename, examTitle, questions, targetVocabList, answersMap);
+  };
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto">
       {/* Quiz Configuration Panel */}
@@ -932,19 +949,12 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 <div className="flex items-center gap-1.5 ml-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      downloadDocxFile(
-                        'De_Thi_Tieng_Anh_THPT_AI_Quiz',
-                        'ĐỀ THI TRẮC NGHIỆM TIẾNG ANH THPT QUỐC GIA',
-                        questions,
-                        targetVocabList
-                      )
-                    }
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all cursor-pointer"
-                    title="Tải đề thi dạng tài liệu Microsoft Word (.doc) chuẩn mẫu Bộ GD&ĐT"
+                    onClick={handleExportWord}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Tải toàn bộ đề thi, bảng từ vựng và đáp án ra file Word (.doc) chuẩn mẫu Bộ GD&ĐT"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    <span>Xuất Word (.doc)</span>
+                    <Download className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Xuất file Word (.doc)</span>
                   </button>
                 </div>
               </div>
@@ -1290,15 +1300,26 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                   Nộp bài thi & Chấm điểm
                 </button>
               ) : (
-                <button
-                  type="button"
-                  onClick={handleGenerateQuiz}
-                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
-                  title="Tạo bộ đề mới với các câu hỏi khác"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
-                  <span>Tạo bộ đề mới</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportWord}
+                    className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs flex items-center gap-1.5 border border-blue-200 cursor-pointer shadow-2xs transition-all"
+                    title="Xuất đề thi và bảng đáp án ra file Word (.doc)"
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Xuất file Word</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateQuiz}
+                    className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                    title="Tạo bộ đề mới với các câu hỏi khác"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-indigo-600" />
+                    <span>Tạo bộ đề mới</span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -1317,11 +1338,20 @@ export const AiQuizEngine: React.FC<AiQuizEngineProps> = ({
                 </strong>
                 . Độ thành thạo của các từ vựng tương ứng trong sổ tay cá nhân đã được tự động cập nhật!
               </p>
-              <div className="pt-2 flex items-center justify-center gap-3">
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleExportWord}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center gap-2"
+                  title="Xuất toàn bộ đề thi, ma trận đáp án và lời giải chi tiết ra file Word (.doc)"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Xuất toàn bộ Đề & Lời giải ra Word (.doc)</span>
+                </button>
                 <button
                   type="button"
                   onClick={handleGenerateQuiz}
-                  className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
+                  className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shadow-xs cursor-pointer flex items-center gap-1.5"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                   <span>Làm đề luyện tập khác</span>

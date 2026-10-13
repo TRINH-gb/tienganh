@@ -15,13 +15,16 @@ import {
   RefreshCw,
   Library,
   Compass,
-  AlertTriangle
+  AlertTriangle,
+  Download,
+  FileText
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { CLEAN_GRAMMAR_TOPICS, CleanGrammarTopic } from '../data/grammarHandbookData';
 import { GrammarPracticeQuestion } from '../types';
 import { speakEnglish } from '../utils/tts';
 import { generateGrammarQuizWithFallback, getStoredApiKey } from '../services/geminiService';
+import { downloadGrammarDocxFile } from '../utils/documentExport';
 
 interface GrammarHandbookProps {
   accent: 'UK' | 'US';
@@ -215,6 +218,11 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
 
   const handlePronounce = (text: string) => {
     speakEnglish(text, accent);
+  };
+
+  const handleExportWord = () => {
+    const filename = `Bai_Tap_${currentTopic.shortTitle.replace(/[^a-zA-Z0-9]/g, '_')}_Chuyen_De_${currentTopic.topicNumber}`;
+    downloadGrammarDocxFile(filename, currentTopic, currentQuestions, userAnswers);
   };
 
   return (
@@ -714,6 +722,17 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
                 <span>Đổi bộ đề khác</span>
               </button>
 
+              {/* Nút Xuất file Word (.doc) */}
+              <button
+                type="button"
+                onClick={handleExportWord}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all cursor-pointer border border-blue-200 shadow-2xs"
+                title="Tải bài tập và lời giải chi tiết ra file Word (.doc) chuẩn mẫu Bộ GD&ĐT"
+              >
+                <Download className="w-3.5 h-3.5 text-blue-600" />
+                <span>Xuất file Word (.doc)</span>
+              </button>
+
               {/* Nút Làm lại bài tập */}
               <button
                 type="button"
@@ -892,6 +911,53 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
               );
             })}
           </div>
+
+          {/* Khung tổng kết kết quả & Xuất file Word khi học sinh hoàn thành bài */}
+          {answeredCount === currentQuestions.length && currentQuestions.length > 0 && (
+            <div className="p-5 sm:p-6 rounded-3xl bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 text-white text-center space-y-3.5 shadow-md border border-indigo-700/50 animate-in fade-in">
+              <div className="w-12 h-12 rounded-2xl bg-white/10 flex items-center justify-center mx-auto text-amber-300 shadow-inner">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="text-lg sm:text-xl font-black">
+                  Hoàn thành Luyện tập: {correctCount} / {currentQuestions.length} câu đúng
+                </h4>
+                <p className="text-xs sm:text-sm text-indigo-200 max-w-lg mx-auto">
+                  Tỉ lệ chính xác đạt <strong>{Math.round((correctCount / currentQuestions.length) * 100)}%</strong>. Bạn có thể xuất toàn bộ đề thi kèm bảng ma trận đáp án và lời giải chi tiết ra file Word (.doc) để in hoặc lưu trữ.
+                </p>
+              </div>
+
+              <div className="pt-2 flex flex-wrap items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={handleExportWord}
+                  className="px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-900/40 transition-all cursor-pointer flex items-center gap-2 hover:scale-[1.02]"
+                  title="Xuất toàn bộ đề thi và lời giải chi tiết ra file Word (.doc)"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Xuất toàn bộ Đề & Lời giải ra Word (.doc)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetQuiz}
+                  className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Làm lại bộ đề này"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Làm lại</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSwapBankQuestions}
+                  className="px-3.5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs transition-all cursor-pointer flex items-center gap-1.5"
+                  title="Đổi bộ đề khác"
+                >
+                  <Library className="w-3.5 h-3.5 text-indigo-300" />
+                  <span>Đổi đề khác</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

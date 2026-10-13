@@ -20,10 +20,12 @@ import {
   Image as ImageIcon,
   Filter,
   Check,
-  Eraser
+  Eraser,
+  Download
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory } from '../types';
 import { speakEnglish } from '../utils/tts';
+import { downloadDocxFile } from '../utils/documentExport';
 import {
   extractVocabularyWithFallback,
   getStoredApiKey,
@@ -1059,6 +1061,24 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               >
                 <HelpCircle className="w-4 h-4" />
                 <span>Tạo đề AI Quiz</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={selectedWordIds.size === 0}
+                onClick={() =>
+                  downloadDocxFile(
+                    `Tu_Vung_${(examTitle || 'De_Thi').replace(/[^a-zA-Z0-9]/g, '_')}`,
+                    `BẢNG TỔNG HỢP TỪ VỰNG TRỌNG TÂM: ${examTitle || 'ĐỀ THI TIẾNG ANH'}`,
+                    [],
+                    getSelectedItems()
+                  )
+                }
+                className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 disabled:opacity-40 text-blue-700 border border-blue-200 font-bold text-xs flex items-center gap-1.5 shadow-xs transition-all cursor-pointer"
+                title="Tải bảng từ vựng bóc tách ra file Word (.doc) chuẩn mẫu Bộ GD&ĐT"
+              >
+                <Download className="w-4 h-4 text-blue-600" />
+                <span>Xuất Word (.doc)</span>
               </button>
             </div>
           </div>

@@ -677,7 +677,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-700 pl-1">
                 <li>Google AI Studio miễn phí giới hạn <strong>15 lượt gọi / phút</strong>. Bạn vui lòng chờ khoảng <strong>30 - 60 giây</strong> rồi bấm <strong>"Thử lại ngay"</strong>.</li>
                 <li>Hoặc bấm nút <strong>"Đổi API Key / Model"</strong> để nhập mã API Key dự phòng khác.</li>
-                <li>Hệ thống đã tự động chuyển đổi sang model <code>gemini-2.0-flash</code> để đảm bảo tốc độ nhanh và hạn ngạch tốt nhất.</li>
+                <li>Hệ thống đã tự động chuyển đổi sang model <code>gemini-3.8-flash</code> để đảm bảo tốc độ nhanh và hạn ngạch tốt nhất.</li>
               </ul>
             </div>
           ) : (

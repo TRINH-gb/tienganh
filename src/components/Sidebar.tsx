@@ -105,11 +105,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       id: 'grammar' as const,
       name: 'Sổ tay Cấu trúc',
-      sub: '18 chuyên đề ngữ pháp thi THPT',
+      sub: '20 chuyên đề ngữ pháp thi THPT',
       icon: BookMarked,
       iconColor: 'text-purple-600',
       activeBg: 'bg-indigo-600 text-white shadow-md shadow-indigo-200',
-      badge: '18'
+      badge: '20'
     }
   ];
 

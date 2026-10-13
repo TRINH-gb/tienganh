@@ -225,7 +225,7 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
             <h2 className="text-sm sm:text-base font-black text-slate-800">
-              18 Chuyên đề Ngữ pháp Trọng tâm THPT Quốc Gia
+              {CLEAN_GRAMMAR_TOPICS.length} Chuyên đề Ngữ pháp Trọng tâm THPT Quốc Gia
             </h2>
           </div>
 
@@ -316,7 +316,7 @@ export const GrammarHandbook: React.FC<GrammarHandbookProps> = ({
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-xs font-bold text-slate-500 px-1">
-              {currentTopic.topicNumber} / 18
+              {currentTopic.topicNumber} / {CLEAN_GRAMMAR_TOPICS.length}
             </span>
             <button
               type="button"

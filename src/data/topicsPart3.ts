@@ -158,6 +158,7 @@ export const TOPICS_PART_3: CleanGrammarTopic[] = [
       'WHO + V / S + V (thay cho danh từ chỉ NGƯỜI làm S hoặc O)',
       'WHOM + S + V (thay cho danh từ chỉ NGƯỜI làm O - theo sau BẮT BUỘC là S + V)',
       'WHICH + V / S + V (thay cho danh từ chỉ VẬT làm S hoặc O)',
+      'WHICH thay thế cho cả mệnh đề đứng trước (Which as Connector): S + V, which + V(số ít) (= and this / and that)',
       'WHOSE + NOUN (thay cho sở hữu cách: whose car, whose father)',
       'WHERE = in / at which | WHEN = on / in / at which | WHY = for which',
       'THAT: Thay cho who, whom, which trong MĐ xác định (KHÔNG CÓ DẤU PHẨY)'
@@ -197,6 +198,24 @@ export const TOPICS_PART_3: CleanGrammarTopic[] = [
           'Ví dụ: The man TO WHOM I spoke (ĐÚNG) | The house IN WHICH I live (ĐÚNG).',
           '⚠️ TUYỆT ĐỐI CẤM: Không bao giờ có "to who" hoặc "in that"!'
         ]
+      },
+      {
+        heading: '4. "Which" thay thế cho cả mệnh đề đứng trước (Which as Connector / Sentential Relative Clause)',
+        badge: 'Which nối mệnh đề',
+        formula: 'Clause 1 (S + V + ...), which + V(số ít) / (S + V)... [= and this + V]',
+        content: '"Which" có thể dùng để thay thế cho TOÀN BỘ nội dung/sự việc của cả mệnh đề đứng trước nó. Ở vị trí này, "which" đóng vai trò như một liên từ kết nối (connector) diễn tả hệ quả hoặc bình luận về sự việc trước.',
+        rules: [
+          'BẮT BUỘC phải có DẤU PHẨY (,) đứng ngay trước "which". Tuyệt đối không viết liền không dấu phẩy.',
+          'ĐỘNG TỪ THEO SAU "WHICH" LUÔN CHIA SỐ ÍT: Vì "which" đại diện cho cả một sự việc/hành động (tương đương với đại từ "this/it"), động từ theo sau luôn chia ở ngôi thứ 3 số ít: which means..., which makes..., which causes..., which leads to...',
+          '⚠️ BẪY ĐỀ THI THPTQG CỰC KỲ PHỔ BIẾN - Dạng bài S + V, _______ + V:',
+          '-> TUYỆT ĐỐI CẤM DÙNG "THAT": "That" không bao giờ đứng sau dấu phẩy và không có chức năng thay thế cho cả mệnh đề.',
+          '-> TUYỆT ĐỐI CẤM DÙNG "WHAT": "What" chỉ dùng trong mệnh đề danh từ, không dùng làm đại từ quan hệ nối sau dấu phẩy.',
+          '-> TUYỆT ĐỐI CẤM CHỌN "THIS" hoặc "IT" đứng trơ trọi: Lỗi dấu phẩy nối hai mệnh đề độc lập (Comma Splice). Muốn dùng this/it phải có liên từ "and" (and this / and it) hoặc dấu chấm phẩy (; this).'
+        ],
+        notes: [
+          'Ví dụ: He passed the entrance exam with the highest score, which delighted the whole family. (= and this delighted the whole family)',
+          'Ví dụ: The river has been severely polluted, which threatens local agriculture. (threatens chia số ít theo which)'
+        ]
       }
     ],
     comparisonTable: {
@@ -206,12 +225,14 @@ export const TOPICS_PART_3: CleanGrammarTopic[] = [
         ['Dấu phẩy', 'KHÔNG CÓ dấu phẩy', 'BẮT BUỘC CÓ dấu phẩy ngăn cách'],
         ['Dùng THAT', 'ĐƯỢC PHÉP dùng That thay Who/Which', 'TUYỆT ĐỐI CẤM DÙNG THAT'],
         ['Lược bỏ đại từ', 'Được lược bỏ khi làm Tân ngữ (O)', 'KHÔNG ĐƯỢC lược bỏ đại từ quan hệ'],
+        ['Thay cho cả mệnh đề', 'TUYỆT ĐỐI KHÔNG (That không thay cho mệnh đề)', 'DÙNG "WHICH" sau dấu phẩy: S + V, which + V(số ít)'],
         ['Ví dụ', 'The book (that) I read was interesting.', 'Ha Noi, which is the capital, is beautiful.']
       ]
     },
     rules: [
       { label: 'Who vs Whom', text: 'Who + V/S+V; Whom + S+V (bắt buộc làm tân ngữ).' },
       { label: 'Whose', text: 'Whose + Noun (chỉ sở hữu: whose car, whose father).' },
+      { label: 'Which as Connector', text: 'S + V, which + V(số ít): which thay thế cho cả mệnh đề trước (= and this). Bắt buộc có dấu phẩy; cấm dùng that/what/this.' },
       { label: 'Cấm THAT', text: 'CẤM dùng That sau dấu phẩy và sau giới từ (in that, to that là SAI).' },
       { label: 'Giới từ đứng trước', text: 'Chỉ đi với To whom / In which. Tuyệt đối không dùng to who.' }
     ],
@@ -225,11 +246,17 @@ export const TOPICS_PART_3: CleanGrammarTopic[] = [
         en: 'Hanoi, which has a history of over a thousand years, attracts millions of tourists annually.',
         vi: 'Hà Nội, nơi có lịch sử hơn một nghìn năm, thu hút hàng triệu du khách mỗi năm.',
         note: 'Hanoi là tên riêng nên dùng mệnh đề không xác định có dấu phẩy; cấm dùng That, bắt buộc dùng which.'
+      },
+      {
+        en: 'The manufacturing plant adopted green energy solutions, which significantly minimized its environmental footprint.',
+        vi: 'Nhà máy sản xuất đã áp dụng các giải pháp năng lượng xanh, điều này đã giảm thiểu đáng kể dấu chân môi trường của nó.',
+        note: 'which thay thế cho cả sự việc nhà máy áp dụng giải pháp năng lượng xanh ở vế trước; bắt buộc có dấu phẩy trước which.'
       }
     ],
     examTips: [
       '⚠️ Thấy phía trước chỗ trống có DẤU PHẨY (,) hoặc GIỚI TỪ (in, on, with, to...) -> Loại ngay lập tức đáp án "THAT"!',
-      '⚠️ Thấy sau chỗ trống là một Danh từ trơ trọi (không có a/an/the/my) -> 90% chọn WHOSE (whose mother, whose house).'
+      '⚠️ Thấy sau chỗ trống là một Danh từ trơ trọi (không có a/an/the/my) -> 90% chọn WHOSE (whose mother, whose house).',
+      '⚠️ Bẫy "Which as Connector" (thay cho cả mệnh đề): Gặp cấu trúc "Mệnh đề 1, _______ + V..." -> 100% chọn WHICH (nghĩa là "điều mà / điều này"). Cấm chọn That, What, hoặc This/It (lỗi Comma Splice!). Đồng thời lưu ý động từ theo sau which luôn chia số ít!'
     ],
     questions: [
       {
@@ -287,6 +314,24 @@ export const TOPICS_PART_3: CleanGrammarTopic[] = [
         explanation: '"seaside town" là nơi chốn và vế sau có đủ S + V + O ("my grandparents spent their retirement years in this town") -> dùng trạng từ quan hệ "where".',
         clue: 'nơi chốn + where + S + V',
         translation: 'Đây là thị trấn ven biển thanh bình nơi ông bà tôi đã trải qua những năm tháng nghỉ hưu.'
+      },
+      {
+        id: 'q14-p2',
+        question: 'The municipal council decided to construct a bypass road, _______ helped reduce downtown traffic congestion during peak hours.',
+        options: { A: 'that', B: 'which', C: 'what', D: 'this' },
+        correctAnswer: 'B',
+        explanation: 'Vị trí sau dấu phẩy cần một đại từ quan hệ thay thế cho toàn bộ sự việc ở mệnh đề trước ("The municipal council decided to construct a bypass road") -> Dùng "which" (Which as connector / Sentential relative clause). Không dùng "that" sau dấu phẩy; không dùng "what"; không dùng "this" vì gây lỗi Comma Splice.',
+        clue: 'S + V, which + V (thay thế cho cả mệnh đề trước)',
+        translation: 'Hội đồng thành phố đã quyết định xây dựng một con đường tránh, điều này đã giúp giảm bớt ùn tắc giao thông ở trung tâm thành phố trong giờ cao điểm.'
+      },
+      {
+        id: 'q14-p3',
+        question: 'Many youth volunteers participated in cleaning up the coastal beach, _______ a profound environmental awareness among local residents.',
+        options: { A: 'which raises', B: 'that raises', C: 'which raise', D: 'what raises' },
+        correctAnswer: 'A',
+        explanation: 'Cấu trúc "Which as connector" thay thế cho cả mệnh đề đứng trước yêu cầu: (1) Dùng đại từ "which" sau dấu phẩy; (2) Động từ theo sau "which" LUÔN CHIA SỐ ÍT vì thay thế cho một sự việc (raises). Phương án B sai vì dùng that sau dấu phẩy; C sai vì chia động từ số nhiều raise; D sai vì what không làm đại từ quan hệ.',
+        clue: 'which + V(số ít) thay cho cả mệnh đề',
+        translation: 'Nhiều thanh niên tình nguyện đã tham gia dọn dẹp bãi biển ven bờ, điều này làm nâng cao nhận thức sâu sắc về môi trường trong cộng đồng cư dân địa phương.'
       }
     ]
   },

@@ -21,7 +21,10 @@ import {
   Filter,
   Check,
   Eraser,
-  Download
+  Download,
+  AlertCircle,
+  KeyRound,
+  X
 } from 'lucide-react';
 import { VocabularyItem, VocabCategory } from '../types';
 import { speakEnglish } from '../utils/tts';
@@ -52,28 +55,6 @@ interface StepInfo {
   message?: string;
 }
 
-const EXTRACTOR_SESSION_STORAGE_KEY = 'evm_extractor_session';
-
-interface SavedExtractorSession {
-  examTitle: string;
-  examText: string;
-  extractedList: VocabularyItem[];
-  aiSummary: string;
-  selectedWordIds: string[];
-  extractionMode: 'strict_highlight' | 'smart_filter';
-}
-
-function getStoredExtractorSession(): SavedExtractorSession | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const raw = localStorage.getItem(EXTRACTOR_SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
 export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   onAddVocabBatch,
   onOpenFlashcardsWithWords,
@@ -82,14 +63,21 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   accent,
   onOpenApiKeyModal
 }) => {
-  const [savedSession] = useState<SavedExtractorSession | null>(() => getStoredExtractorSession());
+  // Always clean up any legacy session cache on mount to guarantee fresh interface from scratch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('evm_extractor_session');
+      } catch {}
+    }
+  }, []);
 
   const [uploadedFile, setUploadedFile] = useState<{ name: string; size: number } | null>(null);
   const [uploadedFileType, setUploadedFileType] = useState<'pdf' | 'image' | 'text' | null>(null);
   const [uploadedFileMime, setUploadedFileMime] = useState<string>('application/pdf');
   const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
-  const [examTitle, setExamTitle] = useState<string>(() => savedSession?.examTitle || '');
-  const [examText, setExamText] = useState<string>(() => savedSession?.examText || '');
+  const [examTitle, setExamTitle] = useState<string>('');
+  const [examText, setExamText] = useState<string>('');
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -113,64 +101,34 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   const [uploadedPdfBase64, setUploadedPdfBase64] = useState<string | null>(null);
   const [prioritizeHighlights, setPrioritizeHighlights] = useState<boolean>(true);
   const [filterOnlyHighlighted, setFilterOnlyHighlighted] = useState<boolean>(false);
-  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>(
-    () => savedSession?.extractionMode || 'strict_highlight'
-  );
+  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>('strict_highlight');
 
-  // 3-step state management strictly following Rule 1 & Rule 3
+  // Internal step tracker
   const [steps, setSteps] = useState<StepInfo[]>([
     {
       step: 1,
       title: 'Bước 1: Phân tích Ngữ liệu',
       desc: 'Quét bối cảnh, chủ đề bài thi & độ khó CEFR',
-      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
+      status: 'idle'
     },
     {
       step: 2,
       title: 'Bước 2: Bóc tách 5 Nhóm Từ vựng',
       desc: 'Trích xuất Collocations, Phrasal verbs, Idioms, Prepositions & IPA',
-      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
+      status: 'idle'
     },
     {
       step: 3,
       title: 'Bước 3: Tổng hợp Sư phạm & Mẹo thi',
       desc: 'Ghi chú bẫy thi THPT, câu nguyên văn & hoàn thiện kết quả',
-      status: savedSession?.extractedList && savedSession.extractedList.length > 0 ? 'completed' : 'idle'
+      status: 'idle'
     }
   ]);
 
-  // Restore extracted vocabulary if saved in session
-  const [extractedList, setExtractedList] = useState<VocabularyItem[]>(
-    () => (Array.isArray(savedSession?.extractedList) ? savedSession.extractedList : [])
-  );
-  const [aiSummary, setAiSummary] = useState<string>(() => savedSession?.aiSummary || '');
-  const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(
-    () => new Set(Array.isArray(savedSession?.selectedWordIds) && savedSession.selectedWordIds.length > 0
-      ? savedSession.selectedWordIds
-      : (savedSession?.extractedList?.map((w) => w.id) || []))
-  );
-
-  // Persist session to localStorage
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      if (extractedList.length === 0 && !examText.trim()) {
-        localStorage.removeItem(EXTRACTOR_SESSION_STORAGE_KEY);
-        return;
-      }
-      const dataToSave: SavedExtractorSession = {
-        examTitle,
-        examText,
-        extractedList,
-        aiSummary,
-        selectedWordIds: Array.from(selectedWordIds),
-        extractionMode
-      };
-      localStorage.setItem(EXTRACTOR_SESSION_STORAGE_KEY, JSON.stringify(dataToSave));
-    } catch (err) {
-      console.warn('[EVM] Failed to save extractor session:', err);
-    }
-  }, [examTitle, examText, extractedList, aiSummary, selectedWordIds, extractionMode]);
+  // Clean initial state: zero residual words from past exams
+  const [extractedList, setExtractedList] = useState<VocabularyItem[]>([]);
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [selectedWordIds, setSelectedWordIds] = useState<Set<string>>(new Set());
 
   const handleToggleCategory = (cat: VocabCategory) => {
     if (selectedCategories.includes(cat)) {
@@ -238,6 +196,10 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     setIsLoading(true);
     setErrorMsg(null);
     setFallbackNotice(null);
+    // Xóa sạch danh sách từ của đề trước ngay khi bắt đầu bóc tách đề mới
+    setExtractedList([]);
+    setAiSummary('');
+    setSelectedWordIds(new Set());
     setCurrentRunningModel(getStoredModel());
 
     // Reset steps to initial running state
@@ -624,171 +586,128 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     ? extractedList.filter((item) => item.isHighlighted)
     : extractedList;
 
-  // Calculate actual completion percentage according to Rule 3
-  const completedCount = steps.filter((s) => s.status === 'completed').length;
-  const hasFailed = steps.some((s) => s.status === 'failed');
-  const progressPercent = isLoading
-    ? Math.max(15, completedCount * 33)
-    : completedCount === 3
-    ? 100
-    : hasFailed
-    ? Math.max(10, completedCount * 33)
-    : 0;
-
   return (
     <div className="space-y-6">
 
-      {/* RULE 1 & 3: Multi-Step Visual Pipeline & Fallback Monitor (Shown when running, failed, completed, or notice) */}
-      {(isLoading || hasFailed || completedCount > 0 || errorMsg || fallbackNotice) && (
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4 animate-in fade-in">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-              <RefreshCw className={`w-4 h-4 text-indigo-600 ${isLoading ? 'animate-spin' : ''}`} />
-              <span>Tiến trình Xử lý Ngữ liệu & Giám sát Fallback</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Cơ chế tự động chuyển đổi giữa các model: <code>gemini-2.0-flash</code> &rarr; <code>gemini-1.5-flash</code> &rarr; <code>gemini-1.5-pro</code>
-            </p>
+      {/* 1. Loading State Banner (Gọn gàng, tối ưu cho cả điện thoại & máy tính, không rối mắt) */}
+      {isLoading && (
+        <div className="bg-gradient-to-r from-indigo-50 via-white to-sky-50 rounded-2xl p-4 sm:p-5 border border-indigo-200 shadow-xs space-y-3 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <span>AI đang phân tích & bóc tách đề thi...</span>
+                </h4>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {extractionMode === 'strict_highlight'
+                    ? 'Đang quét thị giác nhận diện từ bôi bút highlight (loại bỏ 100% từ thừa)...'
+                    : 'Đang tinh lọc ngữ liệu đề thi THPTQG, phân hóa điểm 8+ 9+...'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <span className="text-xs text-slate-500 flex items-center gap-1.5 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                <Cpu className="w-3.5 h-3.5 text-indigo-600" />
+                <span className="text-[11px] font-mono font-bold text-slate-800">{currentRunningModel}</span>
+              </span>
+            </div>
           </div>
 
+          <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
+            <div className="h-full bg-gradient-to-r from-indigo-500 via-blue-500 to-indigo-600 rounded-full animate-pulse w-3/4" />
+          </div>
+        </div>
+      )}
+
+      {/* 2. Fallback Notice (Thông báo khi tự động chuyển model dự phòng) */}
+      {fallbackNotice && (
+        <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-slate-500 flex items-center gap-1">
-              <Cpu className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Model hiện hành:</span>
-              <strong className="text-slate-800 font-mono text-[11px] bg-slate-100 px-2 py-0.5 rounded-md">
-                {currentRunningModel}
-              </strong>
-            </span>
+            <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>{fallbackNotice}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFallbackNotice(null)}
+            className="text-amber-700 hover:text-amber-900 text-xs font-bold px-2 py-0.5 rounded cursor-pointer shrink-0"
+          >
+            Đóng
+          </button>
+        </div>
+      )}
+
+      {/* 3. Error Banner (Giao diện báo lỗi trực quan, hướng dẫn rõ ràng, không hiện các ô bước 1, 2, 3 gây rối) */}
+      {errorMsg && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs space-y-3.5 animate-in fade-in shadow-xs">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 mt-0.5">
+                <AlertCircle className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-rose-900">
+                  Lỗi kết nối hoặc xử lý từ Gemini AI
+                </h4>
+                <p className="text-[11px] text-rose-700 mt-0.5">
+                  Model đang dùng: <code className="font-mono bg-white/80 px-1.5 py-0.5 rounded border border-rose-200 text-rose-800 font-bold">{currentRunningModel}</code>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setErrorMsg(null)}
+              className="p-1 text-rose-400 hover:text-rose-700 rounded-lg hover:bg-rose-100/50 cursor-pointer"
+              title="Đóng thông báo lỗi"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Hướng dẫn chi tiết nếu gặp lỗi hạn ngạch (Rate Limit 429) */}
+          {(errorMsg.includes('429') || errorMsg.includes('hạn ngạch') || errorMsg.includes('giới hạn') || errorMsg.includes('RESOURCE_EXHAUSTED')) ? (
+            <div className="bg-white/95 p-3.5 rounded-xl border border-rose-200 space-y-2 text-xs text-rose-900 leading-relaxed shadow-2xs">
+              <p className="font-bold text-rose-800 flex items-center gap-1.5">
+                <span>⚠️ Hạn ngạch API Key tạm thời đạt giới hạn (Rate Limit):</span>
+              </p>
+              <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-700 pl-1">
+                <li>Google AI Studio miễn phí giới hạn <strong>15 lượt gọi / phút</strong>. Bạn vui lòng chờ khoảng <strong>30 - 60 giây</strong> rồi bấm <strong>"Thử lại ngay"</strong>.</li>
+                <li>Hoặc bấm nút <strong>"Đổi API Key / Model"</strong> để nhập mã API Key dự phòng khác.</li>
+                <li>Hệ thống đã tự động chuyển đổi sang model <code>gemini-2.0-flash</code> để đảm bảo tốc độ nhanh và hạn ngạch tốt nhất.</li>
+              </ul>
+            </div>
+          ) : (
+            <div className="font-mono text-[11px] bg-white/90 p-3 rounded-xl border border-rose-200 text-rose-800 break-all leading-relaxed max-h-36 overflow-y-auto">
+              {errorMsg}
+            </div>
+          )}
+
+          {/* Các nút hành động thao tác nhanh */}
+          <div className="flex flex-wrap items-center gap-2 pt-0.5">
+            <button
+              type="button"
+              onClick={handleRunAiExtraction}
+              className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Thử lại ngay</span>
+            </button>
+
             <button
               type="button"
               onClick={onOpenApiKeyModal}
-              className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold underline ml-1 cursor-pointer"
+              className="px-3.5 py-2 bg-white hover:bg-rose-100 rounded-xl border border-rose-300 text-rose-800 font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              Đổi key/model
+              <KeyRound className="w-3.5 h-3.5 text-rose-600" />
+              <span>Đổi API Key / Model</span>
             </button>
           </div>
         </div>
-
-        {/* Dynamic Progress Bar (Rule 3: only green when truly completed) */}
-        <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-300 ${
-              hasFailed
-                ? 'bg-rose-500'
-                : progressPercent === 100
-                ? 'bg-emerald-500'
-                : 'bg-indigo-600'
-            }`}
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-
-        {/* Step Columns (Rule 3: Show "Đã dừng do lỗi" on failure, NEVER checkmark) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
-          {steps.map((st) => {
-            const isCompleted = st.status === 'completed';
-            const isRunning = st.status === 'running';
-            const isFailed = st.status === 'failed';
-
-            return (
-              <div
-                key={st.step}
-                className={`p-3.5 rounded-xl border transition-all ${
-                  isCompleted
-                    ? 'border-emerald-200 bg-emerald-50/50'
-                    : isRunning
-                    ? 'border-indigo-300 bg-indigo-50/50 ring-1 ring-indigo-400'
-                    : isFailed
-                    ? 'border-rose-300 bg-rose-50/70 ring-1 ring-rose-400'
-                    : 'border-slate-200 bg-slate-50/60'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[11px] font-bold text-slate-800">
-                    {st.title}
-                  </span>
-
-                  {isCompleted && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                      <span>Hoàn tất</span>
-                    </span>
-                  )}
-
-                  {isRunning && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-                      <Loader2 className="w-3 h-3 animate-spin text-indigo-600" />
-                      <span>Đang xử lý</span>
-                    </span>
-                  )}
-
-                  {isFailed && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                      <XCircle className="w-3 h-3 text-rose-600" />
-                      <span>Đã dừng do lỗi</span>
-                    </span>
-                  )}
-
-                  {st.status === 'idle' && (
-                    <span className="text-[10px] font-semibold text-slate-400">
-                      Chờ thực hiện
-                    </span>
-                  )}
-                </div>
-
-                <p className="text-[11px] text-slate-500 leading-snug">
-                  {st.desc}
-                </p>
-
-                {st.message && (
-                  <p
-                    className={`text-[10px] font-medium mt-1.5 pt-1 border-t ${
-                      isFailed
-                        ? 'border-rose-200 text-rose-700 font-bold'
-                        : isCompleted
-                        ? 'border-emerald-200 text-emerald-700'
-                        : 'border-indigo-200 text-indigo-700'
-                    }`}
-                  >
-                    {st.message}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-
-
-        {/* Red Error Banner with Verbatim API Error Message (Rule 3) */}
-        {errorMsg && (
-          <div className="p-4 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs font-medium flex items-start gap-3 animate-in fade-in">
-            <XCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-            <div className="space-y-1.5 flex-1">
-              <div className="flex items-center justify-between">
-                <strong className="text-rose-900 text-sm">
-                  Lỗi xử lý từ Gemini API:
-                </strong>
-                <button
-                  type="button"
-                  onClick={onOpenApiKeyModal}
-                  className="px-2.5 py-1 bg-white hover:bg-rose-100 rounded-md border border-rose-300 text-rose-700 font-bold text-[11px] cursor-pointer"
-                >
-                  Đổi API Key / Model
-                </button>
-              </div>
-              <p className="font-mono bg-white/80 p-2.5 rounded-lg border border-rose-200 text-rose-800 break-all leading-relaxed">
-                {errorMsg}
-              </p>
-              <p className="text-[11px] text-rose-700">
-                Toàn bộ quy trình đã tự động dừng lại để bảo toàn dữ liệu. Bạn có thể nhấn <strong>"Cài đặt (API Key)"</strong> để kiểm tra lại key hoặc thử với key khác.
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    )}
+      )}
 
       {/* Minimalist & Professional Exam Workspace Card */}
       <div className="bg-white rounded-2xl p-5 sm:p-7 border border-slate-200 shadow-xs space-y-5">

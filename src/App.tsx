@@ -100,6 +100,7 @@ export default function App() {
 
   // Manage API Key Modal state (shows only if manually opened or if logged in but key missing)
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+  const [extractorSessionKey, setExtractorSessionKey] = useState<number>(() => Date.now());
 
   // Check if current browser is the server host machine
   useEffect(() => {
@@ -111,12 +112,26 @@ export default function App() {
   const handleLogout = () => {
     clearStoredUserProfile();
     setUserProfile(null);
+    setExtractorSessionKey(Date.now());
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('evm_extractor_session');
+      } catch {}
+    }
     setIsLoginModalOpen(true);
   };
 
   const handleLoginSuccess = (profile: UserProfile) => {
     setUserProfile(profile);
     setIsLoginModalOpen(false);
+    // Khi đăng nhập lại: Khởi động lại giao diện từ đầu, xóa sạch dữ liệu đề cũ
+    setExtractorSessionKey(Date.now());
+    setActiveTab('extract');
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.removeItem('evm_extractor_session');
+      } catch {}
+    }
     checkServerHostStatus().then((isHost) => {
       setIsServerHost(isHost);
     });
@@ -440,6 +455,7 @@ export default function App() {
           {/* Tab 1: Phân tích & Trích xuất Đề thi */}
           {activeTab === 'extract' && (
             <ExamExtractor
+              key={`extractor-${extractorSessionKey}`}
               onAddVocabBatch={handleAddVocabBatch}
               onOpenFlashcardsWithWords={handleOpenFlashcardsWithWords}
               onGenerateQuizWithWords={handleGenerateQuizWithWords}

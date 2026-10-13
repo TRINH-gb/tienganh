@@ -63,6 +63,7 @@ export function getStoredModel(): string {
   // Auto-migrate away from deprecated, preview, or invalid model names
   if (
     !saved ||
+    saved.includes('omni') ||
     saved.includes('3.8') ||
     saved.includes('3-') ||
     saved.includes('2.5') ||
@@ -309,40 +310,33 @@ export async function getLiveModelsFromGoogle(apiKey: string): Promise<string[]>
         .filter((m: any) => m.supportedGenerationMethods?.includes('generateContent'))
         .map((m: any) => cleanModelId(m.name));
 
+      const ALLOWED_CORE_MODELS = [
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-8b'
+      ];
+
       const valid = candidates.filter(
         (id) =>
+          ALLOWED_CORE_MODELS.includes(id) &&
+          !id.includes('omni') &&
           !id.includes('deprecated') &&
-          !id.includes('-tts') &&
-          !id.includes('audio') &&
-          !id.includes('embedding') &&
-          !id.includes('imagen') &&
-          !id.includes('image') &&
           !id.includes('preview') &&
-          !id.includes('experimental') &&
-          !id.includes('2.5') && // Exclude 2.5 models because of strict 20 RPD free tier limits
-          !id.includes('1.5-pro') && // Exclude 1.5-pro because Google returns 404 on v1beta
-          !id.includes('3-') &&
-          !id.includes('3.')
+          !id.includes('experimental')
       );
 
       // Stable priority sorting:
       // 0: gemini-2.0-flash (fastest, lowest latency)
       // 1: gemini-1.5-flash
       // 2: gemini-1.5-flash-8b
-      const sorted = valid.sort((a, b) => {
+      const sorted = (valid.length > 0 ? valid : ALLOWED_CORE_MODELS).sort((a, b) => {
         const getScore = (name: string) => {
           if (name === 'gemini-2.0-flash') return 0;
           if (name === 'gemini-1.5-flash') return 1;
           if (name === 'gemini-1.5-flash-8b') return 2;
-          if (name.includes('2.0-flash')) return 3;
-          if (name.includes('1.5-flash')) return 4;
-          if (name.includes('flash')) return 5;
-          return 6;
+          return 3;
         };
-        const scoreA = getScore(a);
-        const scoreB = getScore(b);
-        if (scoreA !== scoreB) return scoreA - scoreB;
-        return a.localeCompare(b);
+        return getScore(a) - getScore(b);
       });
 
       if (sorted.length > 0) {
@@ -368,7 +362,7 @@ async function callGeminiDirect(
   fileMimeType?: string,
   temperature: number = 0.1,
   maxOutputTokens: number = 4096,
-  timeoutMs: number = 22000
+  timeoutMs: number = 45000
 ): Promise<string> {
   const cleanModel = cleanModelId(model);
   const key = apiKey.trim();
@@ -527,7 +521,12 @@ export async function executeWithFallback<T>(
         throw err;
       }
 
-      // If 429 / RESOURCE_EXHAUSTED or other model-specific errors, continue to the next candidate model
+      // If 429 / RESOURCE_EXHAUSTED rate limit, cool down briefly before trying next model
+      if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
+        await new Promise((r) => setTimeout(r, 2000));
+      }
+
+      // If other model-specific errors, continue to the next candidate model
       if (i < candidatesToTry.length - 1) {
         const nextModel = candidatesToTry[i + 1];
         if (onFallback) {

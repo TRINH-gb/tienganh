@@ -15,8 +15,7 @@ import {
   Quote,
   ShieldCheck,
   Lock,
-  X,
-  Award
+  X
 } from 'lucide-react';
 import {
   SCHOOL_OPTIONS,
@@ -41,8 +40,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
-  isMandatory = false,
-  onOpenSchoolStats
+  isMandatory = false
 }) => {
   const [activeRoleTab, setActiveRoleTab] = useState<'student' | 'admin'>('student');
   const [adminPassword, setAdminPassword] = useState<string>('');
@@ -64,7 +62,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     message: string;
   } | null>(null);
 
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // Separate submitting states so the two tabs never interfere with each other
+  const [isStudentSubmitting, setIsStudentSubmitting] = useState<boolean>(false);
+  const [isAdminSubmitting, setIsAdminSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,13 +72,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       setSlogan(getRandomSlogan());
       const existing = getStoredUserProfile();
       if (existing) {
+        if (existing.role === 'admin' || existing.isAdmin) {
+          setActiveRoleTab('admin');
+        } else {
+          setActiveRoleTab('student');
+        }
         setUsername(existing.username || '');
         setApiKey(existing.apiKey || '');
         setSchool((existing.school as SchoolOption) || '');
         setCustomSchool(existing.customSchool || '');
+      } else {
+        setActiveRoleTab('student');
       }
       setTestResult(null);
       setErrorMessage(null);
+      setAdminPassword('');
     }
   }, [isOpen]);
 
@@ -114,6 +122,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setTestResult(result);
   };
 
+  // Student form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -141,23 +150,34 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
+    setIsStudentSubmitting(true);
 
     const profile: UserProfile = {
       username: cleanUsername,
       school: school,
       customSchool: school === 'Khác' ? customSchool.trim() : undefined,
       apiKey: cleanApiKey,
+      role: 'student',
+      isAdmin: false,
       loginAt: new Date().toISOString()
     };
 
-    saveStoredUserProfile(profile);
-    await recordLoginOnServer(profile);
+    try {
+      saveStoredUserProfile(profile);
+      await Promise.race([
+        recordLoginOnServer(profile),
+        new Promise((resolve) => setTimeout(resolve, 1500))
+      ]);
+    } catch (err) {
+      console.warn('Login record error:', err);
+    } finally {
+      setIsStudentSubmitting(false);
+    }
 
-    setIsSubmitting(false);
     onLoginSuccess(profile);
   };
 
+  // Administrator form submission
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -168,14 +188,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
       return;
     }
 
-    setIsSubmitting(true);
-    const result = await loginAsAdmin(cleanPass);
-    setIsSubmitting(false);
-
-    if (result.success && result.profile) {
-      onLoginSuccess(result.profile);
-    } else {
-      setErrorMessage(result.message || 'Mật khẩu quản trị viên không chính xác. Vui lòng kiểm tra lại!');
+    setIsAdminSubmitting(true);
+    try {
+      const result = await loginAsAdmin(cleanPass);
+      if (result.success && result.profile) {
+        onLoginSuccess(result.profile);
+      } else {
+        setErrorMessage(result.message || 'Mật khẩu quản trị viên không chính xác.');
+      }
+    } catch (err: any) {
+      setErrorMessage(err?.message || 'Có lỗi xảy ra khi xác thực.');
+    } finally {
+      setIsAdminSubmitting(false);
     }
   };
 
@@ -192,7 +216,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       {/* Modal Dialog Card */}
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-10 animate-in zoom-in-95 duration-200 my-auto flex flex-col">
-        {/* 1. Top Header with Premium Gradient */}
+        {/* 1. Top Header */}
         <div className="relative px-6 py-5 bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-900 text-white border-b border-indigo-900/40">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center space-x-3.5">
@@ -235,16 +259,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         {/* 2. Role Selector Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-100/80 p-1.5 gap-1.5 shrink-0">
+        <div className="flex border-b border-slate-200 bg-slate-100/90 p-1.5 gap-2 shrink-0">
           <button
             type="button"
             onClick={() => {
               setActiveRoleTab('student');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeRoleTab === 'student'
-                ? 'bg-white text-indigo-700 shadow-xs border border-indigo-100'
+                ? 'bg-white text-indigo-700 shadow-sm border border-indigo-100 font-extrabold'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
@@ -258,18 +282,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               setActiveRoleTab('admin');
               setErrorMessage(null);
             }}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
               activeRoleTab === 'admin'
-                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xs'
+                ? 'bg-slate-900 text-amber-400 shadow-sm font-extrabold border border-slate-800'
                 : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
             }`}
           >
-            <ShieldCheck className="w-4 h-4 text-amber-300" />
-            <span>Dành cho Quản trị viên (Ms. Trinh)</span>
+            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <span>Quản trị viên</span>
           </button>
         </div>
 
-        {/* 3. Inspiring English Quote Card for Students (only show in student tab) */}
+        {/* 3. Inspiring English Quote Card for Students (only in student tab) */}
         {activeRoleTab === 'student' && (
           <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-100/60 border-b border-amber-200/80 px-5 sm:px-6 py-4 relative shadow-inner">
             <div className="flex items-start gap-3">
@@ -310,20 +334,20 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
         {/* 4. Form Body */}
         {activeRoleTab === 'admin' ? (
-          <form onSubmit={handleAdminSubmit} className="p-6 sm:p-7 space-y-4.5 overflow-y-auto">
-            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 border border-amber-300/40">
-                <ShieldCheck className="w-5 h-5 text-amber-600" />
+          <form onSubmit={handleAdminSubmit} className="p-6 sm:p-7 space-y-5 overflow-y-auto">
+            <div className="p-4 rounded-2xl bg-slate-900 text-white flex items-center gap-3.5 border border-slate-800 shadow-sm">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center shrink-0 border border-amber-500/30">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
               </div>
-              <div>
-                <h4 className="text-sm font-extrabold text-amber-950 flex items-center gap-1.5">
-                  <span>Xác Thực Quản Trị Viên (Ms. Trinh)</span>
-                  <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded-md">
-                    Chỉ dành riêng cho cô
+              <div className="min-w-0 flex-1">
+                <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Cổng Quản Trị Hệ Thống</span>
+                  <span className="text-[10px] font-semibold bg-amber-400/20 text-amber-300 border border-amber-400/30 px-2 py-0.5 rounded">
+                    Admin Portal
                   </span>
                 </h4>
-                <p className="text-xs text-amber-900/80 mt-1 leading-relaxed">
-                  Cô chỉ cần nhập Mật khẩu quản trị viên của cô để kích hoạt đầy đủ quyền Quản trị viên, mở khóa bảng thống kê truy cập và thống kê lượt dùng của từng trường.
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Xác thực để truy cập bảng điều khiển thống kê và quản trị ứng dụng.
                 </p>
               </div>
             </div>
@@ -333,7 +357,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 Mật khẩu Quản trị viên <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-amber-600">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                   <Lock className="w-4 h-4" />
                 </div>
                 <input
@@ -344,7 +368,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                     setErrorMessage(null);
                   }}
                   placeholder="Nhập mật khẩu quản trị viên..."
-                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all text-slate-900 font-bold placeholder:font-normal placeholder:text-slate-400"
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all text-slate-900 font-semibold placeholder:font-normal placeholder:text-slate-400"
                   autoFocus
                   required
                 />
@@ -359,15 +383,11 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   </button>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
-                <Lock className="w-3 h-3 text-amber-600" />
-                Mật khẩu quản trị viên được bảo mật, người dùng bình thường không thể truy cập.
-              </p>
             </div>
 
             {/* Error Message */}
             {errorMessage && (
-              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 font-bold animate-in fade-in duration-150">
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 font-semibold animate-in fade-in duration-150">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                 <span>{errorMessage}</span>
               </div>
@@ -377,18 +397,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <div className="pt-2">
               <button
                 type="submit"
-                disabled={isSubmitting}
-                className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white rounded-xl font-extrabold text-sm shadow-md shadow-amber-500/20 hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+                disabled={isAdminSubmitting}
+                className="w-full py-3.5 px-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-md transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
               >
-                {isSubmitting ? (
+                {isAdminSubmitting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Đang xác thực quản trị viên...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                    <span>Đang xác thực...</span>
                   </>
                 ) : (
                   <>
-                    <ShieldCheck className="w-4 h-4 text-amber-200" />
-                    <span>Đăng Nhập Quản Trị Viên (Ms. Trinh)</span>
+                    <ShieldCheck className="w-4 h-4 text-amber-400" />
+                    <span>Đăng Nhập Quản Trị</span>
                   </>
                 )}
               </button>
@@ -403,180 +423,180 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
-                <User className="w-4 h-4" />
-              </div>
-              <input
-                type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                placeholder="Ví dụ: Nguyễn Hoàng Nam - 12A1"
-                className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold placeholder:text-slate-400 placeholder:font-normal"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Trường THPT */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Trường THPT <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
-                <School className="w-4 h-4" />
-              </div>
-              <select
-                value={school}
-                onChange={(e) => setSchool(e.target.value as SchoolOption)}
-                className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold cursor-pointer"
-                required
-              >
-                <option value="" disabled>
-                  -- Chọn trường THPT của bạn --
-                </option>
-                {SCHOOL_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt} className="font-medium text-slate-800">
-                    {opt}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Custom school text input if 'Khác' is selected */}
-            {school === 'Khác' && (
-              <div className="mt-2.5 animate-in fade-in duration-200">
-                <label className="block text-[11px] font-bold text-indigo-900 mb-1">
-                  Nhập tên trường THPT cụ thể của bạn:
-                </label>
+                  <User className="w-4 h-4" />
+                </div>
                 <input
                   type="text"
-                  value={customSchool}
-                  onChange={(e) => setCustomSchool(e.target.value)}
-                  placeholder="Ví dụ: THPT Chuyên Lê Quý Đôn, THPT Vũng Tàu..."
-                  className="w-full px-3.5 py-2 bg-indigo-50/60 border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold"
-                  required={school === 'Khác'}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Ví dụ: Nguyễn Hoàng Nam - 12A1"
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold placeholder:text-slate-400 placeholder:font-normal"
+                  required
                 />
               </div>
-            )}
-          </div>
-
-          {/* Mã AI Key */}
-          <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Mã AI Key (Google Gemini API Key) <span className="text-rose-500">*</span>
-              </label>
-              <a
-                href="https://aistudio.google.com/app/apikey"
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:underline"
-              >
-                <span>Lấy mã miễn phí (1 phút)</span>
-                <ExternalLink className="w-3 h-3" />
-              </a>
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
-                <KeyRound className="w-4 h-4" />
+            {/* Trường THPT */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Trường THPT <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
+                  <School className="w-4 h-4" />
+                </div>
+                <select
+                  value={school}
+                  onChange={(e) => setSchool(e.target.value as SchoolOption)}
+                  className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold cursor-pointer"
+                  required
+                >
+                  <option value="" disabled>
+                    -- Chọn trường THPT của bạn --
+                  </option>
+                  {SCHOOL_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt} className="font-medium text-slate-800">
+                      {opt}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <input
-                type={showKey ? 'text' : 'password'}
-                value={apiKey}
-                onChange={(e) => {
-                  setApiKey(e.target.value);
-                  setTestResult(null);
-                }}
-                placeholder="Dán mã API Key (bắt đầu bằng AIzaSy...)"
-                className="w-full pl-10 pr-20 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white font-mono transition-all text-slate-900"
-                required
-              />
-              <div className="absolute inset-y-0 right-0 pr-2 flex items-center space-x-1">
+
+              {/* Custom school text input if 'Khác' is selected */}
+              {school === 'Khác' && (
+                <div className="mt-2.5 animate-in fade-in duration-200">
+                  <label className="block text-[11px] font-bold text-indigo-900 mb-1">
+                    Nhập tên trường THPT cụ thể của bạn:
+                  </label>
+                  <input
+                    type="text"
+                    value={customSchool}
+                    onChange={(e) => setCustomSchool(e.target.value)}
+                    placeholder="Ví dụ: THPT Chuyên Lê Quý Đôn, THPT Vũng Tàu..."
+                    className="w-full px-3.5 py-2 bg-indigo-50/60 border border-indigo-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition-all text-slate-900 font-bold"
+                    required={school === 'Khác'}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Mã AI Key */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Mã AI Key (Google Gemini API Key) <span className="text-rose-500">*</span>
+                </label>
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 hover:underline"
+                >
+                  <span>Lấy mã miễn phí</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
+                  <KeyRound className="w-4 h-4" />
+                </div>
+                <input
+                  type={showKey ? 'text' : 'password'}
+                  value={apiKey}
+                  onChange={(e) => {
+                    setApiKey(e.target.value);
+                    setTestResult(null);
+                  }}
+                  placeholder="Dán mã API Key (AIzaSy...)"
+                  className="w-full pl-10 pr-20 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white font-mono transition-all text-slate-900"
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 pr-2 flex items-center space-x-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowKey(!showKey)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    title={showKey ? 'Ẩn mã key' : 'Hiện mã key'}
+                  >
+                    {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => setShowKey(!showKey)}
-                  className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
-                  title={showKey ? 'Ẩn mã key' : 'Hiện mã key'}
+                  onClick={handleTestConnection}
+                  disabled={isTestingKey || !apiKey.trim()}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >
-                  {showKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  {isTestingKey ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Đang kiểm tra kết nối...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Kiểm tra kết nối AI</span>
+                    </>
+                  )}
                 </button>
+                <span className="text-[10.5px] text-slate-400 flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
+                  Bảo mật trên trình duyệt
+                </span>
               </div>
+
+              {/* Test result status banner */}
+              {testResult && (
+                <div
+                  className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start space-x-2 animate-in fade-in duration-200 ${
+                    testResult.success
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {testResult.success ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span className="font-semibold">{testResult.message}</span>
+                </div>
+              )}
             </div>
 
-            <div className="mt-2 flex items-center justify-between flex-wrap gap-2">
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 font-bold animate-in fade-in duration-150">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <div className="pt-2">
               <button
-                type="button"
-                onClick={handleTestConnection}
-                disabled={isTestingKey || !apiKey.trim()}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                type="submit"
+                disabled={isStudentSubmitting}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-extrabold text-sm shadow-md shadow-indigo-300/40 hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
               >
-                {isTestingKey ? (
+                {isStudentSubmitting ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <span>Đang kiểm tra kết nối AI...</span>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang ghi nhận đăng nhập...</span>
                   </>
                 ) : (
                   <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Kiểm tra kết nối AI</span>
+                    <GraduationCap className="w-4 h-4" />
+                    <span>Đăng Nhập & Bắt Đầu Học Ngay</span>
                   </>
                 )}
               </button>
-              <span className="text-[10.5px] text-slate-400 flex items-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-                Lưu trữ bảo mật trong trình duyệt
-              </span>
             </div>
-
-            {/* Test result status banner */}
-            {testResult && (
-              <div
-                className={`mt-2.5 p-2.5 rounded-xl border text-xs flex items-start space-x-2 animate-in fade-in duration-200 ${
-                  testResult.success
-                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                    : 'bg-rose-50 border-rose-200 text-rose-800'
-                }`}
-              >
-                {testResult.success ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                ) : (
-                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                )}
-                <span className="font-semibold">{testResult.message}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Error Message */}
-          {errorMessage && (
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 font-bold animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-          )}
-
-          {/* Submit Button */}
-          <div className="pt-2">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-indigo-600 via-blue-600 to-indigo-700 hover:from-indigo-700 hover:to-blue-700 text-white rounded-xl font-extrabold text-sm shadow-md shadow-indigo-300/40 hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Đang ghi nhận đăng nhập...</span>
-                </>
-              ) : (
-                <>
-                  <GraduationCap className="w-4 h-4" />
-                  <span>Đăng Nhập & Bắt Đầu Học Ngay</span>
-                </>
-              )}
-            </button>
-          </div>
-        </form>
+          </form>
         )}
       </div>
     </div>

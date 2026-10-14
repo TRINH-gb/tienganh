@@ -255,10 +255,10 @@ export const SchoolStatsModal: React.FC<SchoolStatsModalProps> = ({
               </div>
               <div>
                 <h4 className="text-base font-extrabold text-slate-800">
-                  Khu Vực Quản Trị Viên (Ms. Trinh)
+                  Xác Thực Quản Trị Viên
                 </h4>
                 <p className="text-xs text-slate-500 mt-1">
-                  Chức năng thống kê số lượt đăng nhập theo trường chỉ dành riêng cho Quản trị viên. Vui lòng nhập mật khẩu quản trị để tiếp tục.
+                  Vui lòng nhập mật khẩu quản trị viên để mở khóa bảng thống kê.
                 </p>
               </div>
 

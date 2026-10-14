@@ -1,5 +1,5 @@
 import { SchoolOption, UserProfile, SchoolLoginStats, SchoolLoginRecord } from '../types';
-import { setStoredApiKey } from './geminiService';
+import { setStoredApiKey, getStoredApiKey } from './geminiService';
 
 export const SCHOOL_OPTIONS: SchoolOption[] = [
   'THPT Võ Thị Sáu Bà Rịa - Vũng Tàu',
@@ -291,7 +291,7 @@ export async function checkServerHostStatus(): Promise<boolean> {
   const token = getStoredAdminToken();
   const profile = getStoredUserProfile();
   
-  if (token === ADMIN_MASTER_PASSWORD || (profile?.isAdmin && token === ADMIN_MASTER_PASSWORD)) {
+  if (token === ADMIN_MASTER_PASSWORD || profile?.isAdmin || profile?.role === 'admin') {
     return true;
   }
 
@@ -368,30 +368,45 @@ export async function loginAsAdmin(password: string, customApiKey?: string): Pro
   profile?: UserProfile;
   message?: string;
 }> {
-  const clean = password.trim();
-  if (clean !== ADMIN_MASTER_PASSWORD) {
+  try {
+    const clean = password.trim();
+    if (clean !== ADMIN_MASTER_PASSWORD) {
+      return {
+        success: false,
+        message: 'Mật khẩu quản trị viên không chính xác.'
+      };
+    }
+
+    let keyToUse = '';
+    if (customApiKey && customApiKey.trim()) {
+      keyToUse = customApiKey.trim();
+    } else {
+      try {
+        keyToUse = getStoredApiKey() || '';
+      } catch {}
+    }
+
+    const adminProfile: UserProfile = {
+      username: 'Ms. Trinh',
+      school: 'THPT Võ Thị Sáu Bà Rịa - Vũng Tàu',
+      apiKey: keyToUse,
+      loginAt: new Date().toISOString(),
+      role: 'admin',
+      isAdmin: true
+    };
+
+    setStoredAdminToken(ADMIN_MASTER_PASSWORD);
+    saveStoredUserProfile(adminProfile);
+    return {
+      success: true,
+      profile: adminProfile
+    };
+  } catch (err: any) {
     return {
       success: false,
-      message: 'Mật khẩu quản trị viên không chính xác. Vui lòng kiểm tra lại!'
+      message: 'Lỗi xác thực: ' + (err?.message || 'Không xác định')
     };
   }
-
-  const keyToUse = customApiKey?.trim() || getStoredApiKey() || '';
-  const adminProfile: UserProfile = {
-    username: 'Ms. Trinh (Quản trị viên)',
-    school: 'THPT Võ Thị Sáu Bà Rịa - Vũng Tàu',
-    apiKey: keyToUse,
-    loginAt: new Date().toISOString(),
-    role: 'admin',
-    isAdmin: true
-  };
-
-  setStoredAdminToken(ADMIN_MASTER_PASSWORD);
-  saveStoredUserProfile(adminProfile);
-  return {
-    success: true,
-    profile: adminProfile
-  };
 }
 
 /**

@@ -514,7 +514,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <span>Lượt Dùng Theo Trường</span>
                   </span>
                   <span className="text-[9px] font-bold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-md">
-                    Chỉ riêng cô
+                    Quản trị
                   </span>
                 </div>
 

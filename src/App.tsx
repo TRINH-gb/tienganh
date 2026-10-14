@@ -13,7 +13,7 @@ import { SchoolStatsModal } from './components/SchoolStatsModal';
 import { VocabularyItem, MasteryStatus, normalizeStatus, ActiveTab, UserProfile } from './types';
 import { getStoredApiKey } from './services/geminiService';
 import { useVisitorStats } from './services/visitorStatsService';
-import { getStoredUserProfile, clearStoredUserProfile, checkServerHostStatus } from './services/authService';
+import { getStoredUserProfile, clearStoredUserProfile, clearStoredAdminToken, checkServerHostStatus } from './services/authService';
 import { Menu, GraduationCap, KeyRound, Eye, User, School, ShieldCheck } from 'lucide-react';
 
 
@@ -107,10 +107,25 @@ export default function App() {
     checkServerHostStatus().then((isHost) => {
       setIsServerHost(isHost);
     });
+
+    // Phím tắt Ctrl+Shift+A hoặc đuôi #admin để cô Trinh mở nhanh hộp thoại Đăng nhập Quản trị viên
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
+        e.preventDefault();
+        setIsLoginModalOpen(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    if (typeof window !== 'undefined' && window.location.hash === '#admin') {
+      setIsLoginModalOpen(true);
+    }
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const handleLogout = () => {
     clearStoredUserProfile();
+    clearStoredAdminToken();
+    setIsServerHost(false);
     setUserProfile(null);
     setExtractorSessionKey(Date.now());
     if (typeof window !== 'undefined') {
@@ -133,7 +148,7 @@ export default function App() {
       } catch {}
     }
     checkServerHostStatus().then((isHost) => {
-      setIsServerHost(isHost);
+      setIsServerHost(isHost || Boolean(profile.isAdmin));
     });
   };
 
@@ -328,36 +343,47 @@ export default function App() {
               <span>Hiện thanh menu (Sidebar)</span>
             </button>
             <div className="flex items-center space-x-3">
-              <button
-                type="button"
-                onClick={() => setIsVisitorStatsModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer group"
-                title="Xem chi tiết thống kê lượt truy cập toàn trang"
-              >
-                <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-                <span>{visitorStats.totalVisits.toLocaleString('vi-VN')} lượt</span>
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
-              </button>
+              {/* Thống kê chỉ hiển thị cho Quản trị viên */}
+              {isServerHost && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setIsVisitorStatsModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer group"
+                    title="Xem chi tiết thống kê lượt truy cập toàn trang (Quản trị viên)"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span>{visitorStats.totalVisits.toLocaleString('vi-VN')} lượt</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse ml-0.5" />
+                  </button>
 
-              <button
-                type="button"
-                onClick={() => setIsSchoolStatsModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
-                title="Bảng thống kê số lượt đăng nhập theo trường (Bảo mật cho Quản trị viên)"
-              >
-                <School className="w-3.5 h-3.5" />
-                <span>Thống kê trường</span>
-              </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsSchoolStatsModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer hover:scale-105"
+                    title="Bảng thống kê số lượt đăng nhập theo trường (Quản trị viên)"
+                  >
+                    <School className="w-3.5 h-3.5" />
+                    <span>Thống kê trường</span>
+                  </button>
+                </>
+              )}
 
               {userProfile ? (
                 <button
                   type="button"
                   onClick={() => setIsLoginModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-900 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  title={`Đang đăng nhập: ${userProfile.username} (${userProfile.school})`}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 border rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                    userProfile.isAdmin
+                      ? 'bg-amber-50 hover:bg-amber-100 border-amber-300 text-amber-900'
+                      : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-900'
+                  }`}
+                  title={userProfile.isAdmin ? 'Quản trị viên: Ms. Trinh' : `Đang đăng nhập: ${userProfile.username} (${userProfile.school})`}
                 >
-                  <span className="w-5 h-5 rounded-md bg-indigo-600 text-white flex items-center justify-center text-[10px] font-bold">
-                    {userProfile.username.charAt(0).toUpperCase()}
+                  <span className={`w-5 h-5 rounded-md text-white flex items-center justify-center text-[10px] font-bold ${
+                    userProfile.isAdmin ? 'bg-amber-600' : 'bg-indigo-600'
+                  }`}>
+                    {userProfile.isAdmin ? '👑' : userProfile.username.charAt(0).toUpperCase()}
                   </span>
                   <span className="max-w-[120px] truncate">{userProfile.username}</span>
                 </button>
@@ -406,14 +432,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center space-x-1.5">
-            <button
-              type="button"
-              onClick={() => setIsSchoolStatsModalOpen(true)}
-              className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer"
-              title="Bảng thống kê đăng nhập theo trường"
-            >
-              <School className="w-3.5 h-3.5" />
-            </button>
+            {isServerHost && (
+              <button
+                type="button"
+                onClick={() => setIsSchoolStatsModalOpen(true)}
+                className="p-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white transition-all shadow-xs cursor-pointer"
+                title="Bảng thống kê đăng nhập theo trường (Quản trị viên)"
+              >
+                <School className="w-3.5 h-3.5" />
+              </button>
+            )}
 
             {userProfile ? (
               <button

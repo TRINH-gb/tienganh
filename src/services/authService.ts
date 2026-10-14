@@ -282,20 +282,17 @@ export async function recordLoginOnServer(profile: UserProfile): Promise<{
   return { success: true, isServerHost: false };
 }
 
+export const ADMIN_MASTER_PASSWORD = 'Trinhmaster1905';
+
 /**
- * Check if current browser is the server host or has admin token.
+ * Check if current browser is authenticated as the admin / server host.
  */
 export async function checkServerHostStatus(): Promise<boolean> {
   const token = getStoredAdminToken();
-  if (token === 'admin2026' || token === 'mstrinh2026' || token.length > 3) {
+  const profile = getStoredUserProfile();
+  
+  if (token === ADMIN_MASTER_PASSWORD || (profile?.isAdmin && token === ADMIN_MASTER_PASSWORD)) {
     return true;
-  }
-
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return true;
-    }
   }
 
   try {
@@ -311,13 +308,13 @@ export async function checkServerHostStatus(): Promise<boolean> {
 }
 
 /**
- * Fetch school login statistics (Strictly protected for the server host/admin).
+ * Fetch school login statistics (Strictly protected for the administrator).
  */
 export async function fetchSchoolStats(): Promise<SchoolLoginStats> {
   try {
-    const adminToken = getStoredAdminToken() || 'admin2026';
+    const adminToken = getStoredAdminToken();
     const res = await fetch('/api/admin/school-stats', {
-      headers: { 'x-admin-key': adminToken }
+      headers: { 'x-admin-key': adminToken || '' }
     });
 
     if (res.ok) {
@@ -336,12 +333,11 @@ export async function fetchSchoolStats(): Promise<SchoolLoginStats> {
 }
 
 /**
- * Verify admin password (both remote server verification & master passcode validation).
+ * Verify admin password (Trinhmaster1905).
  */
 export async function verifyAdminPasscode(pin: string): Promise<boolean> {
   const cleanPin = pin.trim();
-  // Master passcode for teacher/admin
-  if (cleanPin === 'admin2026' || cleanPin === 'mstrinh2026' || cleanPin === 'evm2026' || cleanPin === '123456') {
+  if (cleanPin === ADMIN_MASTER_PASSWORD) {
     setStoredAdminToken(cleanPin);
     return true;
   }
@@ -362,6 +358,40 @@ export async function verifyAdminPasscode(pin: string): Promise<boolean> {
   } catch {}
 
   return false;
+}
+
+/**
+ * Login directly as administrator with master password Trinhmaster1905.
+ */
+export async function loginAsAdmin(password: string, customApiKey?: string): Promise<{
+  success: boolean;
+  profile?: UserProfile;
+  message?: string;
+}> {
+  const clean = password.trim();
+  if (clean !== ADMIN_MASTER_PASSWORD) {
+    return {
+      success: false,
+      message: 'Mật khẩu quản trị viên không chính xác. Vui lòng kiểm tra lại!'
+    };
+  }
+
+  const keyToUse = customApiKey?.trim() || getStoredApiKey() || '';
+  const adminProfile: UserProfile = {
+    username: 'Ms. Trinh (Quản trị viên)',
+    school: 'THPT Võ Thị Sáu Bà Rịa - Vũng Tàu',
+    apiKey: keyToUse,
+    loginAt: new Date().toISOString(),
+    role: 'admin',
+    isAdmin: true
+  };
+
+  setStoredAdminToken(ADMIN_MASTER_PASSWORD);
+  saveStoredUserProfile(adminProfile);
+  return {
+    success: true,
+    profile: adminProfile
+  };
 }
 
 /**

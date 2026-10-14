@@ -453,6 +453,28 @@ async function callGeminiDirect(
           errMsg = await response.text().catch(() => 'Network/HTTP error');
         }
 
+        // If 503 UNAVAILABLE (traffic spike), wait 2.5s and retry once automatically
+        if (errCode === 503 || errMsg.includes('503') || errMsg.includes('high demand') || errMsg.includes('UNAVAILABLE')) {
+          console.warn(`[EVM Gemini Service] Model ${cleanModel} hit 503 high demand spike. Retrying after 2.5s...`);
+          await new Promise((r) => setTimeout(r, 2500));
+          try {
+            const retryRes = await fetch(url, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': key
+              },
+              body: JSON.stringify(payload),
+              signal: controller.signal
+            });
+            if (retryRes.ok) {
+              const retryResult = await retryRes.json();
+              const textOutput = retryResult?.candidates?.[0]?.content?.parts?.[0]?.text;
+              if (textOutput) return textOutput;
+            }
+          } catch {}
+        }
+
         // If 404 NOT_FOUND on v1beta, seamlessly retry on v1 before giving up
         if (errCode === 404 && apiVer === 'v1beta') {
           console.warn(`[EVM Gemini Service] Model ${cleanModel} returned 404 on v1beta. Retrying with v1...`);
@@ -514,27 +536,25 @@ export async function executeWithFallback<T>(
   ) ? DEFAULT_MODEL_ID : rawPreferred;
   const modelsToTry: string[] = [];
 
+  // 1. Always prioritize preferredModel (gemini-3.8-flash) first
+  if (preferredModel) {
+    modelsToTry.push(preferredModel);
+  }
+
+  // 2. Add live models returned by Google
   if (liveModels && liveModels.length > 0) {
-    // If the user's preferred model is confirmed alive by Google AI Studio, put it first
-    if (preferredModel && liveModels.includes(preferredModel)) {
-      modelsToTry.push(preferredModel);
-    }
-    // Then add all remaining live models that Google returned
     for (const m of liveModels) {
       if (!modelsToTry.includes(m)) {
         modelsToTry.push(m);
       }
     }
-  } else {
-    // Fallback if live models query failed
-    if (preferredModel) {
-      modelsToTry.push(preferredModel);
-    }
-    for (const m of FALLBACK_CHAIN) {
-      const clean = cleanModelId(m);
-      if (!modelsToTry.includes(clean)) {
-        modelsToTry.push(clean);
-      }
+  }
+
+  // 3. Ensure entire fallback chain is available
+  for (const m of FALLBACK_CHAIN) {
+    const clean = cleanModelId(m);
+    if (!modelsToTry.includes(clean)) {
+      modelsToTry.push(clean);
     }
   }
 
@@ -576,9 +596,15 @@ export async function executeWithFallback<T>(
         throw err;
       }
 
-      // If 429 / RESOURCE_EXHAUSTED rate limit, cool down briefly before trying next model
-      if (errorMsg.includes('429') || errorMsg.includes('RESOURCE_EXHAUSTED')) {
-        await new Promise((r) => setTimeout(r, 2000));
+      // If 503 (high demand) or 429 (rate limit), cool down 3 seconds before next candidate
+      if (
+        errorMsg.includes('503') ||
+        errorMsg.includes('UNAVAILABLE') ||
+        errorMsg.includes('high demand') ||
+        errorMsg.includes('429') ||
+        errorMsg.includes('RESOURCE_EXHAUSTED')
+      ) {
+        await new Promise((r) => setTimeout(r, 3000));
       }
 
       // If other model-specific errors, continue to the next candidate model

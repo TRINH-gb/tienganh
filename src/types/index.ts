@@ -167,6 +167,8 @@ export interface UserProfile {
   customSchool?: string;
   apiKey: string;
   loginAt: string;
+  role?: 'student' | 'admin';
+  isAdmin?: boolean;
 }
 
 export interface SchoolLoginRecord {

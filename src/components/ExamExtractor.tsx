@@ -668,16 +668,25 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
             </button>
           </div>
 
-          {/* Hướng dẫn chi tiết nếu gặp lỗi hạn ngạch (Rate Limit 429) */}
-          {(errorMsg.includes('429') || errorMsg.includes('hạn ngạch') || errorMsg.includes('giới hạn') || errorMsg.includes('RESOURCE_EXHAUSTED')) ? (
+          {/* Hướng dẫn chi tiết nếu gặp lỗi quá tải (503) hoặc hạn ngạch (429) */}
+          {(errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') || errorMsg.includes('high demand') || errorMsg.includes('429') || errorMsg.includes('hạn ngạch') || errorMsg.includes('giới hạn') || errorMsg.includes('RESOURCE_EXHAUSTED')) ? (
             <div className="bg-white/95 p-3.5 rounded-xl border border-rose-200 space-y-2 text-xs text-rose-900 leading-relaxed shadow-2xs">
               <p className="font-bold text-rose-800 flex items-center gap-1.5">
-                <span>⚠️ Hạn ngạch API Key tạm thời đạt giới hạn (Rate Limit):</span>
+                <span>⚠️ {errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') ? 'Máy chủ Google AI đang trong giây phút cao điểm (Spike in demand):' : 'Hạn ngạch API Key tạm thời đạt giới hạn (Rate Limit):'}</span>
               </p>
               <ul className="list-disc list-inside space-y-1 text-[11px] text-rose-700 pl-1">
-                <li>Google AI Studio miễn phí giới hạn <strong>15 lượt gọi / phút</strong>. Bạn vui lòng chờ khoảng <strong>30 - 60 giây</strong> rồi bấm <strong>"Thử lại ngay"</strong>.</li>
-                <li>Hoặc bấm nút <strong>"Đổi API Key / Model"</strong> để nhập mã API Key dự phòng khác.</li>
-                <li>Hệ thống đã tự động chuyển đổi sang model <code>gemini-3.8-flash</code> để đảm bảo tốc độ nhanh và hạn ngạch tốt nhất.</li>
+                {errorMsg.includes('503') || errorMsg.includes('UNAVAILABLE') ? (
+                  <>
+                    <li>Lỗi <strong>503 UNAVAILABLE</strong> là do máy chủ toàn cầu của Google bị nghẽn tải tạm thời trong vài giây.</li>
+                    <li>Sự cố nghẽn tải này chỉ kéo dài chốc lát, bạn vui lòng bấm <strong>"Thử lại ngay"</strong> bên dưới để hệ thống kết nối lại.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>Google AI Studio miễn phí giới hạn <strong>15 lượt gọi / phút</strong>. Bạn vui lòng chờ khoảng <strong>30 - 60 giây</strong> rồi bấm <strong>"Thử lại ngay"</strong>.</li>
+                    <li>Hoặc bấm nút <strong>"Đổi API Key / Model"</strong> để nhập mã API Key dự phòng khác.</li>
+                  </>
+                )}
+                <li>Hệ thống đang chạy trên model tối ưu <code>gemini-3.8-flash</code>.</li>
               </ul>
             </div>
           ) : (

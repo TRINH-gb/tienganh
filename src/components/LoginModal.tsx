@@ -23,7 +23,8 @@ import {
   getRandomSlogan,
   getStoredUserProfile,
   saveStoredUserProfile,
-  recordLoginOnServer
+  recordLoginOnServer,
+  loginAsAdmin
 } from '../services/authService';
 import { testApiKey } from '../services/geminiService';
 import { UserProfile, SchoolOption } from '../types';
@@ -43,6 +44,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isMandatory = false,
   onOpenSchoolStats
 }) => {
+  const [activeRoleTab, setActiveRoleTab] = useState<'student' | 'admin'>('student');
+  const [adminPassword, setAdminPassword] = useState<string>('');
+  const [showAdminPassword, setShowAdminPassword] = useState<boolean>(false);
   const [username, setUsername] = useState<string>('');
   const [apiKey, setApiKey] = useState<string>('');
   const [school, setSchool] = useState<SchoolOption | ''>('');
@@ -154,6 +158,27 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     onLoginSuccess(profile);
   };
 
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMessage(null);
+
+    const cleanPass = adminPassword.trim();
+    if (!cleanPass) {
+      setErrorMessage('Vui lòng nhập mật khẩu quản trị viên.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const result = await loginAsAdmin(cleanPass);
+    setIsSubmitting(false);
+
+    if (result.success && result.profile) {
+      onLoginSuccess(result.profile);
+    } else {
+      setErrorMessage(result.message || 'Mật khẩu quản trị viên không chính xác. Vui lòng kiểm tra lại!');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 overflow-y-auto">
       {/* Backdrop */}
@@ -167,7 +192,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
       {/* Modal Dialog Card */}
       <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden z-10 animate-in zoom-in-95 duration-200 my-auto flex flex-col">
-        {/* 1. Top Header with Premium Gradient & Admin Button */}
+        {/* 1. Top Header with Premium Gradient */}
         <div className="relative px-6 py-5 bg-gradient-to-br from-slate-950 via-indigo-950 to-blue-900 text-white border-b border-indigo-900/40">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-center space-x-3.5">
@@ -195,20 +220,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             <div className="flex items-center gap-2 shrink-0">
-              {/* Nút Xem Thống Kê Trường Dành Cho Quản Trị Viên */}
-              {onOpenSchoolStats && (
-                <button
-                  type="button"
-                  onClick={onOpenSchoolStats}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-xs font-bold transition-all shadow-sm cursor-pointer hover:scale-105"
-                  title="Nhấp để xem bảng thống kê số lượt đăng nhập của các trường (Chỉ riêng máy chủ quản trị)"
-                >
-                  <Lock className="w-3.5 h-3.5 text-amber-300" />
-                  <span className="hidden sm:inline">Thống kê trường</span>
-                  <span className="sm:hidden">Thống kê</span>
-                </button>
-              )}
-
               {!isMandatory && (
                 <button
                   type="button"
@@ -223,52 +234,175 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </div>
         </div>
 
-        {/* 2. Inspiring English Quote Card for Students */}
-        <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-100/60 border-b border-amber-200/80 px-5 sm:px-6 py-4 relative shadow-inner">
-          <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-              <Quote className="w-4 h-4 fill-amber-700/20" />
-            </div>
+        {/* 2. Role Selector Tabs */}
+        <div className="flex border-b border-slate-200 bg-slate-100/80 p-1.5 gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setActiveRoleTab('student');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeRoleTab === 'student'
+                ? 'bg-white text-indigo-700 shadow-xs border border-indigo-100'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <GraduationCap className="w-4 h-4" />
+            <span>Học sinh THPT</span>
+          </button>
 
-            <div className="flex-1 min-w-0 pr-7">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-md flex items-center gap-1">
-                  <Sparkles className="w-2.5 h-2.5 text-amber-700" />
-                  Daily English Inspiration
-                </span>
-                <span className="text-[11px] font-bold text-amber-800/80">
-                  — {slogan.author}
-                </span>
-              </div>
-
-              <p className="text-[13px] sm:text-sm font-extrabold text-slate-900 italic leading-snug tracking-tight">
-                &ldquo;{slogan.en}&rdquo;
-              </p>
-              <p className="text-xs text-amber-950 mt-1 font-semibold leading-relaxed">
-                👉 {slogan.vi}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleShuffleSlogan}
-              className="absolute right-3.5 top-3.5 p-2 rounded-xl text-amber-800 hover:text-amber-950 hover:bg-amber-200/60 transition-all cursor-pointer"
-              title="Đổi câu truyền cảm hứng khác"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${isRotatingSlogan ? 'animate-spin' : ''}`} />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setActiveRoleTab('admin');
+              setErrorMessage(null);
+            }}
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2 cursor-pointer ${
+              activeRoleTab === 'admin'
+                ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+            }`}
+          >
+            <ShieldCheck className="w-4 h-4 text-amber-300" />
+            <span>Dành cho Quản trị viên (Ms. Trinh)</span>
+          </button>
         </div>
 
-        {/* 3. Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4.5 overflow-y-auto">
-          {/* Tên đăng nhập */}
-          <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-              Tên đăng nhập / Họ và tên <span className="text-rose-500">*</span>
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
+        {/* 3. Inspiring English Quote Card for Students (only show in student tab) */}
+        {activeRoleTab === 'student' && (
+          <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/70 to-amber-100/60 border-b border-amber-200/80 px-5 sm:px-6 py-4 relative shadow-inner">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-800 flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <Quote className="w-4 h-4 fill-amber-700/20" />
+              </div>
+
+              <div className="flex-1 min-w-0 pr-7">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/70 px-2 py-0.5 rounded-md flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-amber-700" />
+                    Daily English Inspiration
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-800/80">
+                    — {slogan.author}
+                  </span>
+                </div>
+
+                <p className="text-[13px] sm:text-sm font-extrabold text-slate-900 italic leading-snug tracking-tight">
+                  &ldquo;{slogan.en}&rdquo;
+                </p>
+                <p className="text-xs text-amber-950 mt-1 font-semibold leading-relaxed">
+                  👉 {slogan.vi}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleShuffleSlogan}
+                className="absolute right-3.5 top-3.5 p-2 rounded-xl text-amber-800 hover:text-amber-950 hover:bg-amber-200/60 transition-all cursor-pointer"
+                title="Đổi câu truyền cảm hứng khác"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRotatingSlogan ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 4. Form Body */}
+        {activeRoleTab === 'admin' ? (
+          <form onSubmit={handleAdminSubmit} className="p-6 sm:p-7 space-y-4.5 overflow-y-auto">
+            <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200/80 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-700 flex items-center justify-center shrink-0 mt-0.5 border border-amber-300/40">
+                <ShieldCheck className="w-5 h-5 text-amber-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-extrabold text-amber-950 flex items-center gap-1.5">
+                  <span>Xác Thực Quản Trị Viên (Ms. Trinh)</span>
+                  <span className="text-[10px] font-bold bg-amber-200/80 text-amber-900 px-1.5 py-0.5 rounded-md">
+                    Chỉ dành riêng cho cô
+                  </span>
+                </h4>
+                <p className="text-xs text-amber-900/80 mt-1 leading-relaxed">
+                  Cô chỉ cần nhập Mật khẩu quản trị viên của cô để kích hoạt đầy đủ quyền Quản trị viên, mở khóa bảng thống kê truy cập và thống kê lượt dùng của từng trường.
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Mật khẩu Quản trị viên <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-amber-600">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <input
+                  type={showAdminPassword ? 'text' : 'password'}
+                  value={adminPassword}
+                  onChange={(e) => {
+                    setAdminPassword(e.target.value);
+                    setErrorMessage(null);
+                  }}
+                  placeholder="Nhập mật khẩu quản trị viên..."
+                  className="w-full pl-10 pr-10 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white transition-all text-slate-900 font-bold placeholder:font-normal placeholder:text-slate-400"
+                  autoFocus
+                  required
+                />
+                <div className="absolute inset-y-0 right-0 pr-2 flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-200/60 transition-colors cursor-pointer"
+                    title={showAdminPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                  >
+                    {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+                <Lock className="w-3 h-3 text-amber-600" />
+                Mật khẩu quản trị viên được bảo mật, người dùng bình thường không thể truy cập.
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2 font-bold animate-in fade-in duration-150">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+            )}
+
+            {/* Submit Admin Button */}
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3.5 px-4 bg-gradient-to-r from-amber-600 via-amber-700 to-amber-800 hover:from-amber-700 hover:to-amber-900 text-white rounded-xl font-extrabold text-sm shadow-md shadow-amber-500/20 hover:shadow-lg transition-all flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang xác thực quản trị viên...</span>
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="w-4 h-4 text-amber-200" />
+                    <span>Đăng Nhập Quản Trị Viên (Ms. Trinh)</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <form onSubmit={handleSubmit} className="p-6 sm:p-7 space-y-4.5 overflow-y-auto">
+            {/* Tên đăng nhập */}
+            <div>
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Tên đăng nhập / Họ và tên <span className="text-rose-500">*</span>
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-indigo-600">
                 <User className="w-4 h-4" />
               </div>
               <input
@@ -443,6 +577,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

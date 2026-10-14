@@ -172,7 +172,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* Khung ảnh tác giả: Developed by Ms.Trinh */}
-        <div className="flex items-center gap-2.5 p-2 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-sky-50/50 to-purple-50/60 border border-indigo-100/90 shadow-2xs">
+        <div
+          onClick={onOpenLoginModal}
+          className="flex items-center gap-2.5 p-2 rounded-2xl bg-gradient-to-r from-indigo-50/90 via-sky-50/50 to-purple-50/60 border border-indigo-100/90 shadow-2xs cursor-pointer hover:border-indigo-300 hover:shadow-xs transition-all"
+          title="Developed by Ms. Trinh (Nhấp để đăng nhập Quản trị viên)"
+        >
           <div className="relative shrink-0">
             <img
               src={msTrinhPhoto}
@@ -202,18 +206,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Thông tin tài khoản người dùng đăng nhập */}
         {userProfile ? (
-          <div className="p-2.5 rounded-2xl bg-indigo-50/70 border border-indigo-100 flex items-center justify-between gap-2 shadow-2xs">
+          <div className={`p-2.5 rounded-2xl border flex items-center justify-between gap-2 shadow-2xs ${
+            userProfile.isAdmin
+              ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200'
+              : 'bg-indigo-50/70 border-indigo-100'
+          }`}>
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-blue-600 text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs">
-                {userProfile.username.charAt(0).toUpperCase()}
+              <div className={`w-8 h-8 rounded-xl text-white flex items-center justify-center font-bold text-xs shrink-0 shadow-xs ${
+                userProfile.isAdmin
+                  ? 'bg-gradient-to-tr from-amber-600 to-amber-700 ring-2 ring-amber-300'
+                  : 'bg-gradient-to-tr from-indigo-600 to-blue-600'
+              }`}>
+                {userProfile.isAdmin ? '👑' : userProfile.username.charAt(0).toUpperCase()}
               </div>
               <div className="min-w-0">
-                <div className="text-xs font-black text-slate-900 truncate" title={userProfile.username}>
-                  {userProfile.username}
+                <div className="text-xs font-black text-slate-900 truncate flex items-center gap-1" title={userProfile.username}>
+                  <span>{userProfile.username}</span>
                 </div>
-                <div className="text-[10px] text-indigo-700 font-semibold truncate flex items-center gap-1" title={userProfile.school}>
-                  <School className="w-2.5 h-2.5 shrink-0 text-indigo-500" />
-                  <span>{userProfile.school}</span>
+                <div className={`text-[10px] font-semibold truncate flex items-center gap-1 ${
+                  userProfile.isAdmin ? 'text-amber-800 font-bold' : 'text-indigo-700'
+                }`} title={userProfile.school}>
+                  {userProfile.isAdmin ? (
+                    <ShieldCheck className="w-2.5 h-2.5 shrink-0 text-amber-600" />
+                  ) : (
+                    <School className="w-2.5 h-2.5 shrink-0 text-indigo-500" />
+                  )}
+                  <span>{userProfile.isAdmin ? 'Quản trị viên THPT' : userProfile.school}</span>
                 </div>
               </div>
             </div>
@@ -427,84 +445,89 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* Thống kê Lượt truy cập (Visitor Traffic Counter) */}
-        <div>
-          <div className="px-2 mb-1.5 flex items-center justify-between">
-            <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
-              Thống kê truy cập
-            </span>
-            <span className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              {visitorStats?.activeNow || 2} online
-            </span>
-          </div>
-
-          <div
-            onClick={onOpenVisitorStatsModal}
-            className="p-3 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md shadow-indigo-950/20 border border-indigo-900/60 cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
-            title="Nhấp để xem chi tiết thống kê lượt truy cập"
-          >
-            <div className="flex items-center justify-between text-indigo-200 mb-1">
-              <span className="text-[10.5px] font-bold flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
-                <span>Tổng lượt truy cập</span>
+        {/* Thống kê chỉ hiển thị khi là Quản trị viên (Cô Trinh) */}
+        {isServerHost && (
+          <div className="space-y-4 pt-3 border-t border-slate-100 animate-in fade-in duration-300">
+            <div className="px-2 flex items-center justify-between">
+              <span className="text-[10px] font-extrabold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                Khu Vực Quản Trị Viên
               </span>
-              <span className="text-[9px] font-bold text-indigo-300 bg-white/10 px-1.5 py-0.5 rounded-md">
-                Tất cả người dùng
+              <span className="text-[9px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+                Ms. Trinh
               </span>
             </div>
 
-            <div className="flex items-baseline justify-between mt-1">
-              <div className="text-2xl font-black font-mono tracking-tight text-white group-hover:text-indigo-200 transition-colors">
-                {(visitorStats?.totalVisits || 1280).toLocaleString('vi-VN')}
+            {/* 1. Thống kê Lượt truy cập toàn trang */}
+            <div>
+              <div className="px-2 mb-1.5 flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                  Thống kê truy cập
+                </span>
+                <span className="flex items-center gap-1 text-[9.5px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-full border border-emerald-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {visitorStats?.activeNow || 2} online
+                </span>
               </div>
-              <span className="text-[10px] text-slate-400">lượt</span>
+
+              <div
+                onClick={onOpenVisitorStatsModal}
+                className="p-3 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-md shadow-indigo-950/20 border border-indigo-900/60 cursor-pointer hover:border-indigo-500/60 hover:shadow-lg transition-all group"
+                title="Nhấp để xem chi tiết thống kê lượt truy cập"
+              >
+                <div className="flex items-center justify-between text-indigo-200 mb-1">
+                  <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                    <Eye className="w-3.5 h-3.5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                    <span>Tổng lượt truy cập</span>
+                  </span>
+                  <span className="text-[9px] font-bold text-indigo-300 bg-white/10 px-1.5 py-0.5 rounded-md">
+                    Admin
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-between mt-1">
+                  <div className="text-2xl font-black font-mono tracking-tight text-white group-hover:text-indigo-200 transition-colors">
+                    {(visitorStats?.totalVisits || 1280).toLocaleString('vi-VN')}
+                  </div>
+                  <span className="text-[10px] text-slate-400">lượt</span>
+                </div>
+
+                <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300">
+                  <span>Hôm nay: <strong className="text-emerald-400">+{visitorStats?.todayVisits || 42}</strong></span>
+                  <span className="text-indigo-300 group-hover:text-white flex items-center gap-0.5 font-bold underline">
+                    Xem chi tiết &raquo;
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div className="mt-2.5 pt-2 border-t border-white/10 flex items-center justify-between text-[10.5px] text-slate-300">
-              <span>Hôm nay: <strong className="text-emerald-400">+{visitorStats?.todayVisits || 42}</strong></span>
-              <span className="text-indigo-300 group-hover:text-white flex items-center gap-0.5 font-bold underline">
-                Xem chi tiết &raquo;
-              </span>
+            {/* 2. Thống kê Đăng nhập Theo Trường */}
+            <div>
+              <div
+                onClick={onOpenSchoolStatsModal}
+                className="p-3 rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-indigo-950 text-white shadow-md border border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-lg transition-all group"
+                title="Nhấp để xem bảng thống kê số lượt đăng nhập từ các trường"
+              >
+                <div className="flex items-center justify-between text-amber-200 mb-1">
+                  <span className="text-[10.5px] font-bold flex items-center gap-1.5">
+                    <School className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
+                    <span>Lượt Dùng Theo Trường</span>
+                  </span>
+                  <span className="text-[9px] font-bold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-md">
+                    Chỉ riêng cô
+                  </span>
+                </div>
+
+                <div className="mt-1 flex items-center justify-between">
+                  <span className="text-xs text-slate-300">Theo dõi 9 trường THPT</span>
+                  <span className="text-xs text-amber-400 font-bold group-hover:underline flex items-center gap-0.5">
+                    Xem báo cáo &raquo;
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-
-        {/* Thống kê Đăng nhập Theo Trường (DÀNH RIÊNG CHO MÁY CHỦ QUẢN TRỊ) */}
-        <div>
-          <div className="px-2 mb-1.5 flex items-center justify-between">
-            <span className="text-[10px] font-extrabold text-amber-600 uppercase tracking-wider flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-amber-500" />
-              Máy Chủ Quản Trị
-            </span>
-            <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full border border-amber-200">
-              {isServerHost ? 'Đã mở khóa' : 'Bảo mật PIN'}
-            </span>
-          </div>
-
-          <div
-            onClick={onOpenSchoolStatsModal}
-            className="p-3 rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-indigo-950 text-white shadow-md border border-amber-500/40 cursor-pointer hover:border-amber-400 hover:shadow-lg transition-all group"
-            title="Nhấp để xem bảng thống kê số lượt đăng nhập từ các trường"
-          >
-            <div className="flex items-center justify-between text-amber-200 mb-1">
-              <span className="text-[10.5px] font-bold flex items-center gap-1.5">
-                <School className="w-3.5 h-3.5 text-amber-400 group-hover:scale-110 transition-transform" />
-                <span>Lượt Dùng Theo Trường</span>
-              </span>
-              <span className="text-[9px] font-bold text-amber-300 bg-white/10 px-1.5 py-0.5 rounded-md">
-                Chỉ riêng bạn
-              </span>
-            </div>
-
-            <div className="mt-1 flex items-center justify-between">
-              <span className="text-xs text-slate-300">Theo dõi 9 trường THPT</span>
-              <span className="text-xs text-amber-400 font-bold group-hover:underline flex items-center gap-0.5">
-                Xem thống kê &raquo;
-              </span>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

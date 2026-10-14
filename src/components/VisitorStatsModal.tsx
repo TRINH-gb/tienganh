@@ -10,7 +10,8 @@ import {
   Smartphone,
   Tablet,
   TrendingUp,
-  ShieldCheck
+  ShieldCheck,
+  Download
 } from 'lucide-react';
 import { VisitorStats } from '../types';
 
@@ -56,6 +57,18 @@ export const VisitorStatsModal: React.FC<VisitorStatsModalProps> = ({
     return dateStr;
   };
 
+  // Day of week helper in Vietnamese
+  const getDayOfWeekVN = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const day = d.getDay();
+      const days = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'];
+      return days[day];
+    } catch {
+      return '';
+    }
+  };
+
   // Format last updated time
   const formatLastUpdated = (isoStr: string) => {
     try {
@@ -68,6 +81,38 @@ export const VisitorStatsModal: React.FC<VisitorStatsModalProps> = ({
     } catch {
       return 'Vừa xong';
     }
+  };
+
+  // Export report to text file
+  const handleExportReport = () => {
+    const content = `BÁO CÁO THỐNG KÊ LƯỢT TRUY CẬP HỆ THỐNG
+MASTER THPTQG TIẾNG ANH - EVM ARCHITECT
+Phụ trách chuyên môn: Ms. Trinh - THPT Võ Thị Sáu Bà Rịa Vũng Tàu (039.772.6024)
+Ngày xuất báo cáo: ${new Date().toLocaleString('vi-VN')}
+-----------------------------------------------------------
+1. TỔNG QUAN LƯU LƯỢNG:
+- Tổng số lượt truy cập toàn trang: ${stats.totalVisits.toLocaleString('vi-VN')} lượt
+- Khách truy cập riêng biệt: ${stats.uniqueVisitors.toLocaleString('vi-VN')} người
+- Lượt truy cập hôm nay: +${stats.todayVisits} lượt
+- Đang học trực tuyến: ${stats.activeNow} người
+
+2. PHÂN BỐ THIẾT BỊ HỌC TẬP:
+- Máy tính (Desktop): ${desktopPct}% (${stats.deviceStats?.desktop || 0} lượt)
+- Điện thoại (Mobile): ${mobilePct}% (${stats.deviceStats?.mobile || 0} lượt)
+- Máy tính bảng (Tablet): ${tabletPct}% (${stats.deviceStats?.tablet || 0} lượt)
+
+3. LỊCH SỬ 7 NGÀY GẦN NHẤT:
+${dailyHistory.map((d) => `- Ngày ${d.date} (${getDayOfWeekVN(d.date)}): ${d.visits} lượt truy cập (${d.unique} người học)`).join('\n')}
+-----------------------------------------------------------
+Nguồn: Hệ thống EVM AI English Exam Vocabulary Architect`;
+
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Bao_Cao_Truy_Cap_EVM_${new Date().toISOString().slice(0, 10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -220,14 +265,19 @@ export const VisitorStatsModal: React.FC<VisitorStatsModalProps> = ({
                           />
                         </div>
 
-                        {/* Date label */}
-                        <span
-                          className={`mt-2 text-[10px] font-semibold text-center truncate ${
-                            isToday ? 'text-indigo-600 font-extrabold' : 'text-slate-500'
-                          }`}
-                        >
-                          {isToday ? 'Hôm nay' : formatShortDate(item.date)}
-                        </span>
+                        {/* Date label with Day of Week */}
+                        <div className="mt-2 flex flex-col items-center">
+                          <span
+                            className={`text-[10px] font-bold text-center leading-tight ${
+                              isToday ? 'text-indigo-600 font-extrabold' : 'text-slate-700'
+                            }`}
+                          >
+                            {isToday ? 'Hôm nay' : getDayOfWeekVN(item.date)}
+                          </span>
+                          <span className="text-[9px] text-slate-400 leading-tight">
+                            {formatShortDate(item.date)}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
@@ -326,7 +376,17 @@ export const VisitorStatsModal: React.FC<VisitorStatsModalProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleExportReport}
+              className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl font-bold transition-colors cursor-pointer"
+              title="Xuất phiếu thống kê lưu lượng định dạng văn bản (.txt)"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Xuất báo cáo</span>
+            </button>
+
             <button
               type="button"
               onClick={onRefresh}
@@ -334,7 +394,7 @@ export const VisitorStatsModal: React.FC<VisitorStatsModalProps> = ({
               className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl font-bold transition-colors cursor-pointer disabled:opacity-50"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-indigo-600' : ''}`} />
-              <span>{isRefreshing ? 'Đang làm mới...' : 'Làm mới số liệu'}</span>
+              <span>{isRefreshing ? 'Đang làm mới...' : 'Làm mới'}</span>
             </button>
 
             <button

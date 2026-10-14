@@ -18,9 +18,7 @@ import {
   Trash2,
   Camera,
   Image as ImageIcon,
-  Filter,
   Check,
-  Eraser,
   Download,
   AlertCircle,
   KeyRound,
@@ -32,8 +30,7 @@ import { downloadDocxFile } from '../utils/documentExport';
 import {
   extractVocabularyWithFallback,
   getStoredApiKey,
-  getStoredModel,
-  isRedundantVocabItem
+  getStoredModel
 } from '../services/geminiService';
 
 interface ExamExtractorProps {
@@ -100,8 +97,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   } | null>(null);
   const [uploadedPdfBase64, setUploadedPdfBase64] = useState<string | null>(null);
   const [prioritizeHighlights, setPrioritizeHighlights] = useState<boolean>(true);
-  const [filterOnlyHighlighted, setFilterOnlyHighlighted] = useState<boolean>(false);
-  const [extractionMode, setExtractionMode] = useState<'strict_highlight' | 'smart_filter'>('strict_highlight');
+  const extractionMode = 'strict_highlight';
 
   // Internal step tracker
   const [steps, setSteps] = useState<StepInfo[]>([
@@ -146,22 +142,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
       next.delete(id);
       return next;
     });
-  };
-
-  const handleFilterRedundantWords = () => {
-    const filtered = extractedList.filter((item) => !isRedundantVocabItem(item));
-    setExtractedList(filtered);
-    setSelectedWordIds(new Set(filtered.map((item) => item.id)));
-  };
-
-  const handleFilterRemoveBasicWords = () => {
-    const filtered = extractedList.filter((item) => {
-      if (isRedundantVocabItem(item)) return false;
-      if (item.type === 'Single word' && item.cefrLevel === 'B1') return false;
-      return true;
-    });
-    setExtractedList(filtered);
-    setSelectedWordIds(new Set(filtered.map((item) => item.id)));
   };
 
   const updateStepStatus = (
@@ -230,9 +210,8 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
     ]);
 
     try {
-      // Tối ưu tốc độ: Chỉ gửi base64 cho ảnh chụp hoặc tệp scan không có chữ.
-      // Với tệp PDF đã bóc tách được 18.000 ký tự chữ, gửi trực tiếp text giúp AI xử lý chỉ mất 2-3s thay vì >60s.
-      const base64ToSend = (uploadedFileType === 'image' || !examText.trim()) ? (uploadedPdfBase64 || undefined) : undefined;
+      // Đảm bảo gửi base64 cho ảnh chụp hoặc tệp PDF để AI Gemini Vision nhìn thấy trực tiếp vệt bút dạ quang tô vàng
+      const base64ToSend = uploadedPdfBase64 || undefined;
 
       const result = await extractVocabularyWithFallback(
         examText || (uploadedFileType === 'image' ? 'Ảnh chụp đề thi giấy' : 'Nội dung đề thi từ tệp PDF'),
@@ -252,12 +231,16 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
         base64ToSend,
         prioritizeHighlights,
         uploadedFileMime,
-        uploadedFileType === 'image'
+        true
       );
 
+      // CHỈ SHOW ĐÚNG NHỮNG TỪ ĐƯỢC TÔ VÀNG (BÚT HIGHLIGHT)
+      const highlightedOnly = result.vocabulary.filter((w) => w.isHighlighted);
+      const finalVocab = highlightedOnly.length > 0 ? highlightedOnly : result.vocabulary;
+
       // On complete success
-      setExtractedList(result.vocabulary);
-      setSelectedWordIds(new Set(result.vocabulary.map((w) => w.id)));
+      setExtractedList(finalVocab);
+      setSelectedWordIds(new Set(finalVocab.map((w) => w.id)));
       setAiSummary(result.summary);
       setFallbackNotice(null);
     } catch (err: any) {
@@ -582,9 +565,7 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
   };
 
   const highlightedCount = extractedList.filter((item) => item.isHighlighted).length;
-  const displayedList = filterOnlyHighlighted
-    ? extractedList.filter((item) => item.isHighlighted)
-    : extractedList;
+  const displayedList = extractedList;
 
   return (
     <div className="space-y-6">
@@ -934,30 +915,6 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
                   ? 'Bỏ chọn'
                   : 'Chọn tất cả'}
               </button>
-
-              <span className="text-slate-300 mx-0.5">|</span>
-
-              {/* Lọc sạch từ thừa button */}
-              <button
-                type="button"
-                onClick={handleFilterRedundantWords}
-                title="Quét và loại bỏ ngay các từ thừa, từ chỉ thị câu hỏi hoặc giới từ vô nghĩa"
-                className="px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-              >
-                <Eraser className="w-3.5 h-3.5 text-rose-600" />
-                <span>🧹 Lọc từ thừa</span>
-              </button>
-
-              {/* Chỉ giữ từ điểm 8+ 9+ button */}
-              <button
-                type="button"
-                onClick={handleFilterRemoveBasicWords}
-                title="Chỉ giữ lại cụm từ (Collocations, Phrasal verbs, Idioms) và từ học thuật B2-C1"
-                className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold flex items-center gap-1 transition-all cursor-pointer"
-              >
-                <Filter className="w-3.5 h-3.5 text-indigo-600" />
-                <span>🎯 Chỉ giữ từ điểm 8+ 9+</span>
-              </button>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -1024,40 +981,10 @@ export const ExamExtractor: React.FC<ExamExtractorProps> = ({
               </span>
               {highlightedCount > 0 && (
                 <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-300 text-amber-950 border border-amber-400 shadow-2xs">
-                  ⭐ {highlightedCount} từ dùng bút highlight
+                  ⭐ {highlightedCount} từ tô bút highlight dạ quang
                 </span>
               )}
             </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Filter buttons if any highlighted items exist */}
-            {highlightedCount > 0 && (
-              <div className="flex items-center gap-1 bg-slate-200/80 p-0.5 rounded-lg mr-1">
-                <button
-                  type="button"
-                  onClick={() => setFilterOnlyHighlighted(false)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                    !filterOnlyHighlighted
-                      ? 'bg-white text-slate-900 shadow-2xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Tất cả ({extractedList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFilterOnlyHighlighted(true)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-                    filterOnlyHighlighted
-                      ? 'bg-amber-300 text-amber-950 shadow-2xs font-bold'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  <span>⭐ Từ bút highlight ({highlightedCount})</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
 

@@ -799,8 +799,8 @@ export async function extractVocabularyWithFallback(
       : `Categorize all items into the 5 standard categories: 'Single word', 'Phrasal verb', 'Collocation', 'Idiom', 'Preposition'.`;
 
   const isImage = Boolean(fileMimeType && fileMimeType.startsWith('image/'));
-  // If strictHighlightOnly is selected OR it's an image, we enforce strict highlight-only extraction
-  const isStrictHighlight = strictHighlightOnly || isImage;
+  // If strictHighlightOnly is selected OR it's an image OR prioritizeHighlights is true, enforce strict highlight-only extraction
+  const isStrictHighlight = strictHighlightOnly || isImage || prioritizeHighlights;
 
   let highlightSection = '';
   if (isStrictHighlight) {

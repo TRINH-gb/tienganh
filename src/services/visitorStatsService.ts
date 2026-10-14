@@ -52,6 +52,32 @@ export function detectDeviceType(): 'desktop' | 'mobile' | 'tablet' {
   return 'desktop';
 }
 
+export function generateContiguousDailyStats(todayVisits: number = 42, todayUnique: number = 18): Array<{ date: string; visits: number; unique: number }> {
+  const result: Array<{ date: string; visits: number; unique: number }> = [];
+  const baseCounts = [142, 168, 185, 172, 210, 195];
+  const baseUniques = [52, 60, 68, 62, 78, 71];
+
+  for (let i = 6; i >= 1; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const idx = 6 - i;
+    result.push({
+      date: dateStr,
+      visits: baseCounts[idx % baseCounts.length],
+      unique: baseUniques[idx % baseUniques.length]
+    });
+  }
+
+  result.push({
+    date: getTodayDateVN(),
+    visits: todayVisits,
+    unique: todayUnique
+  });
+
+  return result;
+}
+
 // Default baseline data in case server is starting up or in static preview mode
 export const DEFAULT_VISITOR_STATS: VisitorStats = {
   totalVisits: 1280,
@@ -59,15 +85,7 @@ export const DEFAULT_VISITOR_STATS: VisitorStats = {
   todayVisits: 42,
   activeNow: 2,
   lastVisitAt: new Date().toISOString(),
-  dailyStats: [
-    { date: '2026-09-29', visits: 164, unique: 58 },
-    { date: '2026-09-30', visits: 178, unique: 62 },
-    { date: '2026-10-01', visits: 195, unique: 71 },
-    { date: '2026-10-02', visits: 182, unique: 65 },
-    { date: '2026-10-03', visits: 210, unique: 79 },
-    { date: '2026-10-04', visits: 198, unique: 74 },
-    { date: getTodayDateVN(), visits: 42, unique: 18 }
-  ],
+  dailyStats: generateContiguousDailyStats(42, 18),
   deviceStats: {
     desktop: 782,
     mobile: 448,
@@ -314,10 +332,50 @@ export function useVisitorStats() {
     }
   }, []);
 
+  const calibrate = useCallback(async (newTotal: number) => {
+    const updated = await calibrateVisitorStats(newTotal);
+    setStats(updated);
+  }, []);
+
   return {
     stats,
     isLoading,
     isRefreshing,
-    refresh
+    refresh,
+    calibrate
   };
 }
+
+/**
+ * Calibrate the baseline total visit count (useful for teachers/admins setting starting milestone)
+ */
+export async function calibrateVisitorStats(newTotal: number): Promise<VisitorStats> {
+  const current = getCachedVisitorStats();
+  const safeTotal = Math.max(0, Math.floor(newTotal));
+  const newUnique = Math.max(1, Math.round(safeTotal * 0.36));
+
+  const updated: VisitorStats = {
+    ...current,
+    totalVisits: safeTotal,
+    uniqueVisitors: newUnique,
+    deviceStats: {
+      desktop: Math.round(safeTotal * 0.61),
+      mobile: Math.round(safeTotal * 0.35),
+      tablet: Math.max(0, safeTotal - Math.round(safeTotal * 0.61) - Math.round(safeTotal * 0.35))
+    }
+  };
+
+  setCachedVisitorStats(updated);
+  notifyListeners(updated);
+
+  try {
+    await fetch('/api/visitor-stats/calibrate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ totalVisits: safeTotal })
+    });
+  } catch {}
+
+  return updated;
+}
+
